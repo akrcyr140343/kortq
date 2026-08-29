@@ -50,26 +50,26 @@ export function PinModal({ onClose }: { onClose: () => void }) {
   // Rendered through a portal to <body> so the fixed overlay is positioned
   // against the viewport, NOT the header. The header uses `backdrop-blur`, and
   // any ancestor with backdrop-filter/filter/transform becomes the containing
-  // block for position:fixed descendants — which previously trapped this modal
-  // inside the ~57px header and clipped it. Portalling escapes that context.
+  // block for position:fixed descendants — which would otherwise trap this modal
+  // inside the header and clip it. Portalling escapes that context.
   const modal = (
     // Outer element scrolls; inner min-h-dvh flex centers the card when there's
     // room and lets it scroll into view (top reachable) on short/landscape screens.
     <div
-      className="fixed inset-0 z-[100] overflow-y-auto bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] overflow-y-auto bg-slate-900/40 backdrop-blur-sm"
       onClick={onClose}
     >
       <div className="flex min-h-dvh items-center justify-center p-4">
         <div
-          className="w-full max-w-xs rounded-3xl border border-white/10 bg-neutral-900 p-6 shadow-2xl"
+          className="animate-pop w-full max-w-xs rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl"
           onClick={(e) => e.stopPropagation()}
         >
-          <h2 className="text-center text-lg font-semibold">ใส่ PIN แอดมิน</h2>
-          <p className="mt-1 text-center text-sm text-neutral-400">
+          <h2 className="text-center text-lg font-extrabold text-slate-800">ใส่ PIN แอดมิน</h2>
+          <p className="mt-1 text-center text-sm">
             {error ? (
-              <span className="text-rose-400">PIN ไม่ถูกต้อง ลองใหม่</span>
+              <span className="font-semibold text-rose-500">PIN ไม่ถูกต้อง ลองใหม่</span>
             ) : (
-              "ปลดล็อคเพื่อจัดการคิว"
+              <span className="text-slate-500">ปลดล็อคเพื่อจัดการคิว</span>
             )}
           </p>
 
@@ -77,8 +77,8 @@ export function PinModal({ onClose }: { onClose: () => void }) {
             {[0, 1, 2, 3].map((i) => (
               <span
                 key={i}
-                className={`h-4 w-4 rounded-full ${
-                  i < pin.length ? "bg-emerald-400" : "bg-neutral-700"
+                className={`h-4 w-4 rounded-full transition-colors ${
+                  i < pin.length ? "bg-emerald-500" : "bg-slate-200"
                 }`}
               />
             ))}
@@ -91,7 +91,7 @@ export function PinModal({ onClose }: { onClose: () => void }) {
                   <button
                     key={key}
                     onClick={() => press(key)}
-                    className="h-16 rounded-2xl bg-neutral-800 text-sm font-medium text-neutral-300 active:bg-neutral-700"
+                    className="h-16 rounded-2xl bg-slate-100 text-sm font-bold text-slate-500 transition active:scale-95 hover:bg-slate-200"
                   >
                     ล้าง
                   </button>
@@ -102,7 +102,7 @@ export function PinModal({ onClose }: { onClose: () => void }) {
                   <button
                     key={key}
                     onClick={() => press(key)}
-                    className="h-16 rounded-2xl bg-neutral-800 text-2xl text-neutral-300 active:bg-neutral-700"
+                    className="h-16 rounded-2xl bg-slate-100 text-2xl text-slate-500 transition active:scale-95 hover:bg-slate-200"
                   >
                     ⌫
                   </button>
@@ -112,7 +112,7 @@ export function PinModal({ onClose }: { onClose: () => void }) {
                 <button
                   key={key}
                   onClick={() => press(key)}
-                  className="h-16 rounded-2xl bg-neutral-800 text-2xl font-semibold active:bg-neutral-700"
+                  className="h-16 rounded-2xl bg-slate-100 text-2xl font-bold text-slate-800 transition active:scale-95 hover:bg-slate-200"
                 >
                   {key}
                 </button>
@@ -122,7 +122,7 @@ export function PinModal({ onClose }: { onClose: () => void }) {
 
           <button
             onClick={onClose}
-            className="mt-4 h-12 w-full rounded-2xl text-sm font-medium text-neutral-400 active:text-neutral-200"
+            className="mt-4 h-12 w-full rounded-2xl text-sm font-semibold text-slate-400 transition hover:text-slate-600"
           >
             ยกเลิก
           </button>

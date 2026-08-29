@@ -28,8 +28,8 @@ export default function GlobalError({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#0a0a0b",
-          color: "#f4f4f5",
+          background: "#eef2f6",
+          color: "#0f172a",
           fontFamily: "system-ui, sans-serif",
           padding: "1.5rem",
         }}
@@ -37,7 +37,7 @@ export default function GlobalError({
         <div style={{ maxWidth: 360, textAlign: "center" }}>
           <div style={{ fontSize: 40 }}>😵</div>
           <h2 style={{ margin: "12px 0 4px", fontSize: 18 }}>เกิดข้อผิดพลาดร้ายแรง</h2>
-          <p style={{ color: "#a1a1aa", fontSize: 14, wordBreak: "break-word" }}>
+          <p style={{ color: "#64748b", fontSize: 14, wordBreak: "break-word" }}>
             {error?.message || "แอปทำงานผิดพลาด กรุณาโหลดหน้าใหม่"}
           </p>
           <button
@@ -49,7 +49,7 @@ export default function GlobalError({
               borderRadius: 16,
               border: "none",
               background: "#10b981",
-              color: "#0a0a0b",
+              color: "#ffffff",
               fontSize: 16,
               fontWeight: 700,
             }}

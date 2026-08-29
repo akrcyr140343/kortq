@@ -22,13 +22,13 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1, // keep the courtside UI stable — no pinch-zoom drift
-  themeColor: "#0a0a0b",
+  themeColor: "#eef2f6",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="th" className={`${geistSans.variable} ${notoThai.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col bg-background text-foreground">
+      <body className="min-h-full flex flex-col text-foreground">
         <AdminProvider>{children}</AdminProvider>
       </body>
     </html>

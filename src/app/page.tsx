@@ -6,6 +6,7 @@ import { useKortq } from "@/hooks/useKortq";
 import {
   assignToCourt,
   autoAssign,
+  randomAssign,
   deletePlayer,
   endSession,
   finishGame,
@@ -63,6 +64,17 @@ export default function Home() {
     [waiting],
   );
 
+  const handleRandom = useCallback(
+    async (courtId: string) => {
+      try {
+        await randomAssign(courtId, waiting);
+      } catch (e) {
+        window.alert(e instanceof Error ? e.message : "สุ่มผู้เล่นไม่สำเร็จ");
+      }
+    },
+    [waiting],
+  );
+
   const handleAssignSelected = useCallback(
     async (courtId: string) => {
       const chosen = waiting.filter((p) => selectedIds.has(p.id));
@@ -91,21 +103,21 @@ export default function Home() {
 
       {error ? (
         <div className="flex flex-1 items-center justify-center p-6">
-          <div className="w-full max-w-sm rounded-3xl border border-rose-500/30 bg-rose-500/[0.06] p-8 text-center">
+          <div className="w-full max-w-sm rounded-3xl border border-rose-200 bg-white p-8 text-center shadow-lg shadow-slate-200/60">
             <div className="text-4xl">⚠️</div>
-            <h2 className="mt-3 text-lg font-bold">เชื่อมต่อไม่สำเร็จ</h2>
-            <p className="mt-2 text-sm text-neutral-400">{error}</p>
+            <h2 className="mt-3 text-lg font-extrabold text-slate-800">เชื่อมต่อไม่สำเร็จ</h2>
+            <p className="mt-2 text-sm text-slate-500">{error}</p>
             <button
               onClick={() => window.location.reload()}
-              className="mt-6 h-12 w-full rounded-2xl bg-emerald-500 text-base font-bold text-neutral-950 active:bg-emerald-600"
+              className="mt-6 h-12 w-full rounded-2xl bg-emerald-500 text-base font-bold text-white transition active:scale-[0.98] hover:bg-emerald-600"
             >
               ลองใหม่
             </button>
           </div>
         </div>
       ) : loading ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 text-neutral-500">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-neutral-700 border-t-emerald-400" />
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 text-slate-400">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-emerald-500" />
           <span>กำลังโหลด…</span>
         </div>
       ) : !sessionActive ? (
@@ -114,7 +126,7 @@ export default function Home() {
         <main className="mx-auto w-full max-w-7xl flex-1 gap-6 p-4 lg:grid lg:grid-cols-[1fr_360px]">
           {/* Courts */}
           <section className="space-y-4">
-            <h2 className="text-sm font-bold uppercase tracking-wide text-neutral-400">คอร์ต</h2>
+            <h2 className="text-sm font-extrabold uppercase tracking-wide text-slate-500">คอร์ต</h2>
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {courts.map((court) => (
                 <CourtCard
@@ -125,6 +137,7 @@ export default function Home() {
                   waitingCount={waiting.length}
                   selectedCount={selectedIds.size}
                   onAuto={handleAuto}
+                  onRandom={handleRandom}
                   onAssignSelected={handleAssignSelected}
                   onFinish={handleFinish}
                 />
@@ -150,14 +163,14 @@ export default function Home() {
 
       {/* Sticky selection bar for manual matchmaking */}
       {isAdmin && sessionActive && selectedIds.size > 0 && (
-        <div className="sticky bottom-0 z-20 border-t border-white/10 bg-neutral-950/90 px-4 py-3 backdrop-blur">
+        <div className="animate-fade-in sticky bottom-0 z-20 border-t border-slate-200 bg-white/90 px-4 py-3 backdrop-blur">
           <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
-            <span className="text-sm font-semibold text-sky-300">
+            <span className="text-sm font-bold text-sky-700">
               เลือกแล้ว {selectedIds.size}/4 คน — แตะปุ่ม &quot;ลงคอร์ตนี้&quot; บนคอร์ตว่าง
             </span>
             <button
               onClick={() => setSelectedIds(new Set())}
-              className="h-10 shrink-0 rounded-xl bg-neutral-800 px-4 text-sm font-semibold active:bg-neutral-700"
+              className="h-10 shrink-0 rounded-xl bg-slate-100 px-4 text-sm font-bold text-slate-600 transition active:scale-95 hover:bg-slate-200"
             >
               ยกเลิก
             </button>

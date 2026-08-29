@@ -1,6 +1,7 @@
 // Domain types for KortQ
 
-export type Skill = "S" | "A" | "B" | "C";
+// Skill tiers, weakest → strongest. BG = beginner (มือใหม่), S = strongest (เก่งสุด).
+export type Skill = "BG" | "BG+" | "N" | "S";
 
 export type PlayerStatus = "waiting" | "playing" | "resting";
 
@@ -8,9 +9,10 @@ export interface Player {
   id: string;
   name: string;
   skill: Skill;
-  score: number; // derived from skill: S=4, A=3, B=2, C=1
+  score: number; // derived from skill: BG=1, BG+=2, N=3, S=4 (used for matchmaking only)
   status: PlayerStatus;
   courtId: string | null; // set while status === "playing"
+  gamesPlayed: number; // number of games finished this session
   createdAt: number; // ms — first time added
   queuedAt: number; // ms — last time entered the waiting queue (used for FIFO fairness)
 }
@@ -20,7 +22,7 @@ export interface Court {
   index: number; // 1-based court number
   teamA: string[]; // player ids
   teamB: string[]; // player ids
-  startedAt: number | null;
+  startedAt: number | null; // ms when the current game started (drives the court timer)
 }
 
 export interface Session {
@@ -30,18 +32,19 @@ export interface Session {
 }
 
 export const SKILL_SCORE: Record<Skill, number> = {
+  BG: 1,
+  "BG+": 2,
+  N: 3,
   S: 4,
-  A: 3,
-  B: 2,
-  C: 1,
 };
 
-export const SKILLS: Skill[] = ["S", "A", "B", "C"];
+// Order shown in the skill picker (weakest → strongest).
+export const SKILLS: Skill[] = ["BG", "BG+", "N", "S"];
 
-// Tailwind classes for each skill badge.
+// Tailwind classes for each skill badge (light theme — soft tint + readable text).
 export const SKILL_STYLE: Record<Skill, string> = {
-  S: "bg-amber-500/20 text-amber-300 ring-amber-500/40",
-  A: "bg-rose-500/20 text-rose-300 ring-rose-500/40",
-  B: "bg-sky-500/20 text-sky-300 ring-sky-500/40",
-  C: "bg-emerald-500/20 text-emerald-300 ring-emerald-500/40",
+  BG: "bg-sky-100 text-sky-700 ring-sky-300",
+  "BG+": "bg-teal-100 text-teal-700 ring-teal-300",
+  N: "bg-amber-100 text-amber-700 ring-amber-300",
+  S: "bg-rose-100 text-rose-700 ring-rose-300",
 };

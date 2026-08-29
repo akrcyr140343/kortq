@@ -2,6 +2,7 @@ import {
   collection,
   doc,
   getDocs,
+  increment,
   onSnapshot,
   orderBy,
   query,
@@ -11,7 +12,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { SKILL_SCORE, type Court, type Player, type Session, type Skill, type PlayerStatus } from "./types";
-import { balanceTeams } from "./matchmaking";
+import { balanceTeams, shuffle } from "./matchmaking";
 
 // ---- Firestore paths -------------------------------------------------------
 // A single active session lives at sessions/current, with players and courts
@@ -113,6 +114,7 @@ export async function addPlayer(name: string, skill: Skill): Promise<void> {
     score: SKILL_SCORE[skill],
     status: "waiting",
     courtId: null,
+    gamesPlayed: 0,
     createdAt: now,
     queuedAt: now,
   } satisfies Omit<Player, "id">);
@@ -181,14 +183,34 @@ export async function autoAssign(targetCourtId: string, waiting: Player[]): Prom
   await assignToCourt(targetCourtId, four);
 }
 
-/** End the game on a court: everyone goes back to the waiting queue. */
+/**
+ * Fill an empty court with 4 RANDOM players drawn from the whole waiting queue
+ * (not just the front), then balance them into two even teams.
+ */
+export async function randomAssign(targetCourtId: string, waiting: Player[]): Promise<void> {
+  if (waiting.length < 4) {
+    throw new Error("ต้องมีผู้เล่นในคิว 'รอ' อย่างน้อย 4 คน");
+  }
+  const four = shuffle(waiting).slice(0, 4);
+  await assignToCourt(targetCourtId, four);
+}
+
+/**
+ * End the game on a court: everyone goes back to the waiting queue and their
+ * gamesPlayed count is incremented by 1.
+ */
 export async function finishGame(targetCourtId: string, playersOnCourt: Player[]): Promise<void> {
   const now = Date.now();
   const batch = writeBatch(db);
   batch.update(courtRef(targetCourtId), { teamA: [], teamB: [], startedAt: null });
   for (const p of playersOnCourt) {
-    // Push finished players to the back of the queue for fairness.
-    batch.update(playerRef(p.id), { status: "waiting", courtId: null, queuedAt: now });
+    // Push finished players to the back of the queue for fairness, +1 game.
+    batch.update(playerRef(p.id), {
+      status: "waiting",
+      courtId: null,
+      queuedAt: now,
+      gamesPlayed: increment(1),
+    });
   }
   await batch.commit();
 }

@@ -10,6 +10,16 @@ function sum(players: Player[]): number {
   return players.reduce((total, p) => total + p.score, 0);
 }
 
+/** Fisher–Yates shuffle on a copy (does not mutate the input). */
+export function shuffle<T>(items: readonly T[]): T[] {
+  const arr = [...items];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 /**
  * Split exactly 4 players into two 2-player teams so the total-score
  * difference between the teams is as small as possible.
