@@ -1,0 +1,21 @@
+rules_version = '2';
+
+// ⚠️ SECURITY NOTE
+// KortQ has no Firebase Auth — the admin "PIN 1234" gate is enforced only in
+// the browser (see src/context/AdminContext.tsx). These rules therefore allow
+// any client with the app's config to read AND write the single active session.
+//
+// This is acceptable for a trusted courtside LAN where only the club's iPad and
+// members' phones use the app. If you deploy publicly, add Firebase Auth and
+// restrict `write` to authenticated admins instead.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // The whole app lives under sessions/current (+ players/courts subcollections).
+    match /sessions/{sessionId} {
+      allow read, write: if true;
+      match /{document=**} {
+        allow read, write: if true;
+      }
+    }
+  }
+}

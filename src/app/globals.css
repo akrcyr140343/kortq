@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+/* KortQ is a dark-only app (used courtside on iPad + phones). */
+:root {
+  --background: #0a0a0b;
+  --foreground: #f4f4f5;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-noto-thai), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+html {
+  color-scheme: dark;
+  /* Avoid the iOS Safari 300ms tap delay / accidental zoom on double-tap. */
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  /* Prevent long-press text selection wobble when tapping controls fast. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Disable text selection on interactive controls for a more app-like feel. */
+button {
+  -webkit-user-select: none;
+  user-select: none;
+}
