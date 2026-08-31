@@ -86,6 +86,7 @@ export async function startSession(courtCount: number): Promise<void> {
     active: true,
     courtCount,
     createdAt: Date.now(),
+    feePerHead: 0,
   } satisfies Session);
   for (let i = 1; i <= courtCount; i++) {
     batch.set(courtRef(courtId(i)), {
@@ -117,6 +118,8 @@ export async function addPlayer(name: string, skill: Skill): Promise<void> {
     gamesPlayed: 0,
     createdAt: now,
     queuedAt: now,
+    paid: false,
+    paidAt: null,
   } satisfies Omit<Player, "id">);
 }
 
@@ -152,6 +155,30 @@ export async function setPlayerResting(id: string, resting: boolean): Promise<vo
     { status, queuedAt: Date.now(), courtId: null },
     { merge: true },
   );
+}
+
+// ---- Payments --------------------------------------------------------------
+// Manual, admin-verified settlement. No bank API: the admin sees a slip in the
+// LINE group and flips the player's status here. Rides the existing player
+// subscription, so every device updates in real time.
+
+/** Set the per-head court fee for the current session (baht). */
+export async function setSessionFee(feePerHead: number): Promise<void> {
+  await setDoc(sessionRef, { feePerHead: Math.max(0, Math.round(feePerHead)) }, { merge: true });
+}
+
+/** Flip one player's payment status (paid ⇄ unpaid). */
+export async function setPlayerPaid(id: string, paid: boolean): Promise<void> {
+  await setDoc(playerRef(id), { paid, paidAt: paid ? Date.now() : null }, { merge: true });
+}
+
+/** Clear every player's payment status — a fresh collection round. */
+export async function resetPayments(players: Player[]): Promise<void> {
+  const batch = writeBatch(db);
+  for (const p of players) {
+    batch.update(playerRef(p.id), { paid: false, paidAt: null });
+  }
+  await batch.commit();
 }
 
 // ---- Matchmaking -----------------------------------------------------------
@@ -193,6 +220,20 @@ export async function randomAssign(targetCourtId: string, waiting: Player[]): Pr
   }
   const four = shuffle(waiting).slice(0, 4);
   await assignToCourt(targetCourtId, four);
+}
+
+/**
+ * Remove players from a court without counting a game — for fixing a
+ * mis-assignment. Players return to their original queue position (queuedAt
+ * is not updated) and gamesPlayed is not incremented.
+ */
+export async function removeFromCourt(targetCourtId: string, playersOnCourt: Player[]): Promise<void> {
+  const batch = writeBatch(db);
+  batch.update(courtRef(targetCourtId), { teamA: [], teamB: [], startedAt: null });
+  for (const p of playersOnCourt) {
+    batch.update(playerRef(p.id), { status: "waiting", courtId: null });
+  }
+  await batch.commit();
 }
 
 /**

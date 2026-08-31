@@ -1,8 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
+import { motion } from "framer-motion";
 import { useAdmin } from "@/context/AdminContext";
 import { startSession } from "@/lib/db";
+import { press, staggerDelay } from "./motion";
+import { E3 } from "./ui";
 
 export function StartSession() {
   const { isAdmin } = useAdmin();
@@ -19,39 +23,82 @@ export function StartSession() {
   }
 
   return (
-    <div className="flex flex-1 items-center justify-center p-6">
-      <div className="animate-fade-in w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-lg shadow-slate-200/60">
-        <div className="text-6xl">🏸</div>
-        <h1 className="mt-4 text-2xl font-extrabold text-slate-800">ยังไม่มี Session</h1>
+    <div className="flex flex-1 items-center justify-center p-4 sm:p-6">
+      <div className={`${E3} anim-enter relative w-full max-w-2xl overflow-hidden rounded-[32px] p-6 sm:p-9`}>
+        <div aria-hidden className="absolute -right-14 -top-16 h-52 w-52 rounded-full bg-mint-wash blur-2xl" />
+        <div aria-hidden className="absolute -bottom-20 -left-16 h-56 w-56 rounded-full bg-coral-wash blur-2xl" />
+        <div className="anim-pop relative mb-5 grid h-16 w-16 place-items-center overflow-hidden rounded-[22px] bg-white shadow-[0_18px_34px_-16px_rgba(29,51,34,0.55)]">
+          <Image src="/kd-logo.png" alt="โลโก้ KD KHONDEE-TEEBAD" fill sizes="64px" className="object-cover" priority />
+        </div>
 
-        {isAdmin ? (
+        <span className="anim-enter relative block text-xs font-extrabold tracking-[0.18em] text-mint-deep" style={staggerDelay(1)}>
+          KD CLUB · LET&apos;S PLAY
+        </span>
+
+        <h1
+          className="anim-enter display relative mt-3 text-h2 leading-[1.05] text-ink sm:text-h1"
+          style={staggerDelay(2)}
+        >
+          {isAdmin ? "เปิดสนามกันเลย" : "ยังไม่เปิดสนาม"}
+        </h1>
+
+        <p className="anim-enter relative mt-3 max-w-md text-body leading-relaxed text-ink-2 sm:text-lede" style={staggerDelay(3)}>
+          {isAdmin
+            ? "เลือกจำนวนคอร์ตวันนี้ แล้วเริ่มจัดคิวได้เลย 🏸"
+            : "รอแอดมินเปิดสนามอยู่นะ อีกเดี๋ยวก็ได้ตีแล้ว"}
+        </p>
+
+        {isAdmin && (
           <>
-            <p className="mt-2 text-slate-500">เลือกจำนวนคอร์ตเพื่อเริ่มวันตีใหม่</p>
-            <div className="mt-6 grid grid-cols-2 gap-3">
-              {[2, 3].map((n) => (
-                <button
-                  key={n}
-                  onClick={() => setCourtCount(n)}
-                  className={`h-24 rounded-2xl border-2 text-lg font-extrabold transition active:scale-95 ${
-                    courtCount === n
-                      ? "border-emerald-400 bg-emerald-50 text-emerald-700 shadow-sm"
-                      : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
-                  }`}
-                >
-                  {n} คอร์ต
-                </button>
-              ))}
+            <div className="anim-enter relative mt-7 grid grid-cols-2 gap-3" style={staggerDelay(4)}>
+              {[2, 3].map((n) => {
+                const active = courtCount === n;
+                return (
+                  <motion.button
+                    key={n}
+                    whileTap={press}
+                    onClick={() => setCourtCount(n)}
+                    className={`relative flex h-32 flex-col items-center justify-center overflow-hidden rounded-[22px] border transition-all duration-200 ${
+                      active
+                        ? "-translate-y-1 border-mint-deep/25 bg-mint-wash shadow-[0_18px_28px_-18px_rgba(84,117,0,0.55)]"
+                        : "border-line bg-surface-2 hover:-translate-y-0.5 hover:border-accent/20 hover:bg-white"
+                    }`}
+                  >
+                    <span
+                      aria-hidden
+                      className={`pointer-events-none absolute inset-4 rounded-[12px] border ${
+                        active ? "border-mint-deep/25" : "border-line-2/70"
+                      }`}
+                    />
+                    <span
+                      aria-hidden
+                      className={`pointer-events-none absolute inset-y-4 left-1/2 w-px ${
+                        active ? "bg-mint-deep/25" : "bg-line-2"
+                      }`}
+                    />
+                    <span
+                      className={`numeral relative text-h3 leading-none ${
+                        active ? "text-mint-deep" : "text-ink"
+                      }`}
+                    >
+                      {String(n).padStart(2, "0")}
+                    </span>
+                    <span className="eyebrow relative mt-2 text-ink-3">คอร์ต</span>
+                  </motion.button>
+                );
+              })}
             </div>
-            <button
+
+            <motion.button
+              whileTap={press}
               onClick={handleStart}
               disabled={busy}
-              className="mt-6 h-14 w-full rounded-2xl bg-emerald-500 text-lg font-bold text-white transition active:scale-[0.98] hover:bg-emerald-600 disabled:opacity-50"
+              style={staggerDelay(5)}
+              className="lime-button shine-button anim-enter relative mt-3 h-14 w-full rounded-[18px] text-body font-extrabold transition-all duration-200 hover:-translate-y-0.5 disabled:bg-none disabled:bg-line disabled:text-ink-4 disabled:shadow-none"
             >
-              {busy ? "กำลังเริ่ม…" : "เริ่ม Session"}
-            </button>
+              {busy ? "กำลังเปิดสนาม…" : "เปิดสนาม — ลุยเลย!  →"}
+            </motion.button>
           </>
-        ) : (
-          <p className="mt-2 text-slate-500">รอแอดมินเริ่ม session ข้างสนาม</p>
         )}
       </div>
     </div>

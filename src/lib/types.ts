@@ -15,6 +15,8 @@ export interface Player {
   gamesPlayed: number; // number of games finished this session
   createdAt: number; // ms — first time added
   queuedAt: number; // ms — last time entered the waiting queue (used for FIFO fairness)
+  paid?: boolean; // court-fee settlement for this session (admin-verified, manual)
+  paidAt?: number | null; // ms when marked paid
 }
 
 export interface Court {
@@ -29,6 +31,7 @@ export interface Session {
   active: boolean;
   courtCount: number; // 2 or 3
   createdAt: number;
+  feePerHead?: number; // baht each player owes for the session (0 = not set yet)
 }
 
 export const SKILL_SCORE: Record<Skill, number> = {

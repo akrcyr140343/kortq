@@ -1,61 +1,482 @@
 @import "tailwindcss";
 
-/* KortQ — bright, lively badminton theme (light). */
+/* KortQ x KD — courtside daylight system
+   Warm paper and grass tints keep the app bright; forest green is reserved
+   for focal panels, while electric lime makes every important action obvious. */
+
 :root {
-  --background: #eef2f6; /* soft cool gray */
-  --foreground: #0f172a; /* slate-900 */
+  /* Surfaces */
+  --canvas: #f4f6ed;
+  --surface: #ffffff;
+  --surface-2: #f8faf3;
+
+  /* Ink ladder — four steps, each a real contrast jump */
+  --ink: #142017;
+  --ink-2: #48564a;
+  --ink-3: #778078;
+  --ink-4: #a6ada7;
+
+  /* Hairlines — always lighter than the fill they sit on */
+  --line: #e7eadf;
+  --line-2: #d9dfd2;
+
+  /* Forest is structure; lime is action. */
+  --accent: #1d3322;
+  --accent-2: #31523a;
+  --accent-deep: #102318;
+  --accent-wash: #edf4e8;
+
+  --mint: #b8f23d;
+  --mint-deep: #547500;
+  --mint-wash: #f0fbd9;
+  --coral: #f5a623;
+  --coral-deep: #bd6c00;
+  --coral-wash: #fff4df;
+  --sky: #8fb2a0;
+  --sky-deep: #496f5c;
+  --sky-wash: #edf5ef;
+  --sun: #ffd45c;
+  --sun-wash: #fff8d9;
+
+  --alert: #ed4665;
+  --alert-wash: #fff0f3;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-noto-thai), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-ink-4: var(--ink-4);
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-accent-deep: var(--accent-deep);
+  --color-accent-wash: var(--accent-wash);
+  --color-mint: var(--mint);
+  --color-mint-deep: var(--mint-deep);
+  --color-mint-wash: var(--mint-wash);
+  --color-coral: var(--coral);
+  --color-coral-deep: var(--coral-deep);
+  --color-coral-wash: var(--coral-wash);
+  --color-sky: var(--sky);
+  --color-sky-deep: var(--sky-deep);
+  --color-sky-wash: var(--sky-wash);
+  --color-sun: var(--sun);
+  --color-sun-wash: var(--sun-wash);
+  --color-alert: var(--alert);
+  --color-alert-wash: var(--alert-wash);
+
+  --font-sans: var(--font-noto-thai), var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-outfit), var(--font-noto-thai), ui-sans-serif, system-ui, sans-serif;
+
+  /* Type scale — 11/14/17/21/26/32/40/56/72. Steps of 3,3,4,5,6,8,16,16:
+     no two sizes sit 2px apart, so any pair that lands side by side in the
+     same block reads as a deliberate difference rather than a mistake. */
+  --text-eyebrow: 0.6875rem;
+  --text-caption: 0.875rem;
+  --text-body: 1.0625rem;
+  --text-lede: 1.3125rem;
+  --text-title: 1.625rem;
+  --text-h3: 2rem;
+  --text-h2: 2.5rem;
+  --text-h1: 3.5rem;
+  --text-mega: 4.5rem;
+
+  /* Radius scale — containers stop at 2xl; nothing is a pill */
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+  --radius-2xl: 32px;
 }
 
 html {
   color-scheme: light;
-  /* Avoid the iOS Safari 300ms tap delay / accidental zoom on double-tap. */
   touch-action: manipulation;
   -webkit-text-size-adjust: 100%;
 }
 
 body {
   background:
-    radial-gradient(1200px 600px at 100% -10%, #d1fae5 0%, transparent 55%),
-    radial-gradient(1000px 500px at -10% 0%, #dbeafe 0%, transparent 50%),
-    var(--background);
-  background-attachment: fixed;
-  color: var(--foreground);
+    linear-gradient(rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.34)),
+    var(--canvas);
+  color: var(--ink);
   font-family: var(--font-sans);
-  /* Prevent long-press text selection wobble when tapping controls fast. */
   -webkit-tap-highlight-color: transparent;
+  overflow-x: hidden;
+  overscroll-behavior-y: none;
 }
 
-/* Disable text selection on interactive controls for a more app-like feel. */
+/* Pastel wash — white → mint → sky, breathing on a 30s cycle. Three
+   two-stop gradients; the movement is slow enough to read as light,
+   not as animation. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -25%;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(38rem 30rem at 8% 8%, rgba(184, 242, 61, 0.16), transparent 64%),
+    radial-gradient(46rem 34rem at 90% 5%, rgba(143, 178, 160, 0.15), transparent 65%),
+    radial-gradient(40rem 32rem at 65% 96%, rgba(245, 166, 35, 0.1), transparent 66%),
+    radial-gradient(30rem 25rem at 35% 60%, rgba(29, 51, 34, 0.06), transparent 70%);
+  animation: kq-wash 24s ease-in-out infinite alternate;
+}
+
+@keyframes kq-wash {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(2.5%, -2%, 0) scale(1.08);
+  }
+}
+
 button {
   -webkit-user-select: none;
   user-select: none;
 }
 
-/* ---- Micro-animations ---------------------------------------------------- */
-@keyframes kq-pop {
-  0% { transform: scale(0.85); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
-}
-@keyframes kq-fade-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: none; }
-}
-@keyframes kq-live {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
+/* ═══ Typography ═══════════════════════════════════════════════════ */
+
+.display {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
 }
 
-.animate-pop { animation: kq-pop 0.18s ease-out; }
-.animate-fade-in { animation: kq-fade-in 0.28s ease-out both; }
-/* Soft "live" blink for the playing indicator dot. */
-.animate-live { animation: kq-live 1.4s ease-in-out infinite; }
+.numeral {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Small uppercase label — carries hierarchy so icons don't have to. */
+.eyebrow {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.6875rem;
+  line-height: 1;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* ═══ Elevation — three genuinely different shadows ════════════════
+   e1 sits on the page, e2 lifts off it, e3 floats above everything.
+   Each pairs with a hairline that is lighter than its own fill, so
+   border and background never collapse into one tone.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.e1 {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(217, 223, 210, 0.84);
+  box-shadow: 0 8px 24px -18px rgba(29, 51, 34, 0.28);
+}
+
+.e2 {
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(217, 223, 210, 0.88);
+  box-shadow:
+    0 20px 45px -30px rgba(29, 51, 34, 0.34),
+    0 8px 20px -16px rgba(143, 178, 160, 0.22);
+}
+
+.e3 {
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  box-shadow:
+    0 32px 70px -28px rgba(18, 40, 25, 0.34),
+    0 14px 30px -20px rgba(143, 178, 160, 0.26);
+}
+
+/* A court mid-game: the only surface allowed to glow. */
+.e-live {
+  background:
+    linear-gradient(150deg, rgba(184, 242, 61, 0.2), rgba(143, 178, 160, 0.08) 48%, rgba(255, 255, 255, 0) 72%),
+    var(--surface);
+  border: 1px solid rgba(84, 117, 0, 0.28);
+  box-shadow:
+    0 24px 52px -30px rgba(84, 117, 0, 0.42),
+    0 10px 28px -22px rgba(29, 51, 34, 0.32);
+}
+
+.glass {
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.88);
+  box-shadow: 0 18px 45px -34px rgba(29, 51, 34, 0.38);
+  backdrop-filter: blur(18px);
+}
+
+.soft-grid {
+  background-image:
+    linear-gradient(rgba(29, 51, 34, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(29, 51, 34, 0.035) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.club-panel {
+  background:
+    radial-gradient(circle at 88% 12%, rgba(184, 242, 61, 0.18), transparent 28%),
+    linear-gradient(135deg, #102318, #1d3322 62%, #294630);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 24px 52px -30px rgba(16, 35, 24, 0.72);
+}
+
+.lime-button {
+  background: linear-gradient(135deg, #c8ff54, #aee933);
+  color: #142017;
+  box-shadow: 0 14px 28px -16px rgba(121, 174, 12, 0.9);
+}
+
+.court-grain {
+  background-image:
+    linear-gradient(118deg, rgba(255, 255, 255, 0.28), transparent 35%),
+    repeating-linear-gradient(90deg, rgba(29, 51, 34, 0.018) 0 18px, transparent 18px 36px);
+}
+
+.app-bottom-nav {
+  bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+@media (display-mode: standalone) {
+  .app-safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
+.shine-button {
+  position: relative;
+  overflow: hidden;
+}
+
+.shine-button::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(110deg, transparent 20%, rgba(255, 255, 255, 0.32) 48%, transparent 76%);
+  transform: translateX(-120%);
+  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.shine-button:hover::after {
+  transform: translateX(120%);
+}
+
+/* ═══ Entrances ════════════════════════════════════════════════════
+   These are CSS rather than Framer variants. A hidden document freezes
+   every animation timeline, JS and CSS alike, so both approaches park
+   an entering element at opacity 0 until the tab is looked at again —
+   but the CSS one costs no per-element JS, needs no variant plumbing
+   through the tree, and can be inspected and driven via getAnimations().
+
+   `backwards` fill and nothing else: the "from" state holds during the
+   stagger delay, and once the run ends no animated value lingers — so
+   the hover lift applied later is not permanently overridden.
+   ═══════════════════════════════════════════════════════════════════ */
+
+@keyframes kq-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+}
+
+@keyframes kq-enter-x {
+  from {
+    opacity: 0;
+    transform: translate3d(20px, 0, 0);
+  }
+}
+
+@keyframes kq-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.9) translateY(6px);
+  }
+  62% {
+    opacity: 1;
+    transform: scale(1.035) translateY(0);
+  }
+}
+
+@keyframes kq-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 20px, 0);
+  }
+}
+
+.anim-enter,
+.anim-enter-x,
+.anim-pop,
+.anim-rise {
+  animation-duration: 0.3s;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  animation-fill-mode: backwards;
+}
+
+.anim-enter {
+  animation-name: kq-enter;
+}
+
+/* Queue rows arrive from the rail on the right. */
+.anim-enter-x {
+  animation-name: kq-enter-x;
+}
+
+/* A player landing in a court slot. */
+.anim-pop {
+  animation-name: kq-pop;
+}
+
+/* The selection bar rising from the bottom edge. */
+.anim-rise {
+  animation-name: kq-rise;
+}
+
+/* ═══ Micro-interactions — every one lands under 350ms ═════════════ */
+
+/* Court just filled: a single emerald wash across the card. */
+@keyframes kq-flash {
+  from {
+    background-color: rgba(16, 185, 129, 0.3);
+  }
+  to {
+    background-color: rgba(16, 185, 129, 0);
+  }
+}
+
+.flash-live::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  animation: kq-flash 0.34s ease-out forwards;
+}
+
+/* Empty court while players are selected: "drop them here". */
+@keyframes kq-tap {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 0 rgba(5, 150, 105, 0),
+      0 6px 16px -6px rgba(13, 26, 22, 0.1);
+  }
+  50% {
+    box-shadow:
+      0 0 0 7px rgba(5, 150, 105, 0.13),
+      0 6px 16px -6px rgba(13, 26, 22, 0.1);
+  }
+}
+
+.tap-ready {
+  border-color: rgba(5, 150, 105, 0.42);
+  animation: kq-tap 1.9s ease-in-out infinite;
+}
+
+/* Past 20 minutes the clock breathes red. An alert, so it may loop. */
+@keyframes kq-warn {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.animate-warn {
+  animation: kq-warn 1.6s ease-in-out infinite;
+}
+
+/* Live indicator dot — gentle proof the clock is running. */
+@keyframes kq-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.live-dot {
+  animation: kq-dot 2.4s ease-in-out infinite;
+}
+
+/* ═══ Ambient badminton field ══════════════════════════════════════
+   Pure CSS keyframes on a fixed, non-interactive layer. Per-item
+   duration/delay/size/drift arrive as inline custom properties so the
+   field never settles into a visible rhythm.
+   ═══════════════════════════════════════════════════════════════════ */
+
+@keyframes kq-drift {
+  0% {
+    transform: translate3d(0, 108vh, 0) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: var(--kq-op);
+  }
+  78% {
+    opacity: var(--kq-op);
+  }
+  100% {
+    transform: translate3d(var(--kq-drift), -20vh, 0) rotate(var(--kq-rot));
+    opacity: 0;
+  }
+}
+
+.kq-float {
+  position: absolute;
+  top: 0;
+  animation-name: kq-drift;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform, opacity;
+}
+
+/* ═══ Utilities ════════════════════════════════════════════════════ */
+
+.scroll-pane {
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-2) transparent;
+}
+
+.scroll-pane::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scroll-pane::-webkit-scrollbar-thumb {
+  background: var(--line-2);
+  border-radius: 8px;
+}
+
+.scroll-pane::-webkit-scrollbar-track {
+  background: transparent;
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-pop, .animate-fade-in, .animate-live { animation: none; }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .kq-float {
+    display: none;
+  }
 }

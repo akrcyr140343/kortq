@@ -19,23 +19,23 @@ export default function Error({
   }, [error]);
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-100 p-6 text-slate-800">
-      <div className="w-full max-w-sm rounded-3xl border border-rose-200 bg-white p-8 text-center shadow-lg shadow-slate-200/60">
-        <div className="text-4xl">😵</div>
-        <h2 className="mt-3 text-lg font-extrabold">เกิดข้อผิดพลาด</h2>
-        <p className="mt-2 break-words text-sm text-slate-500">
-          {error?.message || "แอปทำงานผิดพลาด กรุณาลองใหม่"}
+    <div className="flex min-h-dvh flex-col items-center justify-center bg-canvas p-6">
+      <div className="e3 w-full max-w-sm rounded-xl p-8">
+        <span className="eyebrow text-alert">เกิดข้อผิดพลาด</span>
+        <h2 className="display mt-3 text-h2 leading-none text-ink">ขอโทษที ไปต่อไม่ได้</h2>
+        <p className="mt-3 break-words text-body text-ink-2">
+          {error?.message || "แอปสะดุดนิดหน่อย ลองใหม่อีกทีนะ"}
         </p>
-        <div className="mt-6 flex flex-col gap-2">
+        <div className="mt-6 space-y-2">
           <button
             onClick={reset}
-            className="h-12 w-full rounded-2xl bg-emerald-500 text-base font-bold text-white transition active:scale-[0.98] hover:bg-emerald-600"
+            className="h-12 w-full rounded-sm bg-accent text-caption font-bold text-white transition-colors duration-200 hover:bg-accent-deep"
           >
             ลองใหม่
           </button>
           <button
             onClick={() => window.location.reload()}
-            className="h-12 w-full rounded-2xl bg-slate-100 text-base font-semibold text-slate-600 transition active:scale-95 hover:bg-slate-200"
+            className="h-12 w-full rounded-sm border border-line-2 bg-surface-2 text-caption font-bold text-ink-2 transition-colors duration-200 hover:border-ink-4 hover:bg-white"
           >
             โหลดหน้าใหม่
           </button>

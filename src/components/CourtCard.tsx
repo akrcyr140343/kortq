@@ -1,34 +1,62 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
+import { motion } from "framer-motion";
 import type { Court, Player } from "@/lib/types";
 import { SkillBadge } from "./SkillBadge";
 import { CourtTimer } from "./CourtTimer";
+import { lift, press, staggerDelay } from "./motion";
+import { E2, LIVE } from "./ui";
 
-function TeamColumn({
+/**
+ * Court markings — boundary, service lines and the net. Static and decorative:
+ * the card becomes the court, so no icon is needed to say what it is.
+ */
+function CourtMarks({ live }: { live: boolean }) {
+  const edge = live ? "border-mint/35" : "border-accent/10";
+  const rule = live ? "bg-mint/25" : "bg-accent/8";
+  const net = live ? "bg-accent/25" : "bg-accent/14";
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+      <div className={`absolute inset-5 rounded-[18px] border ${edge}`} />
+      <div className={`absolute inset-x-5 top-[29%] h-px ${rule}`} />
+      <div className={`absolute inset-x-5 bottom-[29%] h-px ${rule}`} />
+      <div className={`absolute inset-y-5 left-1/2 w-px ${net}`} />
+    </div>
+  );
+}
+
+/** One side of the net. Player names are the loudest type in the card. */
+function Side({
   ids,
   byId,
   label,
-  accent,
+  align,
 }: {
   ids: string[];
   byId: Map<string, Player>;
   label: string;
-  accent: string;
+  align: "left" | "right";
 }) {
+  const right = align === "right";
   return (
-    <div className="flex-1">
-      <div className={`mb-2 text-xs font-bold uppercase tracking-wide ${accent}`}>{label}</div>
-      <div className="space-y-2">
-        {ids.map((id) => {
+    <div className={`flex min-w-0 flex-1 flex-col gap-2.5 ${right ? "items-end" : "items-start"}`}>
+      <span className={`rounded-full px-2.5 py-1 text-[0.62rem] font-extrabold ${right ? "bg-sky-wash text-sky-deep" : "bg-coral-wash text-coral-deep"}`}>{label}</span>
+      <div className="flex w-full flex-col gap-2">
+        {ids.map((id, i) => {
           const p = byId.get(id);
           if (!p) return null;
           return (
+            // Keyed by player id, so a fresh pairing remounts and pops in.
             <div
               key={id}
-              className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-100"
+              style={staggerDelay(i, 0.06)}
+              className={`anim-pop flex min-w-0 items-center gap-2 rounded-[13px] border border-white/80 bg-white/72 px-2.5 py-2 shadow-[0_8px_18px_-16px_rgba(32,35,63,0.45)] backdrop-blur-sm ${
+                right ? "flex-row-reverse" : ""
+              }`}
             >
               <SkillBadge skill={p.skill} />
-              <span className="truncate text-sm font-semibold text-slate-800">{p.name}</span>
+              <span className="truncate text-body font-extrabold leading-tight text-ink">{p.name}</span>
             </div>
           );
         })}
@@ -47,90 +75,186 @@ export function CourtCard({
   onRandom,
   onAssignSelected,
   onFinish,
+  onRemove,
+  index = 0,
+  className = "",
 }: {
   court: Court;
   byId: Map<string, Player>;
   isAdmin: boolean;
   waitingCount: number;
   selectedCount: number;
+  index?: number;
   onAuto: (courtId: string) => void;
   onRandom: (courtId: string) => void;
   onAssignSelected: (courtId: string) => void;
   onFinish: (courtId: string) => void;
+  onRemove: (courtId: string) => void;
+  className?: string;
 }) {
   const occupied = court.teamA.length + court.teamB.length > 0;
   const notEnough = waitingCount < 4;
+  const number = String(court.index).padStart(2, "0");
+  const canDrop = isAdmin && !occupied && selectedCount >= 2;
+
+  // A fresh `startedAt` means players just landed here — wash the card once.
+  const [flash, setFlash] = useState(false);
+  const lastStart = useRef(court.startedAt);
+  useEffect(() => {
+    const changed = lastStart.current !== court.startedAt;
+    lastStart.current = court.startedAt;
+    if (!changed || court.startedAt == null) return;
+    setFlash(true);
+    const t = setTimeout(() => setFlash(false), 340);
+    return () => clearTimeout(t);
+  }, [court.startedAt]);
 
   return (
-    <div
-      className={`flex flex-col rounded-2xl border p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md ${
-        occupied ? "border-emerald-300 bg-emerald-50/50" : "border-slate-200 bg-white"
-      }`}
+    <motion.article
+      whileHover={lift}
+      style={staggerDelay(index + 1)}
+      onClick={canDrop ? () => onAssignSelected(court.id) : undefined}
+      className={`court-grain anim-enter relative flex h-[22rem] flex-col overflow-hidden rounded-[28px] transition-all duration-200 sm:h-[22.5rem] ${
+        occupied ? LIVE : E2
+      } ${canDrop ? "tap-ready cursor-pointer" : ""} ${flash ? "flash-live" : ""} ${className}`}
     >
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h3 className="text-lg font-extrabold text-slate-800">คอร์ต {court.index}</h3>
-        <div className="flex items-center gap-2">
-          {occupied && court.startedAt != null && <CourtTimer startedAt={court.startedAt} />}
-          <span
-            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${
-              occupied ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
-            }`}
-          >
-            {occupied && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-live" />}
-            {occupied ? "กำลังเล่น" : "ว่าง"}
-          </span>
-        </div>
-      </div>
+      <CourtMarks live={occupied} />
 
-      {occupied ? (
-        <>
-          <div className="flex items-stretch gap-3">
-            <TeamColumn ids={court.teamA} byId={byId} label="ทีม A" accent="text-emerald-600" />
-            <div className="flex items-center text-xs font-black text-slate-300">VS</div>
-            <TeamColumn ids={court.teamB} byId={byId} label="ทีม B" accent="text-sky-600" />
-          </div>
-          {isAdmin && (
-            <button
-              onClick={() => onFinish(court.id)}
-              className="mt-4 h-12 w-full rounded-xl bg-slate-800 text-sm font-bold text-white transition active:scale-[0.98] hover:bg-slate-900"
-            >
-              จบเกม → คืนสู่คิว
-            </button>
-          )}
-        </>
-      ) : (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 py-6">
-          <p className="text-sm font-medium text-slate-400">คอร์ตว่าง</p>
-          {isAdmin && (
-            <div className="w-full space-y-2">
-              <button
-                onClick={() => onAuto(court.id)}
-                disabled={notEnough}
-                className="flex h-14 w-full flex-col items-center justify-center rounded-xl bg-emerald-500 font-bold text-white transition active:scale-[0.98] hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-              >
-                <span className="text-sm">⚡ จับอัตโนมัติ</span>
-                <span className="text-[11px] font-medium opacity-80">4 คนแรกในคิว</span>
-              </button>
-              <button
-                onClick={() => onRandom(court.id)}
-                disabled={notEnough}
-                className="flex h-14 w-full flex-col items-center justify-center rounded-xl bg-indigo-500 font-bold text-white transition active:scale-[0.98] hover:bg-indigo-600 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-              >
-                <span className="text-sm">🎲 สุ่มผู้เล่น</span>
-                <span className="text-[11px] font-medium opacity-80">สุ่ม 4 คนจากทั้งคิว</span>
-              </button>
-              {selectedCount >= 2 && (
-                <button
-                  onClick={() => onAssignSelected(court.id)}
-                  className="h-12 w-full rounded-xl border-2 border-sky-400 bg-sky-50 text-sm font-bold text-sky-700 transition active:scale-[0.98] hover:bg-sky-100"
-                >
-                  ลงคอร์ตนี้ ({selectedCount} คนที่เลือก)
-                </button>
-              )}
+      <div aria-hidden className={`absolute -right-14 -top-14 h-40 w-40 rounded-full blur-3xl ${occupied ? "bg-mint-wash" : "bg-accent-wash"}`} />
+      <div className="relative flex flex-1 flex-col p-5">
+        {/* ── Identity left, clock right ───────────────────────────── */}
+        <header className="flex items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className={`grid h-12 w-12 place-items-center rounded-[17px] ${occupied ? "bg-mint-wash text-mint-deep" : "bg-accent-wash text-accent"}`}>
+              <span className="numeral text-title leading-none">{number}</span>
+            </span>
+            <div>
+              <span className="block text-xs font-extrabold text-ink">คอร์ต {court.index}</span>
+              <span className="mt-1 block text-[0.65rem] font-semibold text-ink-3">{occupied ? "กำลังสนุกกันอยู่" : "พร้อมรับเกมใหม่"}</span>
             </div>
+          </div>
+
+          {occupied && court.startedAt != null ? (
+            <CourtTimer startedAt={court.startedAt} />
+          ) : (
+            <span className="mt-1 flex items-center gap-1.5 rounded-full bg-mint-wash px-3 py-1.5 text-[0.65rem] font-extrabold text-mint-deep"><span className="h-1.5 w-1.5 rounded-full bg-mint" />ว่าง</span>
           )}
-        </div>
-      )}
-    </div>
+        </header>
+
+        {/* ── Body ─────────────────────────────────────────────────── */}
+        {occupied ? (
+          <>
+            <div className="mt-5 flex items-start gap-3">
+              <Side ids={court.teamA} byId={byId} label="ทีม A" align="left" />
+              <div className="w-px self-stretch bg-gradient-to-b from-transparent via-line-2 to-transparent" />
+              <Side ids={court.teamB} byId={byId} label="ทีม B" align="right" />
+            </div>
+
+            {isAdmin && (
+              <div className="mt-auto flex gap-2">
+                <motion.button
+                  whileTap={press}
+                  onClick={() => onRemove(court.id)}
+                  className="h-12 flex-1 rounded-[15px] border border-line bg-white/80 text-caption font-bold text-ink-3 transition-all duration-200 hover:border-alert/30 hover:bg-alert-wash hover:text-alert"
+                >
+                  ยกเลิก
+                </motion.button>
+                <motion.button
+                  whileTap={press}
+                  onClick={() => onFinish(court.id)}
+                  className="lime-button shine-button h-12 flex-[2] rounded-[15px] text-caption font-extrabold transition-all duration-200 hover:-translate-y-0.5"
+                >
+                  จบเกม + กลับคิว
+                </motion.button>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="mt-4 flex flex-1 flex-col">
+            {/* Faded center mark — signals this is a playable slot, not a gap */}
+            <div className="flex flex-1 flex-col items-center justify-center">
+              <span className="flex items-center gap-2 rounded-full bg-accent px-4 py-2 text-[0.68rem] font-extrabold tracking-[0.14em] text-mint shadow-[0_12px_24px_-16px_rgba(29,51,34,0.75)]">
+                <span className="h-2 w-2 rounded-full bg-mint" /> READY
+              </span>
+              <span className="mt-3 text-sm font-extrabold text-ink-2">คอร์ตพร้อมแล้ว</span>
+              <span className="mt-1 text-[0.68rem] font-medium text-ink-3">เลือกผู้เล่นหรือให้ระบบจัดคู่</span>
+            </div>
+
+            {isAdmin ? (
+              <div className="space-y-2.5">
+                {selectedCount >= 2 ? (
+                  <ActionButton
+                    onClick={() => onAssignSelected(court.id)}
+                    label="ส่งลงคอร์ตนี้"
+                    hint={`${selectedCount} คนที่เลือก`}
+                    variant="primary"
+                  />
+                ) : (
+                  <>
+                    <ActionButton
+                      onClick={() => onAuto(court.id)}
+                      disabled={notEnough}
+                      label="จับคู่ให้เลย"
+                      hint="4 คนแรกในคิว"
+                      variant="primary"
+                    />
+                    <ActionButton
+                      onClick={() => onRandom(court.id)}
+                      disabled={notEnough}
+                      label="สุ่มดวงกันหน่อย"
+                      hint="สุ่มจากทั้งคิว"
+                      variant="soft"
+                    />
+                  </>
+                )}
+                {notEnough && selectedCount < 2 && (
+                    <p className="px-1 pt-0.5 text-[0.68rem] leading-relaxed text-ink-4">
+                    ขอครบ 4 คนในคิวก่อนนะ แล้วจะจัดให้ทันที
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className="pb-4 text-body text-ink-3"></p>
+            )}
+          </div>
+        )}
+      </div>
+    </motion.article>
+  );
+}
+
+/** Text-first action button: bold label, muted hint, no iconography. */
+function ActionButton({
+  onClick,
+  disabled = false,
+  label,
+  hint,
+  variant,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  label: string;
+  hint: string;
+  variant: "primary" | "soft";
+}) {
+  const styles = {
+    primary:
+      "lime-button shine-button font-extrabold hover:-translate-y-0.5 disabled:bg-none disabled:bg-line disabled:text-ink-4 disabled:shadow-none",
+    soft: "border border-line bg-white text-ink-2 shadow-sm hover:-translate-y-0.5 hover:border-coral/25 hover:bg-coral-wash hover:text-coral-deep disabled:border-line disabled:bg-canvas disabled:text-ink-4 disabled:shadow-none",
+  }[variant];
+
+  return (
+    <motion.button
+      whileTap={disabled ? undefined : press}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      disabled={disabled}
+      className={`flex h-12 w-full items-center justify-between rounded-[15px] px-4 transition-all duration-200 disabled:cursor-not-allowed ${styles}`}
+    >
+      <span className="text-caption font-bold">{label}</span>
+      <span className="text-eyebrow opacity-70">{hint}</span>
+    </motion.button>
   );
 }

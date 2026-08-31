@@ -28,17 +28,17 @@ export default function GlobalError({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#eef2f6",
-          color: "#0f172a",
+          background: "#f4f8f6",
+          color: "#0d1a16",
           fontFamily: "system-ui, sans-serif",
           padding: "1.5rem",
         }}
       >
-        <div style={{ maxWidth: 360, textAlign: "center" }}>
+        <div style={{ maxWidth: 360 }}>
           <div style={{ fontSize: 40 }}>😵</div>
-          <h2 style={{ margin: "12px 0 4px", fontSize: 18 }}>เกิดข้อผิดพลาดร้ายแรง</h2>
-          <p style={{ color: "#64748b", fontSize: 14, wordBreak: "break-word" }}>
-            {error?.message || "แอปทำงานผิดพลาด กรุณาโหลดหน้าใหม่"}
+          <h2 style={{ margin: "12px 0 4px", fontSize: 20 }}>แอปสะดุดแรงไปหน่อย</h2>
+          <p style={{ color: "#3c4b46", fontSize: 15, wordBreak: "break-word" }}>
+            {error?.message || "ลองโหลดหน้าใหม่อีกทีนะ"}
           </p>
           <button
             onClick={reset}
@@ -46,11 +46,11 @@ export default function GlobalError({
               marginTop: 24,
               height: 48,
               width: "100%",
-              borderRadius: 16,
+              borderRadius: 10,
               border: "none",
-              background: "#10b981",
+              background: "#059669",
               color: "#ffffff",
-              fontSize: 16,
+              fontSize: 15,
               fontWeight: 700,
             }}
           >

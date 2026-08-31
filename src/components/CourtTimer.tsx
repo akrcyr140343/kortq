@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react";
 
-const WARN_MS = 20 * 60 * 1000; // 20 minutes → warning color
+const WARN_MS = 20 * 60 * 1000; // 20 minutes
 
 /**
- * Live MM:SS counter for a court, driven by the game's startedAt timestamp
- * (stored in Firestore) so it survives refreshes and shows the same time on
- * every device. Turns red once the game passes 20 minutes.
+ * Broadcast-style elapsed clock. The numerals are the whole component — no
+ * icon, no chrome. Past 20 minutes they turn red and breathe slowly: one of
+ * the three looping animations in the app, and it earns it as an alert.
  */
 export function CourtTimer({ startedAt }: { startedAt: number }) {
   const [now, setNow] = useState(() => Date.now());
@@ -24,15 +24,22 @@ export function CourtTimer({ startedAt }: { startedAt: number }) {
   const warn = elapsed >= WARN_MS;
 
   return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-sm font-bold tabular-nums ring-1 transition-colors ${
-        warn
-          ? "animate-pulse bg-rose-100 text-rose-700 ring-rose-300"
-          : "bg-slate-100 text-slate-600 ring-slate-200"
-      }`}
-    >
-      <span aria-hidden>⏱</span>
-      {mm}:{ss}
-    </span>
+    <div className={`flex flex-col items-end rounded-[14px] px-3 py-2 ${warn ? "bg-alert-wash" : "bg-mint-wash"}`}>
+      <span className={`flex items-center gap-1.5 text-[0.64rem] font-extrabold ${warn ? "text-alert" : "text-mint-deep"}`}>
+        {!warn && (
+          <span aria-hidden className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-mint" />
+        )}
+        {warn ? "เกินเวลาแล้ว" : "กำลังตี"}
+      </span>
+      <div
+        className={`numeral mt-1 flex items-baseline text-lede leading-[0.8] ${
+          warn ? "animate-warn text-alert" : "text-ink"
+        }`}
+      >
+        <span>{mm}</span>
+        <span className="px-0.5 opacity-30">:</span>
+        <span>{ss}</span>
+      </div>
+    </div>
   );
 }

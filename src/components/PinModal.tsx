@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { motion } from "framer-motion";
 import { useAdmin } from "@/context/AdminContext";
+import { press as tapPress } from "./motion";
+import { E3 } from "./ui";
 
 const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "clear", "0", "back"] as const;
 
@@ -56,75 +59,62 @@ export function PinModal({ onClose }: { onClose: () => void }) {
     // Outer element scrolls; inner min-h-dvh flex centers the card when there's
     // room and lets it scroll into view (top reachable) on short/landscape screens.
     <div
-      className="fixed inset-0 z-[100] overflow-y-auto bg-slate-900/40 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] overflow-y-auto bg-accent-deep/35 backdrop-blur-md"
       onClick={onClose}
     >
       <div className="flex min-h-dvh items-center justify-center p-4">
         <div
-          className="animate-pop w-full max-w-xs rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl"
+          className={`${E3} anim-pop relative w-full max-w-xs overflow-hidden rounded-[28px] p-6`}
           onClick={(e) => e.stopPropagation()}
         >
-          <h2 className="text-center text-lg font-extrabold text-slate-800">ใส่ PIN แอดมิน</h2>
-          <p className="mt-1 text-center text-sm">
+          <div aria-hidden className="absolute -right-12 -top-12 h-36 w-36 rounded-full bg-mint-wash blur-2xl" />
+          <span className="relative grid h-12 w-12 place-items-center rounded-[16px] bg-accent text-xl text-mint">KD</span>
+          <span className="relative mt-4 block text-xs font-extrabold tracking-[0.14em] text-mint-deep">โหมดแอดมิน</span>
+          <h2 className="display relative mt-2 text-title leading-none text-ink">ใส่ PIN 4 หลัก</h2>
+
+          <p className="relative mt-2 text-caption">
             {error ? (
-              <span className="font-semibold text-rose-500">PIN ไม่ถูกต้อง ลองใหม่</span>
+              <span className="font-semibold text-alert">PIN ไม่ถูกนะ ลองใหม่อีกที</span>
             ) : (
-              <span className="text-slate-500">ปลดล็อคเพื่อจัดการคิว</span>
+              <span className="text-ink-3">ปลดล็อคเพื่อจัดคิวและจับคู่</span>
             )}
           </p>
 
-          <div className="my-6 flex justify-center gap-3">
+          <div className="relative my-6 flex justify-center gap-3">
             {[0, 1, 2, 3].map((i) => (
               <span
                 key={i}
-                className={`h-4 w-4 rounded-full transition-colors ${
-                  i < pin.length ? "bg-emerald-500" : "bg-slate-200"
+                className={`h-3 w-3 rounded-full transition-all duration-200 ${
+                  i < pin.length ? "scale-110 bg-mint-deep shadow-[0_0_0_4px_rgba(184,242,61,0.18)]" : "bg-line-2"
                 }`}
               />
             ))}
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="relative grid grid-cols-3 gap-2.5">
             {KEYS.map((key) => {
-              if (key === "clear") {
-                return (
-                  <button
-                    key={key}
-                    onClick={() => press(key)}
-                    className="h-16 rounded-2xl bg-slate-100 text-sm font-bold text-slate-500 transition active:scale-95 hover:bg-slate-200"
-                  >
-                    ล้าง
-                  </button>
-                );
-              }
-              if (key === "back") {
-                return (
-                  <button
-                    key={key}
-                    onClick={() => press(key)}
-                    className="h-16 rounded-2xl bg-slate-100 text-2xl text-slate-500 transition active:scale-95 hover:bg-slate-200"
-                  >
-                    ⌫
-                  </button>
-                );
-              }
+              const label = key === "clear" ? "ล้าง" : key === "back" ? "⌫" : key;
+              const isText = key === "clear" || key === "back";
               return (
-                <button
+                <motion.button
                   key={key}
+                  whileTap={tapPress}
                   onClick={() => press(key)}
-                  className="h-16 rounded-2xl bg-slate-100 text-2xl font-bold text-slate-800 transition active:scale-95 hover:bg-slate-200"
+                  className={`h-14 rounded-[16px] border border-line bg-surface-2 transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/30 hover:bg-accent-wash ${
+                    isText ? "text-caption font-bold text-ink-3" : "numeral text-h3 text-ink"
+                  }`}
                 >
-                  {key}
-                </button>
+                  {label}
+                </motion.button>
               );
             })}
           </div>
 
           <button
             onClick={onClose}
-            className="mt-4 h-12 w-full rounded-2xl text-sm font-semibold text-slate-400 transition hover:text-slate-600"
+            className="relative mt-4 h-11 w-full rounded-[14px] text-caption font-semibold text-ink-3 transition-colors duration-200 hover:bg-canvas hover:text-ink"
           >
-            ยกเลิก
+            ไว้ก่อน
           </button>
         </div>
       </div>
