@@ -32,7 +32,7 @@ npm run dev
 
 1. **ปลดล็อคแอดมิน** — กดปุ่มขวาบน ใส่ PIN `1234`
 2. **เริ่ม Session** — เลือก 2 หรือ 3 คอร์ต
-3. **เพิ่มผู้เล่น** — ใส่ชื่อ + เลือกระดับฝีมือ S/A/B/C (คะแนน 4/3/2/1)
+3. **เพิ่มผู้เล่น** — ใส่ชื่อ + เลือกระดับฝีมือ NB/BG/N/S (คะแนน 1/2/3/4)
 4. **จับคู่**
    - **อัตโนมัติ** — กด "จับอัตโนมัติ" บนคอร์ตว่าง → ระบบดึง 4 คนแรกในคิว
      แล้วแบ่งสองทีมให้คะแนนรวมสูสีที่สุด
@@ -46,9 +46,13 @@ npm run dev
 
 ```
 sessions/current                       → { active, courtCount, createdAt }
-sessions/current/players/{id}          → { name, skill, score, status, courtId, createdAt, queuedAt }
+sessions/current/players/{id}          → { name, skill, score, status, courtId, gamesPlayed, createdAt, queuedAt }
 sessions/current/courts/{id}           → { index, teamA[], teamB[], startedAt }
+sessions/current/matches/{id}          → { courtId, teamA[], teamB[], players[], startedAt, finishedAt }
 ```
+
+- `matches` = ประวัติเกมที่จบแล้วในเซสชัน (บันทึกตอน "จบเกม", ล้างตอน "จบ Session")
+  ใช้โดยปุ่ม **"จับแฟร์"** เพื่อลดการเจอผู้เล่น/คู่เดิมซ้ำ
 
 - `status`: `waiting` | `playing` | `resting`
 - คิวเรียงตาม `queuedAt` (เข้าใหม่หรือจบเกมแล้วต่อท้ายคิว = ยุติธรรมตามลำดับการรอ)

@@ -72,6 +72,7 @@ export function CourtCard({
   waitingCount,
   selectedCount,
   onAuto,
+  onFair,
   onRandom,
   onAssignSelected,
   onFinish,
@@ -86,6 +87,7 @@ export function CourtCard({
   selectedCount: number;
   index?: number;
   onAuto: (courtId: string) => void;
+  onFair: (courtId: string) => void;
   onRandom: (courtId: string) => void;
   onAssignSelected: (courtId: string) => void;
   onFinish: (courtId: string) => void;
@@ -192,6 +194,13 @@ export function CourtCard({
                 ) : (
                   <>
                     <ActionButton
+                      onClick={() => onFair(court.id)}
+                      disabled={notEnough}
+                      label="จับแฟร์"
+                      hint="ยุติธรรม · ไม่ซ้ำคู่"
+                      variant="smart"
+                    />
+                    <ActionButton
                       onClick={() => onAuto(court.id)}
                       disabled={notEnough}
                       label="จับคู่ให้เลย"
@@ -235,11 +244,13 @@ function ActionButton({
   disabled?: boolean;
   label: string;
   hint: string;
-  variant: "primary" | "soft";
+  variant: "primary" | "soft" | "smart";
 }) {
   const styles = {
     primary:
       "lime-button shine-button font-extrabold hover:-translate-y-0.5 disabled:bg-none disabled:bg-line disabled:text-ink-4 disabled:shadow-none",
+    smart:
+      "shine-button bg-gradient-to-r from-accent to-accent-2 font-extrabold text-white shadow-[0_12px_24px_-14px_rgba(108,92,231,0.8)] hover:-translate-y-0.5 disabled:bg-none disabled:bg-line disabled:text-ink-4 disabled:shadow-none",
     soft: "border border-line bg-white text-ink-2 shadow-sm hover:-translate-y-0.5 hover:border-coral/25 hover:bg-coral-wash hover:text-coral-deep disabled:border-line disabled:bg-canvas disabled:text-ink-4 disabled:shadow-none",
   }[variant];
 

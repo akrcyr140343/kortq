@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   increment,
   onSnapshot,
@@ -11,8 +12,9 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { SKILL_SCORE, type Court, type Player, type Session, type Skill, type PlayerStatus } from "./types";
+import { SKILL_SCORE, type Court, type Match, type Player, type Session, type Skill, type PlayerStatus } from "./types";
 import { balanceTeams, shuffle } from "./matchmaking";
+import { planFairMatch, NOT_ENOUGH_WAITING } from "./fairmatch";
 
 // ---- Firestore paths -------------------------------------------------------
 // A single active session lives at sessions/current, with players and courts
@@ -21,6 +23,7 @@ const SESSION_ID = "current";
 const sessionRef = doc(db, "sessions", SESSION_ID);
 const playersCol = collection(db, "sessions", SESSION_ID, "players");
 const courtsCol = collection(db, "sessions", SESSION_ID, "courts");
+const matchesCol = collection(db, "sessions", SESSION_ID, "matches");
 const playerRef = (id: string) => doc(db, "sessions", SESSION_ID, "players", id);
 const courtRef = (id: string) => doc(db, "sessions", SESSION_ID, "courts", id);
 
@@ -39,6 +42,26 @@ export function subscribeSession(
   );
 }
 
+const VALID_SKILLS = new Set<Skill>(["NB", "BG", "N", "S"]);
+
+/**
+ * Normalise a stored skill label to the current NB/BG/N/S scheme.
+ *
+ * Older player docs used BG/BG+, where "BG" meant score 1. The rename makes
+ * "BG" mean score 2, so a legacy "BG" is disambiguated by its stored `score`
+ * (score 1 → NB, score 2 → BG). `score` itself is never changed here, so every
+ * matchmaking path — which reads `score`, not the label — is unaffected.
+ *
+ * In practice startSession() wipes all players, so this only matters for a
+ * session already in progress across the deploy; it's cheap insurance so no
+ * "BG+" (or mislabeled beginner) can ever reach the UI.
+ */
+function normalizeSkill(skill: string, score: number): Skill {
+  if (skill === "BG+") return "BG"; // old score-2 tier → new BG
+  if (skill === "BG") return score <= 1 ? "NB" : "BG"; // legacy beginner vs new BG
+  return VALID_SKILLS.has(skill as Skill) ? (skill as Skill) : "N";
+}
+
 export function subscribePlayers(
   cb: (players: Player[]) => void,
   onError?: (e: Error) => void,
@@ -46,7 +69,13 @@ export function subscribePlayers(
   const q = query(playersCol, orderBy("queuedAt", "asc"));
   return onSnapshot(
     q,
-    (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Player, "id">) }))),
+    (snap) =>
+      cb(
+        snap.docs.map((d) => {
+          const data = d.data() as Omit<Player, "id">;
+          return { id: d.id, ...data, skill: normalizeSkill(data.skill, data.score) };
+        }),
+      ),
     (e) => onError?.(e),
   );
 }
@@ -63,17 +92,32 @@ export function subscribeCourts(
   );
 }
 
+export function subscribeMatches(
+  cb: (matches: Match[]) => void,
+  onError?: (e: Error) => void,
+) {
+  const q = query(matchesCol, orderBy("finishedAt", "asc"));
+  return onSnapshot(
+    q,
+    (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Match, "id">) }))),
+    (e) => onError?.(e),
+  );
+}
+
 // ---- Helpers ---------------------------------------------------------------
 
 async function deleteAll(): Promise<void> {
-  const [playersSnap, courtsSnap] = await Promise.all([
+  const [playersSnap, courtsSnap, matchesSnap] = await Promise.all([
     getDocs(playersCol),
     getDocs(courtsCol),
+    getDocs(matchesCol),
   ]);
-  // Firestore batches cap at 500 ops; our data is tiny (~21 players + 3 courts).
+  // Firestore batches cap at 500 ops; our data is tiny (~21 players + 3 courts
+  // + a session's worth of finished games).
   const batch = writeBatch(db);
   playersSnap.forEach((d) => batch.delete(d.ref));
   courtsSnap.forEach((d) => batch.delete(d.ref));
+  matchesSnap.forEach((d) => batch.delete(d.ref));
   await batch.commit();
 }
 
@@ -183,19 +227,51 @@ export async function resetPayments(players: Player[]): Promise<void> {
 
 // ---- Matchmaking -----------------------------------------------------------
 
-/** Assign a specific set of players to a court and split them into teams. */
-export async function assignToCourt(targetCourtId: string, players: Player[]): Promise<void> {
-  const { teamA, teamB } = balanceTeams(players);
+/**
+ * Write a chosen team split onto a court and mark its players as playing.
+ * Shared by every assignment strategy (FIFO, random, manual, fair) so they
+ * all touch Firestore the same way.
+ */
+async function commitAssignment(
+  targetCourtId: string,
+  teamA: Player[],
+  teamB: Player[],
+): Promise<void> {
   const batch = writeBatch(db);
   batch.update(courtRef(targetCourtId), {
     teamA: teamA.map((p) => p.id),
     teamB: teamB.map((p) => p.id),
     startedAt: Date.now(),
   });
-  for (const p of players) {
+  for (const p of [...teamA, ...teamB]) {
     batch.update(playerRef(p.id), { status: "playing", courtId: targetCourtId });
   }
   await batch.commit();
+}
+
+/** Assign a specific set of players to a court and split them into teams. */
+export async function assignToCourt(targetCourtId: string, players: Player[]): Promise<void> {
+  const { teamA, teamB } = balanceTeams(players);
+  await commitAssignment(targetCourtId, teamA, teamB);
+}
+
+/**
+ * Fair auto-fill for an empty court: pick the four players who most deserve to
+ * play next (fewest games + longest wait) while avoiding recently repeated
+ * foursomes/partners, then split them into skill-even teams. Falls back to
+ * plain fairness when there's little/no match history. Throws if fewer than 4
+ * are waiting — same contract as autoAssign/randomAssign.
+ */
+export async function fairAssign(
+  targetCourtId: string,
+  waiting: Player[],
+  matches: Match[],
+): Promise<void> {
+  if (waiting.length < 4) {
+    throw new Error(NOT_ENOUGH_WAITING);
+  }
+  const { teamA, teamB } = planFairMatch(waiting, matches);
+  await commitAssignment(targetCourtId, teamA, teamB);
 }
 
 /**
@@ -242,6 +318,10 @@ export async function removeFromCourt(targetCourtId: string, playersOnCourt: Pla
  */
 export async function finishGame(targetCourtId: string, playersOnCourt: Player[]): Promise<void> {
   const now = Date.now();
+  // Read the court first so we can log the actual teams that just played.
+  const courtSnap = await getDoc(courtRef(targetCourtId));
+  const court = courtSnap.exists() ? (courtSnap.data() as Omit<Court, "id">) : null;
+
   const batch = writeBatch(db);
   batch.update(courtRef(targetCourtId), { teamA: [], teamB: [], startedAt: null });
   for (const p of playersOnCourt) {
@@ -253,5 +333,19 @@ export async function finishGame(targetCourtId: string, playersOnCourt: Player[]
       gamesPlayed: increment(1),
     });
   }
+
+  // Record the finished game so "จับแฟร์" can avoid repeats. Only log a real
+  // game (teams present); this history is wiped on End Session.
+  if (court && court.teamA.length + court.teamB.length > 0) {
+    batch.set(doc(matchesCol), {
+      courtId: targetCourtId,
+      teamA: court.teamA,
+      teamB: court.teamB,
+      players: [...court.teamA, ...court.teamB],
+      startedAt: court.startedAt ?? now,
+      finishedAt: now,
+    } satisfies Omit<Match, "id">);
+  }
+
   await batch.commit();
 }

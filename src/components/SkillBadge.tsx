@@ -7,8 +7,8 @@ import type { Skill } from "@/lib/types";
  * it belongs to actions, not to people.
  */
 const TIER: Record<Skill, string> = {
-  BG: "bg-slate-100 text-slate-600 ring-slate-200",
-  "BG+": "bg-sky-wash text-sky-deep ring-sky/25",
+  NB: "bg-slate-100 text-slate-600 ring-slate-200",
+  BG: "bg-sky-wash text-sky-deep ring-sky/25",
   N: "bg-mint-wash text-mint-deep ring-mint/35",
   S: "bg-coral-wash text-coral-deep ring-coral/25",
 };

@@ -7,6 +7,7 @@ import { useKortq } from "@/hooks/useKortq";
 import {
   assignToCourt,
   autoAssign,
+  fairAssign,
   randomAssign,
   deletePlayer,
   endSession,
@@ -138,7 +139,7 @@ function MobileTabBar({
 
 export default function Home() {
   const { isAdmin } = useAdmin();
-  const { loading, error, session, courts, waiting, resting, players, playersById } = useKortq();
+  const { loading, error, session, courts, matches, waiting, resting, players, playersById } = useKortq();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showPayments, setShowPayments] = useState(false);
   const [activeView, setActiveView] = useState<AppView>("courts");
@@ -197,6 +198,17 @@ export default function Home() {
       }
     },
     [waiting],
+  );
+
+  const handleFair = useCallback(
+    async (courtId: string) => {
+      try {
+        await fairAssign(courtId, waiting, matches);
+      } catch (e) {
+        window.alert(e instanceof Error ? e.message : "จับแฟร์ไม่สำเร็จ");
+      }
+    },
+    [waiting, matches],
   );
 
   const handleAssignSelected = useCallback(
@@ -313,6 +325,7 @@ export default function Home() {
                     waitingCount={waiting.length}
                     selectedCount={selectedIds.size}
                     onAuto={handleAuto}
+                    onFair={handleFair}
                     onRandom={handleRandom}
                     onAssignSelected={handleAssignSelected}
                     onFinish={handleFinish}

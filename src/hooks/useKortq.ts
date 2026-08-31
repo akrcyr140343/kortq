@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { subscribeCourts, subscribePlayers, subscribeSession } from "@/lib/db";
-import type { Court, Player, Session } from "@/lib/types";
+import { subscribeCourts, subscribeMatches, subscribePlayers, subscribeSession } from "@/lib/db";
+import type { Court, Match, Player, Session } from "@/lib/types";
 
 const CONNECT_TIMEOUT_MS = 10_000;
 
@@ -12,6 +12,7 @@ export interface KortqState {
   session: Session | null;
   players: Player[];
   courts: Court[];
+  matches: Match[]; // finished games this session (for fair matchmaking)
   waiting: Player[]; // status "waiting", ordered by queue position
   resting: Player[]; // status "resting"
   playersById: Map<string, Player>;
@@ -26,6 +27,7 @@ export function useKortq(): KortqState {
   const [session, setSession] = useState<Session | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [courts, setCourts] = useState<Court[]>([]);
+  const [matches, setMatches] = useState<Match[]>([]);
   const [ready, setReady] = useState({ session: false, players: false, courts: false });
   const [error, setError] = useState<string | null>(null);
 
@@ -49,6 +51,9 @@ export function useKortq(): KortqState {
         setCourts(c);
         setReady((r) => ({ ...r, courts: true }));
       }, fail),
+      // Match history is optional context for fair matchmaking — don't gate
+      // initial loading on it, and don't fail the whole app if it errors.
+      subscribeMatches(setMatches),
     ];
     return () => unsubs.forEach((u) => u());
   }, []);
@@ -74,9 +79,10 @@ export function useKortq(): KortqState {
       session,
       players,
       courts,
+      matches,
       waiting,
       resting,
       playersById,
     };
-  }, [loading, error, session, players, courts]);
+  }, [loading, error, session, players, courts, matches]);
 }
