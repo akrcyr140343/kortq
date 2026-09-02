@@ -1,8 +1,8 @@
 // Fair matchmaking — the "จับแฟร์" button.
 //
 // Pure, Firestore-free scoring/selection so weights are easy to tune and unit
-// test. The existing FIFO (autoAssign), random (randomAssign) and manual paths
-// are untouched; this is an additional strategy layered on top of the same
+// test. The random (randomAssign) and manual paths are untouched; this is an
+// additional strategy layered on top of the same
 // Player/Match data.
 //
 // Goal, in three stages:
@@ -176,7 +176,7 @@ export function foursomePenalty(
 
 /**
  * Choose the four players who should play next. Throws if fewer than 4 are
- * waiting (same contract as autoAssign/randomAssign). With no match history
+ * waiting (same contract as randomAssign). With no match history
  * this degrades to pure fairness (waiting + gamesPlayed), i.e. FIFO-ish.
  */
 export function selectFairFour(waiting: Player[], matches: Match[]): Player[] {

@@ -6,7 +6,6 @@ import { useAdmin } from "@/context/AdminContext";
 import { useKortq } from "@/hooks/useKortq";
 import {
   assignToCourt,
-  autoAssign,
   fairAssign,
   randomAssign,
   deletePlayer,
@@ -14,10 +13,22 @@ import {
   finishGame,
   removeFromCourt,
   setPlayerResting,
+  startGame,
+  swapCourtPlayers,
+  substituteCourtPlayer,
+  setNextUpFair,
+  setNextUpManual,
+  swapNextUpPlayers,
+  substituteNextUpPlayer,
+  removeFromNextUp,
+  addToNextUp,
+  clearNextUp,
+  promoteNextUp,
 } from "@/lib/db";
 import { Header } from "@/components/Header";
 import { StartSession } from "@/components/StartSession";
 import { CourtCard } from "@/components/CourtCard";
+import { NextUpCard } from "@/components/NextUpCard";
 import { QueuePanel } from "@/components/QueuePanel";
 import { PaymentDrawer } from "@/components/PaymentDrawer";
 import { SkillBadge } from "@/components/SkillBadge";
@@ -139,12 +150,39 @@ function MobileTabBar({
 
 export default function Home() {
   const { isAdmin } = useAdmin();
-  const { loading, error, session, courts, matches, waiting, resting, players, playersById } = useKortq();
+  const {
+    loading,
+    error,
+    session,
+    courts,
+    matches,
+    waiting,
+    resting,
+    assignable,
+    nextUpTeamA,
+    nextUpTeamB,
+    nextUpCount,
+    players,
+    playersById,
+  } = useKortq();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showPayments, setShowPayments] = useState(false);
   const [activeView, setActiveView] = useState<AppView>("courts");
+  // A player picked on a not-yet-started court, waiting for a second tap to
+  // swap with (another court player, or a waiting player). Null = idle.
+  const [swapSel, setSwapSel] = useState<{ courtId: string; playerId: string } | null>(null);
+  // A player picked inside the staged Next Up, awaiting a second tap to swap
+  // (another Next Up player) or substitute (a queue player). Null = idle.
+  const [nextUpSel, setNextUpSel] = useState<string | null>(null);
+  // Manual "เลือกเอง" mode: admin is picking 4 from the queue to stage as the
+  // next game (reuses the normal selection + the bottom bar to confirm).
+  const [nextUpPicking, setNextUpPicking] = useState(false);
 
   const sessionActive = session?.active ?? false;
+  // Rule 1: a next game can only be booked once every open court already has
+  // players (each court either playing or waiting-to-start).
+  const allCourtsAssigned =
+    courts.length > 0 && courts.every((c) => c.teamA.length + c.teamB.length > 0);
 
   // Never leave the payment drawer open outside an admin session.
   useEffect(() => {
@@ -152,17 +190,57 @@ export default function Home() {
   }, [isAdmin, sessionActive]);
 
   useEffect(() => {
+    // Keep only players who are still selectable — i.e. still in the open queue
+    // and not swept into Next Up.
     setSelectedIds((prev) => {
       if (prev.size === 0) return prev;
-      const waitingIds = new Set(waiting.map((p) => p.id));
-      const next = new Set([...prev].filter((id) => waitingIds.has(id)));
+      const okIds = new Set(assignable.map((p) => p.id));
+      const next = new Set([...prev].filter((id) => okIds.has(id)));
       return next.size === prev.size ? prev : next;
     });
-  }, [waiting]);
+  }, [assignable]);
 
   useEffect(() => {
-    if (!isAdmin || !sessionActive) setSelectedIds(new Set());
+    if (!isAdmin || !sessionActive) {
+      setSelectedIds(new Set());
+      setNextUpPicking(false);
+    }
   }, [isAdmin, sessionActive]);
+
+  // Leave manual-pick mode if the create-gate closes (a court freed up) or a
+  // next game already got staged — the mode no longer makes sense.
+  useEffect(() => {
+    if (nextUpPicking && (!allCourtsAssigned || nextUpCount > 0)) setNextUpPicking(false);
+  }, [nextUpPicking, allCourtsAssigned, nextUpCount]);
+
+  // Drop the Next Up selection when it no longer points at a staged player
+  // (removed, substituted, promoted, or session/admin ended).
+  useEffect(() => {
+    if (!nextUpSel) return;
+    if (!isAdmin || !sessionActive) {
+      setNextUpSel(null);
+      return;
+    }
+    const ids = new Set([...(session?.nextUp?.teamA ?? []), ...(session?.nextUp?.teamB ?? [])]);
+    if (!ids.has(nextUpSel)) setNextUpSel(null);
+  }, [nextUpSel, isAdmin, sessionActive, session]);
+
+  // Drop the swap selection whenever it no longer points at a swappable
+  // player: session/admin ended, the game already started, or the player left
+  // that court (e.g. substituted out on another device).
+  useEffect(() => {
+    if (!swapSel) return;
+    if (!isAdmin || !sessionActive) {
+      setSwapSel(null);
+      return;
+    }
+    const court = courts.find((c) => c.id === swapSel.courtId);
+    const stillSwappable =
+      court != null &&
+      court.startedAt == null &&
+      [...court.teamA, ...court.teamB].includes(swapSel.playerId);
+    if (!stillSwappable) setSwapSel(null);
+  }, [swapSel, isAdmin, sessionActive, courts]);
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -178,47 +256,221 @@ export default function Home() {
     await endSession();
   }, []);
 
-  const handleAuto = useCallback(
-    async (courtId: string) => {
-      try {
-        await autoAssign(courtId, waiting);
-      } catch (e) {
-        window.alert(e instanceof Error ? e.message : "จับคู่อัตโนมัติไม่สำเร็จ");
-      }
-    },
-    [waiting],
-  );
-
   const handleRandom = useCallback(
     async (courtId: string) => {
       try {
-        await randomAssign(courtId, waiting);
+        await randomAssign(courtId, assignable);
       } catch (e) {
         window.alert(e instanceof Error ? e.message : "สุ่มผู้เล่นไม่สำเร็จ");
       }
     },
-    [waiting],
+    [assignable],
   );
 
   const handleFair = useCallback(
     async (courtId: string) => {
       try {
-        await fairAssign(courtId, waiting, matches);
+        await fairAssign(courtId, assignable, matches);
       } catch (e) {
         window.alert(e instanceof Error ? e.message : "จับแฟร์ไม่สำเร็จ");
       }
     },
-    [waiting, matches],
+    [assignable, matches],
   );
 
   const handleAssignSelected = useCallback(
     async (courtId: string) => {
-      const chosen = waiting.filter((p) => selectedIds.has(p.id));
+      const chosen = assignable.filter((p) => selectedIds.has(p.id));
       if (chosen.length < 2) return;
       await assignToCourt(courtId, chosen);
       setSelectedIds(new Set());
     },
-    [waiting, selectedIds],
+    [assignable, selectedIds],
+  );
+
+  const handleStart = useCallback(async (courtId: string) => {
+    setSwapSel(null);
+    try {
+      await startGame(courtId);
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "เริ่มเกมไม่สำเร็จ");
+    }
+  }, []);
+
+  // Tap a player on a not-yet-started court: first tap selects, a second tap on
+  // another player of the SAME court swaps their teams; tapping the same player
+  // again clears the selection. Tapping a queue player while one is selected is
+  // handled by handleWaitingTap (substitution).
+  const handleCourtPlayerTap = useCallback(
+    (courtId: string, playerId: string) => {
+      setNextUpSel(null); // court and Next Up picks are mutually exclusive
+      if (!swapSel) {
+        setSwapSel({ courtId, playerId });
+        return;
+      }
+      if (swapSel.playerId === playerId) {
+        setSwapSel(null); // tapping the same player clears the selection
+        return;
+      }
+      if (swapSel.courtId === courtId) {
+        const court = courts.find((c) => c.id === courtId);
+        if (court) {
+          void swapCourtPlayers(courtId, court.teamA, court.teamB, swapSel.playerId, playerId).catch(
+            (e) => window.alert(e instanceof Error ? e.message : "สลับผู้เล่นไม่สำเร็จ"),
+          );
+        }
+        setSwapSel(null);
+        return;
+      }
+      setSwapSel({ courtId, playerId }); // moved to another court → reselect
+    },
+    [swapSel, courts],
+  );
+
+  // A tap in the waiting queue is dispatched by whatever pick is in progress,
+  // in priority order: (1) finish a court substitution, (2) finish a Next Up
+  // substitution, (3) fill an incomplete Next Up, else (4) normal 2–4 selection.
+  const handleWaitingTap = useCallback(
+    (id: string) => {
+      if (swapSel) {
+        const court = courts.find((c) => c.id === swapSel.courtId);
+        if (court) {
+          void substituteCourtPlayer(
+            swapSel.courtId,
+            court.teamA,
+            court.teamB,
+            swapSel.playerId,
+            id,
+          ).catch((e) => window.alert(e instanceof Error ? e.message : "เปลี่ยนตัวไม่สำเร็จ"));
+        }
+        setSwapSel(null);
+        return;
+      }
+      if (nextUpSel) {
+        void substituteNextUpPlayer(
+          session?.nextUp?.teamA ?? [],
+          session?.nextUp?.teamB ?? [],
+          nextUpSel,
+          id,
+        ).catch((e) => window.alert(e instanceof Error ? e.message : "เปลี่ยนตัวไม่สำเร็จ"));
+        setNextUpSel(null);
+        return;
+      }
+      if (nextUpCount > 0 && nextUpCount < 4) {
+        void addToNextUp(session?.nextUp?.teamA ?? [], session?.nextUp?.teamB ?? [], id).catch(
+          (e) => window.alert(e instanceof Error ? e.message : "เพิ่มผู้เล่นไม่สำเร็จ"),
+        );
+        return;
+      }
+      toggleSelect(id);
+    },
+    [swapSel, nextUpSel, nextUpCount, session, courts, toggleSelect],
+  );
+
+  // ── Next Up handlers ─────────────────────────────────────────────
+  const handleNextUpPlayerTap = useCallback(
+    (playerId: string) => {
+      setSwapSel(null); // court and Next Up picks are mutually exclusive
+      if (!nextUpSel) {
+        setNextUpSel(playerId);
+        return;
+      }
+      if (nextUpSel === playerId) {
+        setNextUpSel(null);
+        return;
+      }
+      void swapNextUpPlayers(
+        session?.nextUp?.teamA ?? [],
+        session?.nextUp?.teamB ?? [],
+        nextUpSel,
+        playerId,
+      ).catch((e) => window.alert(e instanceof Error ? e.message : "สลับผู้เล่นไม่สำเร็จ"));
+      setNextUpSel(null);
+    },
+    [nextUpSel, session],
+  );
+
+  const handleRemoveFromNext = useCallback(
+    (id: string) => {
+      void removeFromNextUp(session?.nextUp?.teamA ?? [], session?.nextUp?.teamB ?? [], id).catch(
+        (e) => window.alert(e instanceof Error ? e.message : "เอาผู้เล่นออกไม่สำเร็จ"),
+      );
+      setNextUpSel((prev) => (prev === id ? null : prev));
+    },
+    [session],
+  );
+
+  // Enter manual-pick mode: choose 4 from the queue, confirm in the bottom bar.
+  const handleStartManual = useCallback(() => {
+    setSwapSel(null);
+    setNextUpSel(null);
+    setSelectedIds(new Set());
+    setNextUpPicking(true);
+    setActiveView("queue");
+  }, []);
+
+  const handleCancelManual = useCallback(() => {
+    setNextUpPicking(false);
+    setSelectedIds(new Set());
+  }, []);
+
+  const handleStageFair = useCallback(async () => {
+    // Creating (0 → set) is gated on all courts being filled; re-rolling an
+    // existing staged game is just an edit and isn't gated.
+    if (nextUpCount === 0 && !allCourtsAssigned) {
+      window.alert("จัดผู้เล่นลงคอร์ตให้ครบก่อน จึงจะตั้งเกมถัดไปได้");
+      return;
+    }
+    if (nextUpCount > 0 && !window.confirm("มีเกมถัดไปอยู่แล้ว แทนที่ด้วยชุดใหม่?")) return;
+    try {
+      // Re-roll draws from the whole queue (staged players are released back).
+      await setNextUpFair(waiting, matches);
+      setNextUpSel(null);
+      setNextUpPicking(false);
+      setSelectedIds(new Set());
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "จับแฟร์ไม่สำเร็จ");
+    }
+  }, [nextUpCount, allCourtsAssigned, waiting, matches]);
+
+  const handleStageSelected = useCallback(async () => {
+    if (!allCourtsAssigned) return;
+    const chosen = assignable.filter((p) => selectedIds.has(p.id));
+    if (chosen.length !== 4) return;
+    if (nextUpCount > 0 && !window.confirm("มีเกมถัดไปอยู่แล้ว แทนที่ด้วยชุดใหม่?")) return;
+    try {
+      await setNextUpManual(chosen);
+      setSelectedIds(new Set());
+      setNextUpSel(null);
+      setNextUpPicking(false);
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "ตั้งเกมถัดไปไม่สำเร็จ");
+    }
+  }, [allCourtsAssigned, assignable, selectedIds, nextUpCount]);
+
+  const handleClearNext = useCallback(() => {
+    if (!window.confirm("ล้างเกมถัดไป?")) return;
+    void clearNextUp().catch((e) => window.alert(e instanceof Error ? e.message : "ล้างไม่สำเร็จ"));
+    setNextUpSel(null);
+  }, []);
+
+  const handlePromote = useCallback(
+    async (courtId: string) => {
+      if (nextUpCount !== 4) return;
+      try {
+        // Pass the ids the admin currently sees; the DB transaction re-validates
+        // court/nextUp state to block a double-promote across devices.
+        await promoteNextUp(
+          courtId,
+          nextUpTeamA.map((p) => p.id),
+          nextUpTeamB.map((p) => p.id),
+        );
+        setNextUpSel(null);
+      } catch (e) {
+        window.alert(e instanceof Error ? e.message : "ส่งเกมถัดไปไม่สำเร็จ");
+      }
+    },
+    [nextUpCount, nextUpTeamA, nextUpTeamB],
   );
 
   const handleFinish = useCallback(
@@ -249,9 +501,20 @@ export default function Home() {
   const unpaidCount = players.filter((p) => !(p.paid ?? false)).length;
 
   const selectedPlayers = useMemo(
-    () => waiting.filter((p) => selectedIds.has(p.id)),
-    [waiting, selectedIds],
+    () => assignable.filter((p) => selectedIds.has(p.id)),
+    [assignable, selectedIds],
   );
+
+  // What a tap in the queue currently means, for the queue banner + row taps.
+  const queuePick = swapSel
+    ? { active: true, label: "แตะเพื่อนในคิวเพื่อเปลี่ยนตัวลงคอร์ต" }
+    : nextUpSel
+      ? { active: true, label: "แตะเพื่อนในคิวเพื่อเปลี่ยนตัวในเกมถัดไป" }
+      : nextUpCount > 0 && nextUpCount < 4
+        ? { active: true, label: `เติมเกมถัดไป — แตะเพื่อเพิ่ม (${nextUpCount}/4)` }
+        : nextUpPicking
+          ? { active: true, label: `เลือก 4 คนเพื่อตั้งเป็นเกมถัดไป (${selectedPlayers.length}/4)` }
+          : { active: false, label: null };
 
   return (
     <div className="soft-grid flex min-h-dvh flex-col lg:h-dvh lg:min-h-0 lg:overflow-hidden">
@@ -292,7 +555,7 @@ export default function Home() {
         <main className="mx-auto flex w-full max-w-[1700px] flex-1 flex-col gap-4 px-3 pb-28 pt-4 sm:px-5 lg:min-h-0 lg:pb-4">
           <StatBand
             totalPlayers={players.length}
-            waiting={waiting.length}
+            waiting={assignable.length}
             playing={playingCount}
             resting={resting.length}
             games={totalGamesPlayed}
@@ -306,7 +569,7 @@ export default function Home() {
               <h1 className="display mt-1 text-title leading-none text-ink">{activeView === "courts" ? "สนามวันนี้" : "เพื่อนในคิว"}</h1>
             </div>
             <span className="rounded-full bg-mint-wash px-3 py-1.5 text-[0.68rem] font-extrabold text-mint-deep">
-              {activeView === "courts" ? `${activeCourts}/${courts.length} กำลังใช้` : `${waiting.length} คนกำลังรอ`}
+              {activeView === "courts" ? `${activeCourts}/${courts.length} กำลังใช้` : `${assignable.length} คนกำลังรอ`}
             </span>
           </div>
 
@@ -315,34 +578,62 @@ export default function Home() {
               can never stretch the courts beside it. */}
           <div className="grid flex-1 gap-4 lg:min-h-0 lg:grid-cols-12">
             <section className={`${activeView === "courts" ? "flex" : "hidden"} flex-col gap-4 lg:col-span-8 lg:flex lg:min-h-0`}>
-              <div className="scroll-pane grid auto-rows-min gap-4 sm:grid-cols-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1.5">
-                {courts.map((court, i) => (
-                  <CourtCard
-                    key={court.id}
-                    court={court}
-                    byId={playersById}
-                    isAdmin={isAdmin}
-                    waitingCount={waiting.length}
-                    selectedCount={selectedIds.size}
-                    onAuto={handleAuto}
-                    onFair={handleFair}
-                    onRandom={handleRandom}
-                    onAssignSelected={handleAssignSelected}
-                    onFinish={handleFinish}
-                    onRemove={handleRemove}
-                    index={i}
-                  />
-                ))}
+              {/* Courts first, then the staged next game beneath them — the
+                  member reading order: playing/starting → เกมถัดไป → queue. */}
+              <div className="scroll-pane flex flex-col gap-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1.5">
+                <div className="grid auto-rows-min gap-4 sm:grid-cols-2">
+                  {courts.map((court, i) => (
+                    <CourtCard
+                      key={court.id}
+                      court={court}
+                      byId={playersById}
+                      isAdmin={isAdmin}
+                      waitingCount={assignable.length}
+                      selectedCount={selectedIds.size}
+                      swapSelectedId={swapSel?.courtId === court.id ? swapSel.playerId : null}
+                      nextUpCount={nextUpCount}
+                      onFair={handleFair}
+                      onRandom={handleRandom}
+                      onAssignSelected={handleAssignSelected}
+                      onPromote={handlePromote}
+                      onStart={handleStart}
+                      onPlayerTap={handleCourtPlayerTap}
+                      onFinish={handleFinish}
+                      onRemove={handleRemove}
+                      index={i}
+                    />
+                  ))}
+                </div>
+
+                <NextUpCard
+                  isAdmin={isAdmin}
+                  teamA={nextUpTeamA}
+                  teamB={nextUpTeamB}
+                  count={nextUpCount}
+                  selectedId={nextUpSel}
+                  canStageFair={waiting.length >= 4}
+                  canCreate={allCourtsAssigned}
+                  picking={nextUpPicking}
+                  swapActive={nextUpSel != null}
+                  onStageFair={handleStageFair}
+                  onStartManual={handleStartManual}
+                  onCancelManual={handleCancelManual}
+                  onClear={handleClearNext}
+                  onPlayerTap={handleNextUpPlayerTap}
+                  onRemovePlayer={handleRemoveFromNext}
+                />
               </div>
             </section>
 
             <aside className={`${activeView === "queue" ? "block" : "hidden"} lg:col-span-4 lg:block lg:min-h-0`}>
               <QueuePanel
-                waiting={waiting}
+                waiting={assignable}
                 resting={resting}
                 isAdmin={isAdmin}
                 selectedIds={selectedIds}
-                onToggleSelect={toggleSelect}
+                pickActive={queuePick.active}
+                pickLabel={queuePick.label}
+                onToggleSelect={handleWaitingTap}
                 onRest={handleRest}
                 onResume={handleResume}
                 onDelete={handleDelete}
@@ -377,17 +668,33 @@ export default function Home() {
               เลือกแล้ว {selectedPlayers.length}/4 · แตะคอร์ตว่างเพื่อส่งลงสนาม
             </span>
 
-            <motion.button
-              whileTap={press}
-              onClick={() => setActiveView("courts")}
-              className="lime-button h-10 shrink-0 rounded-full px-4 text-caption font-extrabold lg:hidden"
-            >
-              ไปสนาม
-            </motion.button>
+            {allCourtsAssigned && (
+              <motion.button
+                whileTap={selectedPlayers.length === 4 ? press : undefined}
+                onClick={() => handleStageSelected()}
+                disabled={selectedPlayers.length !== 4}
+                className="h-10 shrink-0 rounded-full border border-mint/30 bg-white/8 px-4 text-caption font-extrabold text-mint transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/14 disabled:cursor-not-allowed disabled:border-white/10 disabled:text-white/35 disabled:hover:translate-y-0 disabled:hover:bg-white/8"
+              >
+                ตั้งเป็นเกมถัดไป
+              </motion.button>
+            )}
+
+            {!nextUpPicking && (
+              <motion.button
+                whileTap={press}
+                onClick={() => setActiveView("courts")}
+                className="lime-button h-10 shrink-0 rounded-full px-4 text-caption font-extrabold lg:hidden"
+              >
+                ไปสนาม
+              </motion.button>
+            )}
 
             <motion.button
               whileTap={press}
-              onClick={() => setSelectedIds(new Set())}
+              onClick={() => {
+                setSelectedIds(new Set());
+                setNextUpPicking(false);
+              }}
               className="h-10 shrink-0 rounded-full border border-line bg-white px-4 text-caption font-bold text-ink-2 shadow-sm transition-colors duration-200 hover:border-alert/25 hover:bg-alert-wash hover:text-alert"
             >
               ล้าง
@@ -400,7 +707,7 @@ export default function Home() {
         <MobileTabBar
           active={activeView}
           onChange={setActiveView}
-          waitingCount={waiting.length}
+          waitingCount={assignable.length}
           courtCount={courts.length}
         />
       )}

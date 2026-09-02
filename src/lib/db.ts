@@ -1,4 +1,5 @@
 import {
+  arrayRemove,
   collection,
   doc,
   getDoc,
@@ -184,6 +185,10 @@ export async function deletePlayer(id: string): Promise<void> {
         });
       }
     }
+    // Also drop them from the staged "next game" if they were in it, so a
+    // deleted player can never linger in nextUp (arrayRemove is a no-op when
+    // the id isn't there).
+    tx.update(sessionRef, { "nextUp.teamA": arrayRemove(id), "nextUp.teamB": arrayRemove(id) });
     tx.delete(playerRef(id));
   });
 }
@@ -191,14 +196,18 @@ export async function deletePlayer(id: string): Promise<void> {
 /**
  * Move a player between the "waiting" and "resting" pools.
  * Re-entering the queue pushes them to the back (queuedAt refreshed).
+ *
+ * Going to rest also drops the player from the staged "next game" (they can't
+ * be earmarked to play next while sitting out); the two writes commit together.
  */
 export async function setPlayerResting(id: string, resting: boolean): Promise<void> {
   const status: PlayerStatus = resting ? "resting" : "waiting";
-  await setDoc(
-    playerRef(id),
-    { status, queuedAt: Date.now(), courtId: null },
-    { merge: true },
-  );
+  const batch = writeBatch(db);
+  batch.set(playerRef(id), { status, queuedAt: Date.now(), courtId: null }, { merge: true });
+  if (resting) {
+    batch.update(sessionRef, { "nextUp.teamA": arrayRemove(id), "nextUp.teamB": arrayRemove(id) });
+  }
+  await batch.commit();
 }
 
 // ---- Payments --------------------------------------------------------------
@@ -229,24 +238,45 @@ export async function resetPayments(players: Player[]): Promise<void> {
 
 /**
  * Write a chosen team split onto a court and mark its players as playing.
- * Shared by every assignment strategy (FIFO, random, manual, fair) so they
- * all touch Firestore the same way.
+ * Shared by every assignment strategy (random, manual, fair) so they all touch
+ * Firestore the same way.
+ *
+ * The game clock does NOT start here — `startedAt` stays null until the admin
+ * presses "เริ่มเกม" (startGame). While it's null the four players sit on the
+ * court but the timer/game count is paused, which is the window in which the
+ * teams can still be swapped (swapCourtPlayers / substituteCourtPlayer).
  */
 async function commitAssignment(
   targetCourtId: string,
   teamA: Player[],
   teamB: Player[],
 ): Promise<void> {
+  const ids = [...teamA, ...teamB].map((p) => p.id);
   const batch = writeBatch(db);
   batch.update(courtRef(targetCourtId), {
     teamA: teamA.map((p) => p.id),
     teamB: teamB.map((p) => p.id),
-    startedAt: Date.now(),
+    startedAt: null,
   });
-  for (const p of [...teamA, ...teamB]) {
-    batch.update(playerRef(p.id), { status: "playing", courtId: targetCourtId });
+  for (const id of ids) {
+    batch.update(playerRef(id), { status: "playing", courtId: targetCourtId });
   }
+  // Safety net: whoever lands on a court is removed from the staged "next game"
+  // so nobody is ever in both nextUp and a court. This is also what clears
+  // nextUp when a court is filled by promoting it (the promoted four ARE the
+  // nextUp). arrayRemove of ids that aren't staged is a harmless no-op, so it
+  // never disturbs a partially-filled nextUp assembled from other players.
+  batch.update(sessionRef, { "nextUp.teamA": arrayRemove(...ids), "nextUp.teamB": arrayRemove(...ids) });
   await batch.commit();
+}
+
+/**
+ * Start the game clock on a court that already has players assigned. This is
+ * the only place `startedAt` is set to a real timestamp, so the timer counts
+ * from the whistle, not from when players were dropped onto the court.
+ */
+export async function startGame(targetCourtId: string): Promise<void> {
+  await setDoc(courtRef(targetCourtId), { startedAt: Date.now() }, { merge: true });
 }
 
 /** Assign a specific set of players to a court and split them into teams. */
@@ -260,7 +290,7 @@ export async function assignToCourt(targetCourtId: string, players: Player[]): P
  * play next (fewest games + longest wait) while avoiding recently repeated
  * foursomes/partners, then split them into skill-even teams. Falls back to
  * plain fairness when there's little/no match history. Throws if fewer than 4
- * are waiting — same contract as autoAssign/randomAssign.
+ * are waiting — same contract as randomAssign.
  */
 export async function fairAssign(
   targetCourtId: string,
@@ -272,18 +302,6 @@ export async function fairAssign(
   }
   const { teamA, teamB } = planFairMatch(waiting, matches);
   await commitAssignment(targetCourtId, teamA, teamB);
-}
-
-/**
- * Auto-fill an empty court with the 4 longest-waiting players, balanced into
- * two evenly matched teams. Throws if fewer than 4 players are waiting.
- */
-export async function autoAssign(targetCourtId: string, waiting: Player[]): Promise<void> {
-  if (waiting.length < 4) {
-    throw new Error("ต้องมีผู้เล่นในคิว 'รอ' อย่างน้อย 4 คน");
-  }
-  const four = waiting.slice(0, 4); // waiting is already ordered by queuedAt
-  await assignToCourt(targetCourtId, four);
 }
 
 /**
@@ -310,6 +328,213 @@ export async function removeFromCourt(targetCourtId: string, playersOnCourt: Pla
     batch.update(playerRef(p.id), { status: "waiting", courtId: null });
   }
   await batch.commit();
+}
+
+/**
+ * Swap two assigned players' slots on the SAME court, before the game starts.
+ * Moves a player from team A to team B (and vice versa) among the four already
+ * on the court. No queue or status change — they're both already "playing"
+ * here. Current teams are passed in from the live client snapshot, so this is a
+ * single plain update (no transaction) like the other assignment writes.
+ */
+export async function swapCourtPlayers(
+  targetCourtId: string,
+  teamA: string[],
+  teamB: string[],
+  idA: string,
+  idB: string,
+): Promise<void> {
+  if (idA === idB) return;
+  const swap = (ids: string[]) =>
+    ids.map((id) => (id === idA ? idB : id === idB ? idA : id));
+  await setDoc(
+    courtRef(targetCourtId),
+    { teamA: swap(teamA), teamB: swap(teamB) },
+    { merge: true },
+  );
+}
+
+/**
+ * Substitute a player currently on a court (pre-game) with a waiting player.
+ * The player leaving the court goes to the BACK of the waiting queue
+ * (queuedAt refreshed); the incoming player takes their exact slot/team.
+ * No gamesPlayed change — the game hasn't started. Current teams are passed in
+ * from the live client snapshot; the three writes commit atomically as a batch.
+ */
+export async function substituteCourtPlayer(
+  targetCourtId: string,
+  teamA: string[],
+  teamB: string[],
+  courtPlayerId: string,
+  waitingPlayerId: string,
+): Promise<void> {
+  if (courtPlayerId === waitingPlayerId) return;
+  const replace = (ids: string[]) =>
+    ids.map((id) => (id === courtPlayerId ? waitingPlayerId : id));
+  const batch = writeBatch(db);
+  batch.update(courtRef(targetCourtId), { teamA: replace(teamA), teamB: replace(teamB) });
+  // Outgoing player → back of the queue.
+  batch.update(playerRef(courtPlayerId), {
+    status: "waiting",
+    courtId: null,
+    queuedAt: Date.now(),
+  });
+  // Incoming player → onto the court (game not started, so no game count).
+  batch.update(playerRef(waitingPlayerId), {
+    status: "playing",
+    courtId: targetCourtId,
+  });
+  await batch.commit();
+}
+
+// ---- Next Up (เกมถัดไป) ----------------------------------------------------
+// A single staged next game on the session doc: sessions/current.nextUp =
+// { teamA, teamB }. Staged players keep status "waiting" (they're just
+// earmarked) — the UI hides them from the open queue and excludes them from
+// every assignment pool, so they can't be grabbed twice. Cleared on promote
+// (via commitAssignment's arrayRemove) and on session start/end (both overwrite
+// the whole session doc). The `nextUp` map is always written whole so it can
+// never end up half-populated.
+
+/** Overwrite the staged next game with a specific A/B split (ids). */
+export async function setNextUp(teamA: string[], teamB: string[]): Promise<void> {
+  await setDoc(sessionRef, { nextUp: { teamA, teamB } }, { merge: true });
+}
+
+/** Clear the staged next game. */
+export async function clearNextUp(): Promise<void> {
+  await setNextUp([], []);
+}
+
+/**
+ * Stage the next game from the fair-match engine: pick the four who most
+ * deserve to play next and split them into even teams — the same logic as the
+ * court "จับแฟร์". Throws if fewer than 4 are available (candidates should
+ * already exclude anyone currently staged/on court).
+ */
+export async function setNextUpFair(candidates: Player[], matches: Match[]): Promise<void> {
+  if (candidates.length < 4) throw new Error(NOT_ENOUGH_WAITING);
+  const { teamA, teamB } = planFairMatch(candidates, matches);
+  await setNextUp(teamA.map((p) => p.id), teamB.map((p) => p.id));
+}
+
+/**
+ * Stage the next game from an explicit set of 4 hand-picked players, split into
+ * skill-even teams (same balancer the manual court assign uses). Admin can then
+ * fine-tune with swap/substitute.
+ */
+export async function setNextUpManual(players: Player[]): Promise<void> {
+  if (players.length !== 4) throw new Error("ต้องเลือกผู้เล่นให้ครบ 4 คน");
+  const { teamA, teamB } = balanceTeams(players);
+  await setNextUp(teamA.map((p) => p.id), teamB.map((p) => p.id));
+}
+
+/**
+ * Swap two staged players' slots across teams (pre-promote edit). Mirrors the
+ * pre-game court swap: current teams are passed in from the live snapshot.
+ */
+export async function swapNextUpPlayers(
+  teamA: string[],
+  teamB: string[],
+  idA: string,
+  idB: string,
+): Promise<void> {
+  if (idA === idB) return;
+  const swap = (ids: string[]) => ids.map((id) => (id === idA ? idB : id === idB ? idA : id));
+  await setNextUp(swap(teamA), swap(teamB));
+}
+
+/**
+ * Substitute a staged player with a waiting player. The outgoing player goes to
+ * the BACK of the queue (queuedAt refreshed); the incoming player takes the
+ * exact slot. Both stay "waiting" — only the earmark and queue order change.
+ */
+export async function substituteNextUpPlayer(
+  teamA: string[],
+  teamB: string[],
+  outId: string,
+  inId: string,
+): Promise<void> {
+  if (outId === inId) return;
+  const replace = (ids: string[]) => ids.map((id) => (id === outId ? inId : id));
+  const batch = writeBatch(db);
+  batch.update(sessionRef, { nextUp: { teamA: replace(teamA), teamB: replace(teamB) } });
+  batch.update(playerRef(outId), { queuedAt: Date.now() });
+  await batch.commit();
+}
+
+/** Remove one player from the staged next game (back to the queue in place). */
+export async function removeFromNextUp(teamA: string[], teamB: string[], id: string): Promise<void> {
+  await setNextUp(teamA.filter((x) => x !== id), teamB.filter((x) => x !== id));
+}
+
+/**
+ * Add a waiting player to an incomplete next game, filling the smaller team
+ * (max 2 per side, 4 total). No-op if already full or already staged.
+ */
+export async function addToNextUp(teamA: string[], teamB: string[], id: string): Promise<void> {
+  if (teamA.includes(id) || teamB.includes(id)) return;
+  if (teamA.length + teamB.length >= 4) return;
+  if (teamA.length <= teamB.length && teamA.length < 2) {
+    await setNextUp([...teamA, id], teamB);
+  } else {
+    await setNextUp(teamA, [...teamB, id]);
+  }
+}
+
+/**
+ * Promote the staged next game onto a court, preserving the admin's exact
+ * Team A / Team B (no re-balance); startedAt stays null (→ "รอเริ่มเกม").
+ *
+ * Runs in a transaction that re-checks the latest state before writing, so two
+ * admin devices can't drop the same staged game onto two courts:
+ *   - the target court must still be empty,
+ *   - nextUp must still hold exactly these 4 ids (unchanged since the tap),
+ *   - none of the four may already be on another court.
+ * The winning commit clears nextUp; a racing second promote then re-reads an
+ * empty/changed nextUp and aborts. `expectedTeamA/B` are the ids the admin saw.
+ */
+export async function promoteNextUp(
+  targetCourtId: string,
+  expectedTeamA: string[],
+  expectedTeamB: string[],
+): Promise<void> {
+  const expected = [...expectedTeamA, ...expectedTeamB];
+  await runTransaction(db, async (tx) => {
+    // ---- reads (all before any write) ----
+    const cSnap = await tx.get(courtRef(targetCourtId));
+    if (!cSnap.exists()) throw new Error("ไม่พบคอร์ตนี้");
+    const court = cSnap.data() as Omit<Court, "id">;
+    if (court.teamA.length + court.teamB.length > 0) {
+      throw new Error("คอร์ตนี้มีผู้เล่นแล้ว");
+    }
+
+    const sSnap = await tx.get(sessionRef);
+    const nextUp = sSnap.exists() ? (sSnap.data() as Session).nextUp : undefined;
+    const teamA = nextUp?.teamA ?? [];
+    const teamB = nextUp?.teamB ?? [];
+    const ids = [...teamA, ...teamB];
+    if (ids.length !== 4) throw new Error("เกมถัดไปยังไม่ครบ 4 คน");
+    const sameSet =
+      ids.length === expected.length && ids.every((id) => expected.includes(id));
+    if (!sameSet) throw new Error("เกมถัดไปเปลี่ยนไปแล้ว ลองใหม่อีกครั้ง");
+
+    for (const id of ids) {
+      const pSnap = await tx.get(playerRef(id));
+      if (!pSnap.exists()) throw new Error("ผู้เล่นบางคนหายไปแล้ว");
+      const p = pSnap.data() as Omit<Player, "id">;
+      if (p.status === "playing" || p.courtId) {
+        throw new Error("ผู้เล่นบางคนลงคอร์ตอื่นแล้ว");
+      }
+    }
+
+    // ---- writes: exact teams (no re-balance), clock paused, nextUp cleared ----
+    tx.update(courtRef(targetCourtId), { teamA, teamB, startedAt: null });
+    for (const id of ids) {
+      tx.update(playerRef(id), { status: "playing", courtId: targetCourtId });
+    }
+    tx.update(sessionRef, { nextUp: { teamA: [], teamB: [] } });
+  });
 }
 
 /**

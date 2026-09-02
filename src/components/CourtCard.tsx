@@ -32,11 +32,17 @@ function Side({
   byId,
   label,
   align,
+  selectable,
+  selectedId,
+  onPlayerTap,
 }: {
   ids: string[];
   byId: Map<string, Player>;
   label: string;
   align: "left" | "right";
+  selectable: boolean;
+  selectedId: string | null;
+  onPlayerTap?: (id: string) => void;
 }) {
   const right = align === "right";
   return (
@@ -46,18 +52,34 @@ function Side({
         {ids.map((id, i) => {
           const p = byId.get(id);
           if (!p) return null;
+          const chosen = selectedId === id;
+          // Keyed by player id, so a fresh pairing remounts and pops in.
+          // While the game hasn't started, each chip is a tap target for the
+          // swap flow (touch-friendly for iPad Safari — no drag & drop).
           return (
-            // Keyed by player id, so a fresh pairing remounts and pops in.
-            <div
+            <motion.div
               key={id}
+              whileTap={selectable ? press : undefined}
+              onClick={
+                selectable && onPlayerTap
+                  ? (e) => {
+                      e.stopPropagation();
+                      onPlayerTap(id);
+                    }
+                  : undefined
+              }
               style={staggerDelay(i, 0.06)}
-              className={`anim-pop flex min-w-0 items-center gap-2 rounded-[13px] border border-white/80 bg-white/72 px-2.5 py-2 shadow-[0_8px_18px_-16px_rgba(32,35,63,0.45)] backdrop-blur-sm ${
+              className={`anim-pop flex min-w-0 items-center gap-2 rounded-[13px] border px-2.5 py-2 shadow-[0_8px_18px_-16px_rgba(32,35,63,0.45)] backdrop-blur-sm transition-all duration-150 ${
                 right ? "flex-row-reverse" : ""
-              }`}
+              } ${
+                chosen
+                  ? "border-accent bg-accent-wash ring-2 ring-accent"
+                  : "border-white/80 bg-white/72"
+              } ${selectable ? "cursor-pointer" : ""}`}
             >
               <SkillBadge skill={p.skill} />
               <span className="truncate text-body font-extrabold leading-tight text-ink">{p.name}</span>
-            </div>
+            </motion.div>
           );
         })}
       </div>
@@ -71,10 +93,14 @@ export function CourtCard({
   isAdmin,
   waitingCount,
   selectedCount,
-  onAuto,
+  swapSelectedId,
+  nextUpCount,
   onFair,
   onRandom,
   onAssignSelected,
+  onPromote,
+  onStart,
+  onPlayerTap,
   onFinish,
   onRemove,
   index = 0,
@@ -85,19 +111,30 @@ export function CourtCard({
   isAdmin: boolean;
   waitingCount: number;
   selectedCount: number;
+  swapSelectedId: string | null; // player selected for swapping on THIS court
+  nextUpCount: number; // staged Next Up size (0 = none, 1–3 = locked, 4 = ready)
   index?: number;
-  onAuto: (courtId: string) => void;
   onFair: (courtId: string) => void;
   onRandom: (courtId: string) => void;
   onAssignSelected: (courtId: string) => void;
+  onPromote: (courtId: string) => void;
+  onStart: (courtId: string) => void;
+  onPlayerTap: (courtId: string, playerId: string) => void;
   onFinish: (courtId: string) => void;
   onRemove: (courtId: string) => void;
   className?: string;
 }) {
   const occupied = court.teamA.length + court.teamB.length > 0;
+  const started = court.startedAt != null; // game clock running
+  const assigned = occupied && !started; // players placed, game not started yet
   const notEnough = waitingCount < 4;
   const number = String(court.index).padStart(2, "0");
-  const canDrop = isAdmin && !occupied && selectedCount >= 2;
+  // Next Up priority states (kept inline — see the empty-court body below):
+  //   nextUpCount === 4        → this court can promote the staged game
+  //   1 ≤ nextUpCount ≤ 3      → booked but incomplete: court is locked
+  //   nextUpCount === 0        → normal assignment
+  // While any next game is staged, an empty court can't take a manual drop.
+  const canDrop = isAdmin && !occupied && selectedCount >= 2 && nextUpCount === 0;
 
   // A fresh `startedAt` means players just landed here — wash the card once.
   const [flash, setFlash] = useState(false);
@@ -132,12 +169,16 @@ export function CourtCard({
             </span>
             <div>
               <span className="block text-xs font-extrabold text-ink">คอร์ต {court.index}</span>
-              <span className="mt-1 block text-[0.65rem] font-semibold text-ink-3">{occupied ? "กำลังสนุกกันอยู่" : "พร้อมรับเกมใหม่"}</span>
+              <span className="mt-1 block text-[0.65rem] font-semibold text-ink-3">
+                {started ? "กำลังสนุกกันอยู่" : assigned ? "จัดผู้เล่นแล้ว · แตะเพื่อสลับ" : "พร้อมรับเกมใหม่"}
+              </span>
             </div>
           </div>
 
-          {occupied && court.startedAt != null ? (
+          {started && court.startedAt != null ? (
             <CourtTimer startedAt={court.startedAt} />
+          ) : assigned ? (
+            <span className="mt-1 flex items-center gap-1.5 rounded-full bg-accent-wash px-3 py-1.5 text-[0.65rem] font-extrabold text-accent"><span className="h-1.5 w-1.5 rounded-full bg-accent" />รอเริ่มเกม</span>
           ) : (
             <span className="mt-1 flex items-center gap-1.5 rounded-full bg-mint-wash px-3 py-1.5 text-[0.65rem] font-extrabold text-mint-deep"><span className="h-1.5 w-1.5 rounded-full bg-mint" />ว่าง</span>
           )}
@@ -147,13 +188,37 @@ export function CourtCard({
         {occupied ? (
           <>
             <div className="mt-5 flex items-start gap-3">
-              <Side ids={court.teamA} byId={byId} label="ทีม A" align="left" />
+              <Side
+                ids={court.teamA}
+                byId={byId}
+                label="ทีม A"
+                align="left"
+                selectable={isAdmin && assigned}
+                selectedId={swapSelectedId}
+                onPlayerTap={(id) => onPlayerTap(court.id, id)}
+              />
               <div className="w-px self-stretch bg-gradient-to-b from-transparent via-line-2 to-transparent" />
-              <Side ids={court.teamB} byId={byId} label="ทีม B" align="right" />
+              <Side
+                ids={court.teamB}
+                byId={byId}
+                label="ทีม B"
+                align="right"
+                selectable={isAdmin && assigned}
+                selectedId={swapSelectedId}
+                onPlayerTap={(id) => onPlayerTap(court.id, id)}
+              />
             </div>
 
+            {isAdmin && assigned && (
+              <p className="mt-3 rounded-[12px] bg-accent-wash px-3 py-2 text-[0.66rem] font-semibold leading-relaxed text-accent-deep">
+                {swapSelectedId
+                  ? "แตะอีกคนบนคอร์ตเพื่อสลับทีม หรือแตะคนในคิวเพื่อเปลี่ยนตัว"
+                  : "แตะผู้เล่นเพื่อสลับทีม / เปลี่ยนตัวก่อนเริ่มเกม"}
+              </p>
+            )}
+
             {isAdmin && (
-              <div className="mt-auto flex gap-2">
+              <div className="mt-auto flex gap-2 pt-3">
                 <motion.button
                   whileTap={press}
                   onClick={() => onRemove(court.id)}
@@ -161,13 +226,23 @@ export function CourtCard({
                 >
                   ยกเลิก
                 </motion.button>
-                <motion.button
-                  whileTap={press}
-                  onClick={() => onFinish(court.id)}
-                  className="lime-button shine-button h-12 flex-[2] rounded-[15px] text-caption font-extrabold transition-all duration-200 hover:-translate-y-0.5"
-                >
-                  จบเกม + กลับคิว
-                </motion.button>
+                {started ? (
+                  <motion.button
+                    whileTap={press}
+                    onClick={() => onFinish(court.id)}
+                    className="lime-button shine-button h-12 flex-[2] rounded-[15px] text-caption font-extrabold transition-all duration-200 hover:-translate-y-0.5"
+                  >
+                    จบเกม + กลับคิว
+                  </motion.button>
+                ) : (
+                  <motion.button
+                    whileTap={press}
+                    onClick={() => onStart(court.id)}
+                    className="lime-button shine-button h-12 flex-[2] rounded-[15px] text-caption font-extrabold transition-all duration-200 hover:-translate-y-0.5"
+                  >
+                    เริ่มเกม
+                  </motion.button>
+                )}
               </div>
             )}
           </>
@@ -183,45 +258,63 @@ export function CourtCard({
             </div>
 
             {isAdmin ? (
-              <div className="space-y-2.5">
-                {selectedCount >= 2 ? (
+              nextUpCount === 4 ? (
+                // Priority: a full Next Up is staged — this court can only take
+                // it. Fair / Random / Manual are hidden until it's promoted.
+                <div className="space-y-2.5">
                   <ActionButton
-                    onClick={() => onAssignSelected(court.id)}
-                    label="ส่งลงคอร์ตนี้"
-                    hint={`${selectedCount} คนที่เลือก`}
+                    onClick={() => onPromote(court.id)}
+                    label="ส่งเกมถัดไปลง"
+                    hint="4 คนที่ตั้งไว้"
                     variant="primary"
                   />
-                ) : (
-                  <>
+                  <p className="px-1 pt-0.5 text-[0.68rem] leading-relaxed text-ink-4">
+                    มีเกมถัดไปรออยู่ — ส่งลงก่อนถึงจะจับคู่ชุดใหม่ได้
+                  </p>
+                </div>
+              ) : nextUpCount >= 1 ? (
+                // Priority: an incomplete next game is booked. The queue can't
+                // jump ahead of it — admin must fill it to 4 or clear it first.
+                <div className="rounded-[15px] border border-dashed border-accent/25 bg-accent-wash/50 px-4 py-4 text-center">
+                  <p className="text-caption font-extrabold text-accent-deep">เกมถัดไปจองคิวไว้แล้ว</p>
+                  <p className="mt-1 text-[0.68rem] leading-relaxed text-ink-3">
+                    เติมเกมถัดไปให้ครบ 4 คน หรือล้างก่อน ถึงจะจัดคอร์ตนี้ได้
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {selectedCount >= 2 ? (
                     <ActionButton
-                      onClick={() => onFair(court.id)}
-                      disabled={notEnough}
-                      label="จับแฟร์"
-                      hint="ยุติธรรม · ไม่ซ้ำคู่"
-                      variant="smart"
-                    />
-                    <ActionButton
-                      onClick={() => onAuto(court.id)}
-                      disabled={notEnough}
-                      label="จับคู่ให้เลย"
-                      hint="4 คนแรกในคิว"
+                      onClick={() => onAssignSelected(court.id)}
+                      label="ส่งลงคอร์ตนี้"
+                      hint={`${selectedCount} คนที่เลือก`}
                       variant="primary"
                     />
-                    <ActionButton
-                      onClick={() => onRandom(court.id)}
-                      disabled={notEnough}
-                      label="สุ่มดวงกันหน่อย"
-                      hint="สุ่มจากทั้งคิว"
-                      variant="soft"
-                    />
-                  </>
-                )}
-                {notEnough && selectedCount < 2 && (
-                    <p className="px-1 pt-0.5 text-[0.68rem] leading-relaxed text-ink-4">
-                    ขอครบ 4 คนในคิวก่อนนะ แล้วจะจัดให้ทันที
-                  </p>
-                )}
-              </div>
+                  ) : (
+                    <>
+                      <ActionButton
+                        onClick={() => onFair(court.id)}
+                        disabled={notEnough}
+                        label="จับแฟร์"
+                        hint="ยุติธรรม · ไม่ซ้ำคู่"
+                        variant="smart"
+                      />
+                      <ActionButton
+                        onClick={() => onRandom(court.id)}
+                        disabled={notEnough}
+                        label="สุ่มดวงกันหน่อย"
+                        hint="สุ่มจากทั้งคิว"
+                        variant="soft"
+                      />
+                    </>
+                  )}
+                  {notEnough && selectedCount < 2 && (
+                      <p className="px-1 pt-0.5 text-[0.68rem] leading-relaxed text-ink-4">
+                      ขอครบ 4 คนในคิวก่อนนะ แล้วจะจัดให้ทันที
+                    </p>
+                  )}
+                </div>
+              )
             ) : (
               <p className="pb-4 text-body text-ink-3"></p>
             )}

@@ -27,11 +27,23 @@ export interface Court {
   startedAt: number | null; // ms when the current game started (drives the court timer)
 }
 
+/**
+ * The single staged "next game" (เกมถัดไป). Admin sets it in advance so members
+ * can see who plays next before a court frees up. Holds player ids already split
+ * into the two teams the admin arranged; promotion drops these exact teams onto
+ * a court without re-balancing. Cleared on promote and on session start/end.
+ */
+export interface NextUp {
+  teamA: string[]; // player ids
+  teamB: string[]; // player ids
+}
+
 export interface Session {
   active: boolean;
   courtCount: number; // 2 or 3
   createdAt: number;
   feePerHead?: number; // baht each player owes for the session (0 = not set yet)
+  nextUp?: NextUp; // staged "next game" (เกมถัดไป); absent/empty = not set
 }
 
 /**

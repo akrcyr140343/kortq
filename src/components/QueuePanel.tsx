@@ -54,6 +54,7 @@ function WaitingRow({
   isAdmin,
   selected,
   selectable,
+  pickActive,
   onToggle,
   onRest,
   onDelete,
@@ -63,11 +64,15 @@ function WaitingRow({
   isAdmin: boolean;
   selected: boolean;
   selectable: boolean;
+  pickActive: boolean;
   onToggle: (id: string) => void;
   onRest: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
-  const clickable = isAdmin && (selectable || selected);
+  // While a pick is in progress (court/Next Up substitution, or filling an
+  // incomplete Next Up) every waiting player is a valid tap target, regardless
+  // of the 2–4 selection cap that governs the normal assign flow.
+  const clickable = isAdmin && (pickActive || selectable || selected);
 
   return (
     <li
@@ -159,6 +164,8 @@ export function QueuePanel({
   resting,
   isAdmin,
   selectedIds,
+  pickActive,
+  pickLabel,
   onToggleSelect,
   onRest,
   onResume,
@@ -168,6 +175,8 @@ export function QueuePanel({
   resting: Player[];
   isAdmin: boolean;
   selectedIds: Set<string>;
+  pickActive: boolean; // a tap-to-pick flow is active (court/Next Up sub or fill)
+  pickLabel: string | null; // banner text for the active pick flow
   onToggleSelect: (id: string) => void;
   onRest: (id: string) => void;
   onResume: (id: string) => void;
@@ -190,8 +199,12 @@ export function QueuePanel({
           <SectionHead title="คิวรอ" count={waiting.length} />
 
           {isAdmin && waiting.length > 0 && (
-            <p className="mb-3 rounded-[12px] bg-mint-wash px-3 py-2 text-[0.68rem] font-semibold text-mint-deep">
-              ● แตะชื่อเพื่อเลือกลงคอร์ตได้ 2–4 คน
+            <p
+              className={`mb-3 rounded-[12px] px-3 py-2 text-[0.68rem] font-semibold ${
+                pickActive ? "bg-accent-wash text-accent-deep" : "bg-mint-wash text-mint-deep"
+              }`}
+            >
+              ● {pickActive ? pickLabel : "แตะชื่อเพื่อเลือกลงคอร์ตได้ 2–4 คน"}
             </p>
           )}
 
@@ -214,6 +227,7 @@ export function QueuePanel({
                   isAdmin={isAdmin}
                   selected={selectedIds.has(p.id)}
                   selectable={!selectionFull}
+                  pickActive={pickActive}
                   onToggle={onToggleSelect}
                   onRest={onRest}
                   onDelete={onDelete}
