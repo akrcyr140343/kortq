@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { addPlayer } from "@/lib/db";
 import { SKILLS, type Skill } from "@/lib/types";
 import { press } from "./motion";
 import { E2 } from "./ui";
@@ -17,7 +16,15 @@ const ACTIVE_TIER: Record<Skill, string> = {
   S: "bg-coral text-white shadow-sm",
 };
 
-export function AddPlayerForm() {
+export function AddPlayerForm({
+  onAddPlayer,
+  onOpenRegistry,
+}: {
+  // Returns true if the player was actually added (so the form can reset). The
+  // parent owns duplicate-name detection against the roster + the modal.
+  onAddPlayer: (name: string, skill: Skill) => Promise<boolean>;
+  onOpenRegistry: () => void;
+}) {
   const [name, setName] = useState("");
   const [skill, setSkill] = useState<Skill>(DEFAULT_SKILL);
   const [busy, setBusy] = useState(false);
@@ -28,9 +35,11 @@ export function AddPlayerForm() {
     if (!trimmed) return;
     setBusy(true);
     try {
-      await addPlayer(trimmed, skill);
-      setName("");
-      setSkill(DEFAULT_SKILL);
+      const added = await onAddPlayer(trimmed, skill);
+      if (added) {
+        setName("");
+        setSkill(DEFAULT_SKILL);
+      }
     } finally {
       setBusy(false);
     }
@@ -81,6 +90,19 @@ export function AddPlayerForm() {
         className="lime-button shine-button mt-3 h-12 w-full rounded-[16px] text-caption font-extrabold transition-all duration-200 hover:-translate-y-0.5 disabled:bg-none disabled:bg-line disabled:text-ink-4 disabled:shadow-none"
       >
         {busy ? "กำลังเพิ่ม…" : "เพิ่มเข้าคิว"}
+      </motion.button>
+
+      <motion.button
+        type="button"
+        whileTap={press}
+        onClick={onOpenRegistry}
+        className="relative mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-[16px] border border-accent/20 bg-accent-wash text-caption font-bold text-accent-deep transition-all duration-200 hover:-translate-y-0.5"
+      >
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden>
+          <circle cx="9" cy="8" r="3" stroke="currentColor" strokeWidth="1.8" />
+          <path d="M4 19c.5-3.2 2.4-5 5-5s4.5 1.8 5 5M16 7h4M18 5v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        </svg>
+        เลือกจากสมาชิกก๊วน
       </motion.button>
     </form>
   );

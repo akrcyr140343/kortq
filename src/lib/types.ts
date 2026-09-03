@@ -17,6 +17,37 @@ export interface Player {
   queuedAt: number; // ms — last time entered the waiting queue (used for FIFO fairness)
   paid?: boolean; // court-fee settlement for this session (admin-verified, manual)
   paidAt?: number | null; // ms when marked paid
+  profileId?: string | null; // link to the permanent roster Profile they were added from
+}
+
+/**
+ * A permanent roster entry, stored OUTSIDE the session at profiles/{id} so a
+ * regular's name + skill survive across sessions and don't have to be retyped.
+ *
+ * Deliberately separate from the session Player: nothing in Fair Match or Match
+ * History reads a Profile, so a Profile can be edited or hard-deleted without
+ * ever touching a live game or past record. A session Player only snapshots the
+ * Profile's name/skill at add time and keeps its own gamesPlayed (reset to 0
+ * every session).
+ */
+export interface Profile {
+  id: string;
+  name: string; // display form (trimmed)
+  nameKey: string; // normalizeNameKey(name) — used for duplicate detection + search
+  skill: Skill; // persistent skill; used when spawning the next session Player
+  visitCount: number; // sessions attended (capped at +1 per session via lastCountedSession)
+  lastCountedSession: number; // session.createdAt of the session visitCount was last bumped in
+  lastJoinedAt: number; // ms — last time added to a queue (drives "เล่นล่าสุด" + sort tiebreak)
+  createdAt: number; // ms — first registered
+}
+
+/**
+ * Normalise a display name into a comparison key for duplicate detection:
+ * trim, lowercase, and collapse internal whitespace. The club treats a name as
+ * unique (see requirement: same name → never a second Profile).
+ */
+export function normalizeNameKey(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
 export interface Court {

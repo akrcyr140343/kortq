@@ -1,6 +1,7 @@
 import {
   arrayRemove,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -13,7 +14,17 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { SKILL_SCORE, type Court, type Match, type Player, type Session, type Skill, type PlayerStatus } from "./types";
+import {
+  SKILL_SCORE,
+  normalizeNameKey,
+  type Court,
+  type Match,
+  type Player,
+  type Profile,
+  type Session,
+  type Skill,
+  type PlayerStatus,
+} from "./types";
 import { balanceTeams, shuffle } from "./matchmaking";
 import { planFairMatch, NOT_ENOUGH_WAITING } from "./fairmatch";
 
@@ -27,6 +38,11 @@ const courtsCol = collection(db, "sessions", SESSION_ID, "courts");
 const matchesCol = collection(db, "sessions", SESSION_ID, "matches");
 const playerRef = (id: string) => doc(db, "sessions", SESSION_ID, "players", id);
 const courtRef = (id: string) => doc(db, "sessions", SESSION_ID, "courts", id);
+
+// The permanent roster lives at the TOP level (profiles/{id}), NOT under the
+// session, so it is never touched by deleteAll()/startSession()/endSession().
+const profilesCol = collection(db, "profiles");
+const profileRef = (id: string) => doc(db, "profiles", id);
 
 const courtId = (index: number) => `court-${index}`;
 
@@ -105,6 +121,22 @@ export function subscribeMatches(
   );
 }
 
+/**
+ * Live roster of permanent Profiles. No orderBy here — the roster is small and
+ * the "most-frequent first" order (visitCount, then lastJoinedAt) is applied
+ * client-side, which avoids needing a composite Firestore index.
+ */
+export function subscribeProfiles(
+  cb: (profiles: Profile[]) => void,
+  onError?: (e: Error) => void,
+) {
+  return onSnapshot(
+    profilesCol,
+    (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Profile, "id">) }))),
+    (e) => onError?.(e),
+  );
+}
+
 // ---- Helpers ---------------------------------------------------------------
 
 async function deleteAll(): Promise<void> {
@@ -151,11 +183,30 @@ export async function endSession(): Promise<void> {
 
 // ---- Players ---------------------------------------------------------------
 
-export async function addPlayer(name: string, skill: Skill): Promise<void> {
+/**
+ * Add a BRAND-NEW player (a name not already in the roster) to the queue and
+ * register them permanently at the same time. Duplicate-name detection happens
+ * in the UI before this is called (see addPlayerFromProfile for the "add an
+ * existing regular" path). Creates the Profile (visitCount = 1) and the session
+ * Player (linked via profileId) atomically.
+ */
+export async function addPlayer(name: string, skill: Skill, sessionCreatedAt: number): Promise<void> {
   const now = Date.now();
-  const ref = doc(playersCol);
-  await setDoc(ref, {
-    name: name.trim(),
+  const trimmed = name.trim();
+  const pRef = doc(profilesCol);
+  const spRef = doc(playersCol);
+  const batch = writeBatch(db);
+  batch.set(pRef, {
+    name: trimmed,
+    nameKey: normalizeNameKey(trimmed),
+    skill,
+    visitCount: 1,
+    lastCountedSession: sessionCreatedAt,
+    lastJoinedAt: now,
+    createdAt: now,
+  } satisfies Omit<Profile, "id">);
+  batch.set(spRef, {
+    name: trimmed,
     skill,
     score: SKILL_SCORE[skill],
     status: "waiting",
@@ -165,8 +216,80 @@ export async function addPlayer(name: string, skill: Skill): Promise<void> {
     queuedAt: now,
     paid: false,
     paidAt: null,
+    profileId: pRef.id,
   } satisfies Omit<Player, "id">);
+  await batch.commit();
 }
+
+// ---- Roster / Profiles (ทะเบียนผู้เล่น) ------------------------------------
+// Adding an EXISTING regular from the roster into today's queue. The caller
+// (registry UI) is responsible for skipping anyone already in the session
+// (their profileId already appears among session players); this is the write.
+
+/**
+ * Add one rostered Profile to the queue as a fresh session Player (skill/name
+ * snapshotted from the Profile). Bumps the Profile's visitCount at most once per
+ * session — a second add in the same session (e.g. after a remove) only touches
+ * lastJoinedAt. Reads the Profile inside the transaction so the count decision
+ * is race-safe.
+ */
+export async function addPlayerFromProfile(profileId: string, sessionCreatedAt: number): Promise<void> {
+  await runTransaction(db, async (tx) => {
+    const pSnap = await tx.get(profileRef(profileId));
+    if (!pSnap.exists()) throw new Error("ไม่พบสมาชิกก๊วนคนนี้");
+    const profile = pSnap.data() as Omit<Profile, "id">;
+    const now = Date.now();
+
+    const spRef = doc(playersCol);
+    tx.set(spRef, {
+      name: profile.name,
+      skill: profile.skill,
+      score: SKILL_SCORE[profile.skill],
+      status: "waiting",
+      courtId: null,
+      gamesPlayed: 0,
+      createdAt: now,
+      queuedAt: now,
+      paid: false,
+      paidAt: null,
+      profileId,
+    } satisfies Omit<Player, "id">);
+
+    // Cap visitCount at +1 per Profile per session (tracked by lastCountedSession).
+    const alreadyCounted = profile.lastCountedSession === sessionCreatedAt;
+    tx.update(profileRef(profileId), {
+      lastJoinedAt: now,
+      ...(alreadyCounted ? {} : { visitCount: increment(1), lastCountedSession: sessionCreatedAt }),
+    });
+  });
+}
+
+/** Add several rostered Profiles to the queue (each its own race-safe write). */
+export async function addPlayersFromProfiles(
+  profileIds: string[],
+  sessionCreatedAt: number,
+): Promise<void> {
+  for (const id of profileIds) {
+    await addPlayerFromProfile(id, sessionCreatedAt);
+  }
+}
+
+/** Permanently change a Profile's skill (affects the NEXT session it's added to). */
+export async function updateProfileSkill(id: string, skill: Skill): Promise<void> {
+  await setDoc(profileRef(id), { skill }, { merge: true });
+}
+
+/**
+ * Hard-delete a roster Profile. It disappears from the roster; re-adding the
+ * same name later creates a fresh Profile. Any session Player already linked to
+ * it keeps working (its name/skill are its own snapshot) — nothing in Fair Match
+ * or Match History reads the Profile, so history stays intact.
+ */
+export async function deleteProfile(id: string): Promise<void> {
+  await deleteDoc(profileRef(id));
+}
+
+// ---- Players ---------------------------------------------------------------
 
 export async function deletePlayer(id: string): Promise<void> {
   await runTransaction(db, async (tx) => {

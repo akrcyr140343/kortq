@@ -415,6 +415,46 @@ button {
   animation: kq-dot 2.4s ease-in-out infinite;
 }
 
+/* Soft mint halo — the "QR ก๊วน" invite button breathes gently to invite a tap
+   without shouting. Reduced-motion users get a static ring. */
+@keyframes kq-qr-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(184, 242, 61, 0);
+  }
+  50% {
+    box-shadow: 0 0 16px 0 rgba(184, 242, 61, 0.22);
+  }
+}
+
+.qr-glow {
+  animation: kq-qr-glow 3.2s ease-in-out infinite;
+}
+
+/* Tiny accent sparkles around the QR card frame — twinkle, never distract. */
+@keyframes kq-twinkle {
+  0%,
+  100% {
+    opacity: 0.2;
+    transform: scale(0.82);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1);
+  }
+}
+
+.twinkle {
+  animation: kq-twinkle 2.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qr-glow,
+  .twinkle {
+    animation: none;
+  }
+}
+
 /* ═══ Ambient badminton field ══════════════════════════════════════
    Pure CSS keyframes on a fixed, non-interactive layer. Per-item
    duration/delay/size/drift arrive as inline custom properties so the

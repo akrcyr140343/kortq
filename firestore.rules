@@ -10,12 +10,16 @@ rules_version = '2';
 // restrict `write` to authenticated admins instead.
 service cloud.firestore {
   match /databases/{database}/documents {
-    // The whole app lives under sessions/current (+ players/courts subcollections).
+    // The live session lives under sessions/current (+ players/courts/matches).
     match /sessions/{sessionId} {
       allow read, write: if true;
       match /{document=**} {
         allow read, write: if true;
       }
+    }
+    // The permanent player roster (ทะเบียนผู้เล่น) — reused across sessions.
+    match /profiles/{profileId} {
+      allow read, write: if true;
     }
   }
 }

@@ -3,8 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useAdmin } from "@/context/AdminContext";
+import { useModal } from "@/context/ModalContext";
 import { useKortq } from "@/hooks/useKortq";
+import { useProfiles } from "@/hooks/useProfiles";
+import { normalizeNameKey, type Skill } from "@/lib/types";
 import {
+  addPlayer,
+  addPlayerFromProfile,
   assignToCourt,
   fairAssign,
   randomAssign,
@@ -31,6 +36,7 @@ import { CourtCard } from "@/components/CourtCard";
 import { NextUpCard } from "@/components/NextUpCard";
 import { QueuePanel } from "@/components/QueuePanel";
 import { PaymentDrawer } from "@/components/PaymentDrawer";
+import { PlayerRegistryDrawer } from "@/components/PlayerRegistryDrawer";
 import { SkillBadge } from "@/components/SkillBadge";
 import { press } from "@/components/motion";
 import { E2 } from "@/components/ui";
@@ -165,8 +171,10 @@ export default function Home() {
     players,
     playersById,
   } = useKortq();
+  const modal = useModal();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showPayments, setShowPayments] = useState(false);
+  const [showRegistry, setShowRegistry] = useState(false);
   const [activeView, setActiveView] = useState<AppView>("courts");
   // A player picked on a not-yet-started court, waiting for a second tap to
   // swap with (another court player, or a waiting player). Null = idle.
@@ -184,9 +192,20 @@ export default function Home() {
   const allCourtsAssigned =
     courts.length > 0 && courts.every((c) => c.teamA.length + c.teamB.length > 0);
 
-  // Never leave the payment drawer open outside an admin session.
+  // Permanent roster — only subscribed during an admin session (admin-only).
+  const profiles = useProfiles(isAdmin && sessionActive);
+  // Profiles already checked into today's session (block re-adding — req 10).
+  const sessionProfileIds = useMemo(
+    () => new Set(players.map((p) => p.profileId).filter((id): id is string => !!id)),
+    [players],
+  );
+
+  // Never leave the payment/registry drawers open outside an admin session.
   useEffect(() => {
-    if (!isAdmin || !sessionActive) setShowPayments(false);
+    if (!isAdmin || !sessionActive) {
+      setShowPayments(false);
+      setShowRegistry(false);
+    }
   }, [isAdmin, sessionActive]);
 
   useEffect(() => {
@@ -252,9 +271,14 @@ export default function Home() {
   }, []);
 
   const handleEndSession = useCallback(async () => {
-    if (!window.confirm("ปิดสนามและล้างผู้เล่น/คอร์ตทั้งหมด?")) return;
+    const ok = await modal.confirm({
+      title: "ปิดสนามวันนี้?",
+      message: "ข้อมูลของวันนี้จะถูกล้าง",
+      confirmLabel: "ปิดสนาม",
+    });
+    if (!ok) return;
     await endSession();
-  }, []);
+  }, [modal]);
 
   const handleRandom = useCallback(
     async (courtId: string) => {
@@ -421,7 +445,14 @@ export default function Home() {
       window.alert("จัดผู้เล่นลงคอร์ตให้ครบก่อน จึงจะตั้งเกมถัดไปได้");
       return;
     }
-    if (nextUpCount > 0 && !window.confirm("มีเกมถัดไปอยู่แล้ว แทนที่ด้วยชุดใหม่?")) return;
+    if (nextUpCount > 0) {
+      const ok = await modal.confirm({
+        title: "มีเกมถัดไปอยู่แล้ว",
+        message: "แทนที่ด้วยชุดใหม่?",
+        confirmLabel: "แทนที่",
+      });
+      if (!ok) return;
+    }
     try {
       // Re-roll draws from the whole queue (staged players are released back).
       await setNextUpFair(waiting, matches);
@@ -431,13 +462,20 @@ export default function Home() {
     } catch (e) {
       window.alert(e instanceof Error ? e.message : "จับแฟร์ไม่สำเร็จ");
     }
-  }, [nextUpCount, allCourtsAssigned, waiting, matches]);
+  }, [nextUpCount, allCourtsAssigned, waiting, matches, modal]);
 
   const handleStageSelected = useCallback(async () => {
     if (!allCourtsAssigned) return;
     const chosen = assignable.filter((p) => selectedIds.has(p.id));
     if (chosen.length !== 4) return;
-    if (nextUpCount > 0 && !window.confirm("มีเกมถัดไปอยู่แล้ว แทนที่ด้วยชุดใหม่?")) return;
+    if (nextUpCount > 0) {
+      const ok = await modal.confirm({
+        title: "มีเกมถัดไปอยู่แล้ว",
+        message: "แทนที่ด้วยชุดใหม่?",
+        confirmLabel: "แทนที่",
+      });
+      if (!ok) return;
+    }
     try {
       await setNextUpManual(chosen);
       setSelectedIds(new Set());
@@ -446,7 +484,7 @@ export default function Home() {
     } catch (e) {
       window.alert(e instanceof Error ? e.message : "ตั้งเกมถัดไปไม่สำเร็จ");
     }
-  }, [allCourtsAssigned, assignable, selectedIds, nextUpCount]);
+  }, [allCourtsAssigned, assignable, selectedIds, nextUpCount, modal]);
 
   const handleClearNext = useCallback(() => {
     if (!window.confirm("ล้างเกมถัดไป?")) return;
@@ -492,6 +530,46 @@ export default function Home() {
   const handleRest = useCallback((id: string) => setPlayerResting(id, true), []);
   const handleResume = useCallback((id: string) => setPlayerResting(id, false), []);
   const handleDelete = useCallback((id: string) => deletePlayer(id), []);
+
+  // Add from the "type a name" form. Blocks duplicate names against BOTH today's
+  // session players and the member roster (same normalizeNameKey), then routes:
+  // existing member → reuse (never a second Profile — req 8); otherwise new.
+  // Returns true only when a player was actually added, so the form resets.
+  const handleAddPlayer = useCallback(
+    async (name: string, skill: Skill): Promise<boolean> => {
+      if (!session) return false;
+      const key = normalizeNameKey(name);
+      try {
+        // Already in this session by name — covers the case where the member's
+        // Profile was deleted but their session Player is still in play.
+        if (players.some((p) => normalizeNameKey(p.name) === key)) {
+          await modal.alert({
+            title: `${name.trim()} อยู่ในคิววันนี้แล้ว`,
+            message: "มีผู้เล่นชื่อนี้อยู่แล้ว ไม่ต้องเพิ่มซ้ำ",
+          });
+          return false;
+        }
+        // In the member roster (not in session) — add the existing person.
+        const existing = profiles.find((p) => p.nameKey === key);
+        if (existing) {
+          const ok = await modal.confirm({
+            title: "มีชื่อนี้อยู่ในสมาชิกก๊วนแล้ว",
+            message: `ใช้ ${existing.name} คนเดิมจากสมาชิกก๊วนเพิ่มลงคิวไหม (จะไม่สร้างชื่อซ้ำ)`,
+            confirmLabel: "เพิ่มคนเดิม",
+          });
+          if (!ok) return false;
+          await addPlayerFromProfile(existing.id, session.createdAt);
+          return true;
+        }
+        await addPlayer(name, skill, session.createdAt);
+        return true;
+      } catch (e) {
+        await modal.alert({ title: "เพิ่มไม่สำเร็จ", message: e instanceof Error ? e.message : undefined });
+        return false;
+      }
+    },
+    [session, players, profiles, modal],
+  );
 
   const playingCount = players.filter((p) => p.status === "playing").length;
   const totalGamesPlayed = Math.floor(
@@ -633,6 +711,8 @@ export default function Home() {
                 selectedIds={selectedIds}
                 pickActive={queuePick.active}
                 pickLabel={queuePick.label}
+                onAddPlayer={handleAddPlayer}
+                onOpenRegistry={() => setShowRegistry(true)}
                 onToggleSelect={handleWaitingTap}
                 onRest={handleRest}
                 onResume={handleResume}
@@ -718,6 +798,16 @@ export default function Home() {
           onClose={() => setShowPayments(false)}
           players={players}
           feePerHead={session?.feePerHead ?? 0}
+        />
+      )}
+
+      {isAdmin && sessionActive && (
+        <PlayerRegistryDrawer
+          open={showRegistry}
+          onClose={() => setShowRegistry(false)}
+          profiles={profiles}
+          sessionProfileIds={sessionProfileIds}
+          sessionCreatedAt={session?.createdAt ?? 0}
         />
       )}
     </div>

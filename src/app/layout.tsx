@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Outfit, Plus_Jakarta_Sans, Noto_Sans_Thai } from "next/font/google";
 import "./globals.css";
 import { AdminProvider } from "@/context/AdminContext";
+import { ModalProvider } from "@/context/ModalContext";
 import { FloatingBackground } from "@/components/FloatingBackground";
 
 // Display — geometric, friendly, superb numerals for scores and clocks.
@@ -56,7 +57,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         {/* Ambient layer sits at z-0; all content is lifted above it. */}
         <FloatingBackground />
         <div className="relative z-10 min-h-full">
-          <AdminProvider>{children}</AdminProvider>
+          <AdminProvider>
+            <ModalProvider>{children}</ModalProvider>
+          </AdminProvider>
         </div>
       </body>
     </html>

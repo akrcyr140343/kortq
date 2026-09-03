@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import type { Player } from "@/lib/types";
+import type { Player, Skill } from "@/lib/types";
 import { SkillBadge } from "./SkillBadge";
 import { AddPlayerForm } from "./AddPlayerForm";
 import { press, staggerDelay } from "./motion";
@@ -166,6 +166,8 @@ export function QueuePanel({
   selectedIds,
   pickActive,
   pickLabel,
+  onAddPlayer,
+  onOpenRegistry,
   onToggleSelect,
   onRest,
   onResume,
@@ -177,6 +179,8 @@ export function QueuePanel({
   selectedIds: Set<string>;
   pickActive: boolean; // a tap-to-pick flow is active (court/Next Up sub or fill)
   pickLabel: string | null; // banner text for the active pick flow
+  onAddPlayer: (name: string, skill: Skill) => Promise<boolean>;
+  onOpenRegistry: () => void;
   onToggleSelect: (id: string) => void;
   onRest: (id: string) => void;
   onResume: (id: string) => void;
@@ -188,7 +192,7 @@ export function QueuePanel({
     <div className="anim-enter flex flex-col gap-4 lg:h-full lg:min-h-0" style={staggerDelay(3)}>
       {isAdmin && (
         <div className="shrink-0">
-          <AddPlayerForm />
+          <AddPlayerForm onAddPlayer={onAddPlayer} onOpenRegistry={onOpenRegistry} />
         </div>
       )}
 
