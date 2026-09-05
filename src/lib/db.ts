@@ -3,7 +3,6 @@ import {
   collection,
   deleteDoc,
   doc,
-  getDoc,
   getDocs,
   increment,
   onSnapshot,
@@ -23,7 +22,6 @@ import {
   type Profile,
   type Session,
   type Skill,
-  type PlayerStatus,
 } from "./types";
 import { balanceTeams, shuffle } from "./matchmaking";
 import { planFairMatch, NOT_ENOUGH_WAITING } from "./fairmatch";
@@ -321,16 +319,35 @@ export async function deletePlayer(id: string): Promise<void> {
  * Re-entering the queue pushes them to the back (queuedAt refreshed).
  *
  * Going to rest also drops the player from the staged "next game" (they can't
- * be earmarked to play next while sitting out); the two writes commit together.
+ * be earmarked to play next while sitting out); the writes commit together.
+ *
+ * Runs in a transaction that re-reads the player so a stale "พัก" tap (a device
+ * still showing the player in the queue) can never overwrite someone who has
+ * since been assigned to a court — the classic cause of a court/player desync.
+ * Resting is allowed only from "waiting" (not on a court); resume only from
+ * "resting". A no-op tap (already in the target state) commits nothing.
  */
 export async function setPlayerResting(id: string, resting: boolean): Promise<void> {
-  const status: PlayerStatus = resting ? "resting" : "waiting";
-  const batch = writeBatch(db);
-  batch.set(playerRef(id), { status, queuedAt: Date.now(), courtId: null }, { merge: true });
-  if (resting) {
-    batch.update(sessionRef, { "nextUp.teamA": arrayRemove(id), "nextUp.teamB": arrayRemove(id) });
-  }
-  await batch.commit();
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(playerRef(id));
+    if (!snap.exists()) return;
+    const player = snap.data() as Omit<Player, "id">;
+    const now = Date.now();
+    if (resting) {
+      if (player.status === "resting") return; // already resting — no-op
+      if (player.status !== "waiting" || player.courtId != null) {
+        throw new Error("ผู้เล่นกำลังอยู่ในคอร์ต พักไม่ได้");
+      }
+      tx.update(playerRef(id), { status: "resting", queuedAt: now, courtId: null });
+      tx.update(sessionRef, { "nextUp.teamA": arrayRemove(id), "nextUp.teamB": arrayRemove(id) });
+    } else {
+      if (player.status === "waiting") return; // already waiting — no-op
+      if (player.status !== "resting") {
+        throw new Error("ผู้เล่นไม่ได้อยู่ในสถานะพัก");
+      }
+      tx.update(playerRef(id), { status: "waiting", queuedAt: now, courtId: null });
+    }
+  });
 }
 
 // ---- Payments --------------------------------------------------------------
@@ -394,12 +411,59 @@ async function commitAssignment(
 }
 
 /**
+ * Compare two id lists as sets — order-independent membership. Courts always
+ * hold unique ids per team, so this is exact assignment/team identity: a
+ * cross-team swap changes each team's set and so counts as "changed".
+ */
+function sameMembers(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const set = new Set(a);
+  return b.every((id) => set.has(id));
+}
+
+/**
  * Start the game clock on a court that already has players assigned. This is
  * the only place `startedAt` is set to a real timestamp, so the timer counts
  * from the whistle, not from when players were dropped onto the court.
+ *
+ * KortQ only scores 2v2 doubles, and once a game starts its composition is
+ * frozen. Runs in a transaction that re-reads the court and re-validates against
+ * the assignment the admin saw (expectedTeamA/B, compared PER TEAM), so a stale
+ * or duplicate start can never begin a DIFFERENT assignment now on the court:
+ *   - court exists and is still pre-game (already-started → no-op double tap),
+ *   - both teams still match what the admin saw,
+ *   - it is a valid 2v2 (2 + 2 = 4 unique ids),
+ *   - each of the 4 players is really on this court (exists / playing / courtId),
+ *     so a stale setPlayerResting desync can't slip a phantom into a game.
+ * Any mismatch throws; nothing is started.
  */
-export async function startGame(targetCourtId: string): Promise<void> {
-  await setDoc(courtRef(targetCourtId), { startedAt: Date.now() }, { merge: true });
+export async function startGame(
+  targetCourtId: string,
+  expectedTeamA: string[],
+  expectedTeamB: string[],
+): Promise<void> {
+  await runTransaction(db, async (tx) => {
+    const cSnap = await tx.get(courtRef(targetCourtId));
+    if (!cSnap.exists()) throw new Error("ไม่พบคอร์ตนี้");
+    const court = cSnap.data() as Omit<Court, "id">;
+    if (court.startedAt != null) return; // already running — nothing to do
+
+    if (!sameMembers(court.teamA, expectedTeamA) || !sameMembers(court.teamB, expectedTeamB)) {
+      throw new Error("ผู้เล่นในคอร์ตเปลี่ยนไปแล้ว ลองใหม่อีกครั้ง");
+    }
+    const ids = [...court.teamA, ...court.teamB];
+    if (court.teamA.length !== 2 || court.teamB.length !== 2 || new Set(ids).size !== 4) {
+      throw new Error("ต้องมีผู้เล่นครบ 2 ต่อ 2 (4 คน) ก่อนเริ่มเกม");
+    }
+    for (const id of ids) {
+      const pSnap = await tx.get(playerRef(id));
+      const p = pSnap.exists() ? (pSnap.data() as Omit<Player, "id">) : null;
+      if (!p || p.status !== "playing" || p.courtId !== targetCourtId) {
+        throw new Error("สถานะผู้เล่นไม่ตรงกับคอร์ต ลองใหม่อีกครั้ง");
+      }
+    }
+    tx.update(courtRef(targetCourtId), { startedAt: Date.now() });
+  });
 }
 
 /** Assign a specific set of players to a court and split them into teams. */
@@ -440,74 +504,208 @@ export async function randomAssign(targetCourtId: string, waiting: Player[]): Pr
 }
 
 /**
- * Remove players from a court without counting a game — for fixing a
- * mis-assignment. Players return to their original queue position (queuedAt
- * is not updated) and gamesPlayed is not incremented.
+ * Cancel a court's game (the "ยกเลิก" button) without counting it — for fixing a
+ * mis-assignment OR abandoning a game mid-play. This is the ONE composition
+ * change allowed both before AND after the whistle; it never increments
+ * gamesPlayed and never writes Match history.
+ *
+ * Runs in a transaction that re-validates the assignment the admin saw
+ * (expectedTeamA/B per team + expectedStartedAt) so a stale cancel from one
+ * device can't wipe a NEW assignment another device just placed. It is
+ * deliberately TOLERANT for recovery: it clears the court and returns to the
+ * queue only the players still genuinely on this court (courtId === here); a
+ * desynced player (e.g. rested elsewhere) is left untouched rather than blocking
+ * the cancel. queuedAt is preserved so players keep their queue position.
  */
-export async function removeFromCourt(targetCourtId: string, playersOnCourt: Player[]): Promise<void> {
-  const batch = writeBatch(db);
-  batch.update(courtRef(targetCourtId), { teamA: [], teamB: [], startedAt: null });
-  for (const p of playersOnCourt) {
-    batch.update(playerRef(p.id), { status: "waiting", courtId: null });
-  }
-  await batch.commit();
+export async function removeFromCourt(
+  targetCourtId: string,
+  expectedTeamA: string[],
+  expectedTeamB: string[],
+  expectedStartedAt: number | null,
+): Promise<void> {
+  await runTransaction(db, async (tx) => {
+    const cSnap = await tx.get(courtRef(targetCourtId));
+    if (!cSnap.exists()) return; // nothing to cancel
+    const court = cSnap.data() as Omit<Court, "id">;
+
+    // Stale cancel guard: the court must still hold the assignment the admin saw.
+    if (
+      !sameMembers(court.teamA, expectedTeamA) ||
+      !sameMembers(court.teamB, expectedTeamB) ||
+      (court.startedAt ?? null) !== (expectedStartedAt ?? null)
+    ) {
+      throw new Error("คอร์ตนี้เปลี่ยนไปแล้ว ลองใหม่อีกครั้ง");
+    }
+
+    const ids = [...court.teamA, ...court.teamB];
+    const onThisCourt: string[] = [];
+    for (const id of ids) {
+      const pSnap = await tx.get(playerRef(id));
+      if (pSnap.exists() && (pSnap.data() as Omit<Player, "id">).courtId === targetCourtId) {
+        onThisCourt.push(id);
+      }
+    }
+
+    tx.update(courtRef(targetCourtId), { teamA: [], teamB: [], startedAt: null });
+    for (const id of onThisCourt) {
+      tx.update(playerRef(id), { status: "waiting", courtId: null });
+    }
+  });
 }
 
 /**
  * Swap two assigned players' slots on the SAME court, before the game starts.
  * Moves a player from team A to team B (and vice versa) among the four already
- * on the court. No queue or status change — they're both already "playing"
- * here. Current teams are passed in from the live client snapshot, so this is a
- * single plain update (no transaction) like the other assignment writes.
+ * on the court. No queue or status change — they're both already "playing" here,
+ * on the same court, so only the court arrays change (no player-doc writes).
+ *
+ * Runs in a transaction that re-reads the court so a stale swap can't edit a game
+ * that has since STARTED, nor clobber a court whose assignment changed:
+ * `startedAt` must still be null and the two teams must still match the snapshot
+ * the admin saw (expectedTeamA/B); otherwise it throws.
  */
 export async function swapCourtPlayers(
   targetCourtId: string,
-  teamA: string[],
-  teamB: string[],
+  expectedTeamA: string[],
+  expectedTeamB: string[],
   idA: string,
   idB: string,
 ): Promise<void> {
   if (idA === idB) return;
-  const swap = (ids: string[]) =>
-    ids.map((id) => (id === idA ? idB : id === idB ? idA : id));
-  await setDoc(
-    courtRef(targetCourtId),
-    { teamA: swap(teamA), teamB: swap(teamB) },
-    { merge: true },
-  );
+  await runTransaction(db, async (tx) => {
+    const cSnap = await tx.get(courtRef(targetCourtId));
+    if (!cSnap.exists()) throw new Error("ไม่พบคอร์ตนี้");
+    const court = cSnap.data() as Omit<Court, "id">;
+    if (court.startedAt != null) throw new Error("เกมเริ่มแล้ว แก้ทีมไม่ได้");
+    if (!sameMembers(court.teamA, expectedTeamA) || !sameMembers(court.teamB, expectedTeamB)) {
+      throw new Error("ผู้เล่นในคอร์ตเปลี่ยนไปแล้ว ลองใหม่อีกครั้ง");
+    }
+    const onCourt = [...court.teamA, ...court.teamB];
+    if (!onCourt.includes(idA) || !onCourt.includes(idB)) {
+      throw new Error("ผู้เล่นเปลี่ยนไปแล้ว ลองใหม่อีกครั้ง");
+    }
+    const swap = (ids: string[]) => ids.map((id) => (id === idA ? idB : id === idB ? idA : id));
+    tx.update(courtRef(targetCourtId), { teamA: swap(court.teamA), teamB: swap(court.teamB) });
+  });
 }
 
 /**
  * Substitute a player currently on a court (pre-game) with a waiting player.
  * The player leaving the court goes to the BACK of the waiting queue
  * (queuedAt refreshed); the incoming player takes their exact slot/team.
- * No gamesPlayed change — the game hasn't started. Current teams are passed in
- * from the live client snapshot; the three writes commit atomically as a batch.
+ * No gamesPlayed change — the game hasn't started.
+ *
+ * Runs in a transaction that re-reads the court and both players so a stale
+ * substitute can't change a game that has since STARTED, and can't clobber a
+ * changed assignment or grab an incoming player who is no longer free:
+ *   - court still pre-game (startedAt == null) and teams still match the snapshot,
+ *   - outgoing is still playing on this court,
+ *   - incoming is still waiting and not on any court.
+ * Otherwise it throws; nothing changes.
  */
 export async function substituteCourtPlayer(
   targetCourtId: string,
-  teamA: string[],
-  teamB: string[],
+  expectedTeamA: string[],
+  expectedTeamB: string[],
   courtPlayerId: string,
   waitingPlayerId: string,
 ): Promise<void> {
   if (courtPlayerId === waitingPlayerId) return;
-  const replace = (ids: string[]) =>
-    ids.map((id) => (id === courtPlayerId ? waitingPlayerId : id));
-  const batch = writeBatch(db);
-  batch.update(courtRef(targetCourtId), { teamA: replace(teamA), teamB: replace(teamB) });
-  // Outgoing player → back of the queue.
-  batch.update(playerRef(courtPlayerId), {
-    status: "waiting",
-    courtId: null,
-    queuedAt: Date.now(),
+  await runTransaction(db, async (tx) => {
+    const cSnap = await tx.get(courtRef(targetCourtId));
+    if (!cSnap.exists()) throw new Error("ไม่พบคอร์ตนี้");
+    const court = cSnap.data() as Omit<Court, "id">;
+    if (court.startedAt != null) throw new Error("เกมเริ่มแล้ว เปลี่ยนตัวไม่ได้");
+    if (!sameMembers(court.teamA, expectedTeamA) || !sameMembers(court.teamB, expectedTeamB)) {
+      throw new Error("ผู้เล่นในคอร์ตเปลี่ยนไปแล้ว ลองใหม่อีกครั้ง");
+    }
+    if (![...court.teamA, ...court.teamB].includes(courtPlayerId)) {
+      throw new Error("ผู้เล่นที่จะเปลี่ยนออกไม่อยู่ในคอร์ตแล้ว");
+    }
+    const outSnap = await tx.get(playerRef(courtPlayerId));
+    const inSnap = await tx.get(playerRef(waitingPlayerId));
+    // Read the session so a concurrent Next Up change makes this tx retry, and so
+    // we can reject an incoming player already reserved in the staged next game
+    // (a staged player is still status "waiting" + courtId null, so the checks
+    // below alone wouldn't catch them). Next Up is a reservation the queue must
+    // not bypass — we never auto-remove them from it here.
+    const sSnap = await tx.get(sessionRef);
+    const outP = outSnap.exists() ? (outSnap.data() as Omit<Player, "id">) : null;
+    const inP = inSnap.exists() ? (inSnap.data() as Omit<Player, "id">) : null;
+    if (!outP || outP.status !== "playing" || outP.courtId !== targetCourtId) {
+      throw new Error("สถานะผู้เล่นที่จะเปลี่ยนออกไม่ตรง ลองใหม่อีกครั้ง");
+    }
+    if (!inP || inP.status !== "waiting" || inP.courtId != null) {
+      throw new Error("ผู้เล่นที่จะเปลี่ยนเข้าไม่ว่างแล้ว ลองใหม่อีกครั้ง");
+    }
+    const nextUp = sSnap.exists() ? (sSnap.data() as Session).nextUp : undefined;
+    if ((nextUp?.teamA ?? []).includes(waitingPlayerId) || (nextUp?.teamB ?? []).includes(waitingPlayerId)) {
+      throw new Error("ผู้เล่นถูกเลือกไว้ในเกมถัดไปแล้ว");
+    }
+
+    const replace = (ids: string[]) => ids.map((id) => (id === courtPlayerId ? waitingPlayerId : id));
+    tx.update(courtRef(targetCourtId), { teamA: replace(court.teamA), teamB: replace(court.teamB) });
+    // Outgoing player → back of the queue.
+    tx.update(playerRef(courtPlayerId), { status: "waiting", courtId: null, queuedAt: Date.now() });
+    // Incoming player → onto the court (game not started, so no game count).
+    tx.update(playerRef(waitingPlayerId), { status: "playing", courtId: targetCourtId });
   });
-  // Incoming player → onto the court (game not started, so no game count).
-  batch.update(playerRef(waitingPlayerId), {
-    status: "playing",
-    courtId: targetCourtId,
+}
+
+/**
+ * Swap two players who are on DIFFERENT courts, before either game starts. Each
+ * takes the other's exact team slot on the other court — no re-balance. Works
+ * for any pair of courts (not just 1↔2).
+ *
+ * Runs in a transaction that re-reads both courts AND both players so two admin
+ * devices can't act on stale state: both courts must exist, be distinct, both be
+ * pre-game (startedAt == null), and still hold the two players; and each player
+ * must still be "playing" on their source court. Validating the player docs (not
+ * just the court arrays) guards against a court/player desync a stale
+ * setPlayerResting could otherwise leave behind. Only `courtId` changes — status
+ * stays "playing", gamesPlayed and queuedAt untouched.
+ */
+export async function swapAcrossCourts(
+  courtIdA: string,
+  courtIdB: string,
+  idA: string,
+  idB: string,
+): Promise<void> {
+  if (courtIdA === courtIdB || idA === idB) return;
+  await runTransaction(db, async (tx) => {
+    // ---- reads (all before any write) ----
+    const aSnap = await tx.get(courtRef(courtIdA));
+    const bSnap = await tx.get(courtRef(courtIdB));
+    if (!aSnap.exists() || !bSnap.exists()) throw new Error("ไม่พบคอร์ต");
+    const courtA = aSnap.data() as Omit<Court, "id">;
+    const courtB = bSnap.data() as Omit<Court, "id">;
+
+    if (courtA.startedAt != null || courtB.startedAt != null) {
+      throw new Error("คอร์ตเริ่มเกมแล้ว สลับข้ามคอร์ตไม่ได้");
+    }
+    if (![...courtA.teamA, ...courtA.teamB].includes(idA) || ![...courtB.teamA, ...courtB.teamB].includes(idB)) {
+      throw new Error("ผู้เล่นเปลี่ยนคอร์ตไปแล้ว ลองใหม่อีกครั้ง");
+    }
+
+    const pASnap = await tx.get(playerRef(idA));
+    const pBSnap = await tx.get(playerRef(idB));
+    const pA = pASnap.exists() ? (pASnap.data() as Omit<Player, "id">) : null;
+    const pB = pBSnap.exists() ? (pBSnap.data() as Omit<Player, "id">) : null;
+    if (!pA || pA.status !== "playing" || pA.courtId !== courtIdA) {
+      throw new Error("สถานะผู้เล่นไม่ตรงกับคอร์ต ลองใหม่อีกครั้ง");
+    }
+    if (!pB || pB.status !== "playing" || pB.courtId !== courtIdB) {
+      throw new Error("สถานะผู้เล่นไม่ตรงกับคอร์ต ลองใหม่อีกครั้ง");
+    }
+
+    // ---- writes: replace each id in place on its court, keeping team slots ----
+    const putBinA = (ids: string[]) => ids.map((id) => (id === idA ? idB : id));
+    const putAinB = (ids: string[]) => ids.map((id) => (id === idB ? idA : id));
+    tx.update(courtRef(courtIdA), { teamA: putBinA(courtA.teamA), teamB: putBinA(courtA.teamB) });
+    tx.update(courtRef(courtIdB), { teamA: putAinB(courtB.teamA), teamB: putAinB(courtB.teamB) });
+    tx.update(playerRef(idA), { courtId: courtIdB });
+    tx.update(playerRef(idB), { courtId: courtIdA });
   });
-  await batch.commit();
 }
 
 // ---- Next Up (เกมถัดไป) ----------------------------------------------------
@@ -661,39 +859,67 @@ export async function promoteNextUp(
 }
 
 /**
- * End the game on a court: everyone goes back to the waiting queue and their
- * gamesPlayed count is incremented by 1.
+ * End the game on a court: everyone goes back to the waiting queue with +1
+ * gamesPlayed, and the finished game is recorded for "จับแฟร์".
+ *
+ * Runs in a transaction so a game is counted EXACTLY once. `expectedStartedAt`
+ * is the court's `startedAt` the admin saw when tapping "จบเกม"; the transaction
+ * re-reads the court and only finishes when it is still that same game:
+ *   - court exists and has actually started (startedAt != null),
+ *   - startedAt === expectedStartedAt — so a stale/duplicate request can never
+ *     finish a DIFFERENT game that has since been started on this court.
+ * These identity misses are SILENT no-ops (no increment, no Match, court
+ * untouched): they block double taps, concurrent finishes (the losing device
+ * retries, re-reads the cleared court, and no-ops), and late requests.
+ *
+ * Once identity matches, a broken invariant — not a real 2v2, or a player whose
+ * status/courtId no longer matches this court (e.g. a stale rest) — is a genuine
+ * anomaly and THROWS instead: the game is not counted, no player is silently
+ * reset, and the admin is told to cancel and re-assign.
  */
-export async function finishGame(targetCourtId: string, playersOnCourt: Player[]): Promise<void> {
-  const now = Date.now();
-  // Read the court first so we can log the actual teams that just played.
-  const courtSnap = await getDoc(courtRef(targetCourtId));
-  const court = courtSnap.exists() ? (courtSnap.data() as Omit<Court, "id">) : null;
+export async function finishGame(targetCourtId: string, expectedStartedAt: number): Promise<void> {
+  await runTransaction(db, async (tx) => {
+    const cSnap = await tx.get(courtRef(targetCourtId));
+    if (!cSnap.exists()) return; // court gone — nothing to finish
 
-  const batch = writeBatch(db);
-  batch.update(courtRef(targetCourtId), { teamA: [], teamB: [], startedAt: null });
-  for (const p of playersOnCourt) {
-    // Push finished players to the back of the queue for fairness, +1 game.
-    batch.update(playerRef(p.id), {
-      status: "waiting",
-      courtId: null,
-      queuedAt: now,
-      gamesPlayed: increment(1),
-    });
-  }
+    const court = cSnap.data() as Omit<Court, "id">;
+    // Stale / double tap / concurrent loser / court reused for a new game: the
+    // game the admin meant to finish is already over or replaced → silent no-op.
+    if (court.startedAt == null || court.startedAt !== expectedStartedAt) return;
 
-  // Record the finished game so "จับแฟร์" can avoid repeats. Only log a real
-  // game (teams present); this history is wiped on End Session.
-  if (court && court.teamA.length + court.teamB.length > 0) {
-    batch.set(doc(matchesCol), {
+    // Identity matches the exact started game the admin tapped, so from here on a
+    // broken invariant is a real anomaly → throw (never silently count/reset).
+    const ids = [...court.teamA, ...court.teamB];
+    if (court.teamA.length !== 2 || court.teamB.length !== 2 || new Set(ids).size !== 4) {
+      throw new Error("สถานะเกมผิดปกติ (ไม่ใช่ 2 ต่อ 2) — ใช้ปุ่มยกเลิกแล้วจัดใหม่");
+    }
+    for (const id of ids) {
+      const pSnap = await tx.get(playerRef(id));
+      const p = pSnap.exists() ? (pSnap.data() as Omit<Player, "id">) : null;
+      if (!p || p.status !== "playing" || p.courtId !== targetCourtId) {
+        throw new Error("สถานะผู้เล่นไม่ตรงกับคอร์ต — ใช้ปุ่มยกเลิกแล้วจัดใหม่");
+      }
+    }
+
+    const now = Date.now();
+    for (const id of ids) {
+      // Push finished players to the back of the queue for fairness, +1 game.
+      tx.update(playerRef(id), {
+        status: "waiting",
+        courtId: null,
+        queuedAt: now,
+        gamesPlayed: increment(1),
+      });
+    }
+    // Record the finished game so "จับแฟร์" can avoid repeats (wiped on End Session).
+    tx.set(doc(matchesCol), {
       courtId: targetCourtId,
       teamA: court.teamA,
       teamB: court.teamB,
-      players: [...court.teamA, ...court.teamB],
-      startedAt: court.startedAt ?? now,
+      players: ids,
+      startedAt: court.startedAt,
       finishedAt: now,
     } satisfies Omit<Match, "id">);
-  }
-
-  await batch.commit();
+    tx.update(courtRef(targetCourtId), { teamA: [], teamB: [], startedAt: null });
+  });
 }

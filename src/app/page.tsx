@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useAdmin } from "@/context/AdminContext";
 import { useModal } from "@/context/ModalContext";
@@ -20,6 +20,7 @@ import {
   setPlayerResting,
   startGame,
   swapCourtPlayers,
+  swapAcrossCourts,
   substituteCourtPlayer,
   setNextUpFair,
   setNextUpManual,
@@ -312,14 +313,21 @@ export default function Home() {
     [assignable, selectedIds],
   );
 
-  const handleStart = useCallback(async (courtId: string) => {
-    setSwapSel(null);
-    try {
-      await startGame(courtId);
-    } catch (e) {
-      window.alert(e instanceof Error ? e.message : "เริ่มเกมไม่สำเร็จ");
-    }
-  }, []);
+  const handleStart = useCallback(
+    async (courtId: string) => {
+      setSwapSel(null);
+      const court = courts.find((c) => c.id === courtId);
+      if (!court) return;
+      try {
+        // Pass the exact teams the admin sees; the DB transaction re-validates so
+        // a stale start can't begin a different assignment now on this court.
+        await startGame(courtId, court.teamA, court.teamB);
+      } catch (e) {
+        window.alert(e instanceof Error ? e.message : "เริ่มเกมไม่สำเร็จ");
+      }
+    },
+    [courts],
+  );
 
   // Tap a player on a not-yet-started court: first tap selects, a second tap on
   // another player of the SAME court swaps their teams; tapping the same player
@@ -346,7 +354,13 @@ export default function Home() {
         setSwapSel(null);
         return;
       }
-      setSwapSel({ courtId, playerId }); // moved to another court → reselect
+      // Different court → swap the two players across courts. Both courts are
+      // pre-game by construction (taps are only enabled on not-yet-started
+      // courts); the DB transaction re-validates state for multi-device safety.
+      void swapAcrossCourts(swapSel.courtId, courtId, swapSel.playerId, playerId).catch(
+        (e) => window.alert(e instanceof Error ? e.message : "สลับผู้เล่นข้ามคอร์ตไม่สำเร็จ"),
+      );
+      setSwapSel(null);
     },
     [swapSel, courts],
   );
@@ -511,24 +525,61 @@ export default function Home() {
     [nextUpCount, nextUpTeamA, nextUpTeamB],
   );
 
+  // In-flight finishes, keyed by courtId. The ref is the reliable re-entrancy
+  // guard (survives re-renders, no async gap); the state mirror only drives the
+  // button's disabled state. Correctness itself lives in the finishGame
+  // transaction — this is just a UI safety layer to avoid a wasted round-trip.
+  const finishingRef = useRef<Set<string>>(new Set());
+  const [finishingIds, setFinishingIds] = useState<Set<string>>(new Set());
   const handleFinish = useCallback(
     async (courtId: string) => {
-      const onCourt = players.filter((p) => p.courtId === courtId && p.status === "playing");
-      await finishGame(courtId, onCourt);
+      const court = courts.find((c) => c.id === courtId);
+      if (!court || court.startedAt == null) return; // only a started game can finish
+      if (finishingRef.current.has(courtId)) return; // already finishing this court
+      finishingRef.current.add(courtId);
+      setFinishingIds(new Set(finishingRef.current));
+      try {
+        await finishGame(courtId, court.startedAt);
+      } catch (e) {
+        window.alert(e instanceof Error ? e.message : "จบเกมไม่สำเร็จ");
+      } finally {
+        finishingRef.current.delete(courtId);
+        setFinishingIds(new Set(finishingRef.current));
+      }
     },
-    [players],
+    [courts],
   );
 
   const handleRemove = useCallback(
     async (courtId: string) => {
-      const onCourt = players.filter((p) => p.courtId === courtId && p.status === "playing");
-      await removeFromCourt(courtId, onCourt);
+      const court = courts.find((c) => c.id === courtId);
+      if (!court) return;
+      try {
+        // Cancel the assignment the admin sees; the DB transaction re-validates
+        // (stale cancel can't wipe a new assignment) and tolerantly resets only
+        // the players still on this court.
+        await removeFromCourt(courtId, court.teamA, court.teamB, court.startedAt);
+      } catch (e) {
+        window.alert(e instanceof Error ? e.message : "ยกเลิกไม่สำเร็จ");
+      }
     },
-    [players],
+    [courts],
   );
 
-  const handleRest = useCallback((id: string) => setPlayerResting(id, true), []);
-  const handleResume = useCallback((id: string) => setPlayerResting(id, false), []);
+  const handleRest = useCallback(
+    (id: string) =>
+      void setPlayerResting(id, true).catch((e) =>
+        window.alert(e instanceof Error ? e.message : "พักไม่สำเร็จ"),
+      ),
+    [],
+  );
+  const handleResume = useCallback(
+    (id: string) =>
+      void setPlayerResting(id, false).catch((e) =>
+        window.alert(e instanceof Error ? e.message : "กลับมาเล่นไม่สำเร็จ"),
+      ),
+    [],
+  );
   const handleDelete = useCallback((id: string) => deletePlayer(id), []);
 
   // Add from the "type a name" form. Blocks duplicate names against BOTH today's
@@ -670,6 +721,7 @@ export default function Home() {
                       selectedCount={selectedIds.size}
                       swapSelectedId={swapSel?.courtId === court.id ? swapSel.playerId : null}
                       nextUpCount={nextUpCount}
+                      finishing={finishingIds.has(court.id)}
                       onFair={handleFair}
                       onRandom={handleRandom}
                       onAssignSelected={handleAssignSelected}

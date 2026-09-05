@@ -21,10 +21,10 @@ import type { TeamSplit } from "./matchmaking";
 export const FAIR_WEIGHTS = {
   sameFoursome: 100, // the exact same 4 recently played together — punish hard
   coPlayer: 12, // per pair that keeps meeting (decayed by recency)
-  // Inside the candidate pool everyone is already within 1 game of the minimum
-  // (see buildCandidatePool), so waiting time is the primary fairness signal and
-  // must outweigh the small remaining games gap — otherwise a just-arrived
-  // 0-game player could jump ahead of someone who waited through a whole game.
+  // The candidate pool is no longer games-capped (see buildCandidatePool), so
+  // waiting time is the primary fairness signal that keeps a long waiter from
+  // being frozen out, while still letting variety and the games gap trade off
+  // inside the score rather than acting as a hard eligibility gate.
   waiting: 6, // per MINUTE waited less than the longest waiter in the pool
   gamesPlayed: 4, // per game already played — favours those who played less
 };
@@ -36,10 +36,12 @@ export const TEAM_WEIGHTS = {
 };
 
 // Only the most recent games carry weight; older ones matter little and this
-// bounds the work. C(MAX_POOL,4) combinations are scored, so keep the pool
-// small enough to stay trivial (C(12,4) = 495).
+// bounds the work. C(MAX_POOL,4) foursomes are scored per pick. MAX_POOL is a
+// safety bound set well ABOVE any realistic waiting-queue size, so it never acts
+// as a business selection filter — it only caps the combinatorial work for a
+// pathologically large queue (C(24,4) = 10626, still trivial to score once).
 const RECENT_WINDOW = 20;
-const MAX_POOL = 12;
+const MAX_POOL = 24;
 
 // Waiting is measured in minutes waited *less* than the longest waiter in the
 // pool. Sub-minute gaps are effectively equal (so near-equal waits let variety
@@ -110,11 +112,12 @@ function combinationsOfFour<T>(items: T[]): T[][] {
 /**
  * Build the pool of players eligible to be picked next.
  *
- * Base rule: everyone whose gamesPlayed ≤ minGames + 1, so heavy players can't
- * jump the fresher ones, but the "+1" keeps long-waiters from being frozen out.
- * If that leaves fewer than 4, widen to the fairest remaining players
- * (fewest games, then longest wait). Finally cap at MAX_POOL by the same
- * fairness order to bound the combination search.
+ * Every waiting player is eligible — there is no games-based hard filter, so the
+ * scorer (foursomePenalty) is free to skip a slightly fresher player in order to
+ * avoid a repeat. Fairness (fewest games, then longest wait) only sets the
+ * ORDER, and decides which few are dropped when the queue exceeds MAX_POOL (a
+ * safety bound, not a business filter). With 4 or fewer waiting there is only
+ * one possible foursome, so a repeat is unavoidable and accepted.
  */
 export function buildCandidatePool(waiting: Player[]): Player[] {
   const byFairness = (a: Player, b: Player) =>
@@ -123,20 +126,7 @@ export function buildCandidatePool(waiting: Player[]): Player[] {
   const w = waiting.filter((p) => p.status === "waiting");
   if (w.length <= 4) return [...w];
 
-  const minGames = Math.min(...w.map((p) => p.gamesPlayed));
-  const pool = w.filter((p) => p.gamesPlayed <= minGames + 1);
-
-  if (pool.length < 4) {
-    // Widen: keep the constrained pool, then top up with the next fairest.
-    const sorted = [...w].sort(byFairness);
-    const seen = new Set(pool.map((p) => p.id));
-    for (const p of sorted) {
-      if (pool.length >= 4) break;
-      if (!seen.has(p.id)) pool.push(p);
-    }
-  }
-
-  return [...pool].sort(byFairness).slice(0, MAX_POOL);
+  return [...w].sort(byFairness).slice(0, MAX_POOL);
 }
 
 // ---- Step 4 — pick the fairest / most varied four -------------------------

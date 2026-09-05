@@ -78,7 +78,10 @@ function Side({
               } ${selectable ? "cursor-pointer" : ""}`}
             >
               <SkillBadge skill={p.skill} />
-              <span className="truncate text-body font-extrabold leading-tight text-ink">{p.name}</span>
+              <span className="min-w-0 flex-1 truncate text-body font-extrabold leading-tight text-ink">{p.name}</span>
+              {/* Finished-games count — always shown (incl. 0), smaller/quieter
+                  than the name and never truncated, so admins can eyeball load. */}
+              <span className="shrink-0 text-eyebrow font-semibold tabular-nums text-ink-4">· {p.gamesPlayed ?? 0} เกม</span>
             </motion.div>
           );
         })}
@@ -95,6 +98,7 @@ export function CourtCard({
   selectedCount,
   swapSelectedId,
   nextUpCount,
+  finishing = false,
   onFair,
   onRandom,
   onAssignSelected,
@@ -113,6 +117,7 @@ export function CourtCard({
   selectedCount: number;
   swapSelectedId: string | null; // player selected for swapping on THIS court
   nextUpCount: number; // staged Next Up size (0 = none, 1–3 = locked, 4 = ready)
+  finishing?: boolean; // a finish request for THIS court is in flight (UI guard)
   index?: number;
   onFair: (courtId: string) => void;
   onRandom: (courtId: string) => void;
@@ -212,7 +217,7 @@ export function CourtCard({
             {isAdmin && assigned && (
               <p className="mt-3 rounded-[12px] bg-accent-wash px-3 py-2 text-[0.66rem] font-semibold leading-relaxed text-accent-deep">
                 {swapSelectedId
-                  ? "แตะอีกคนบนคอร์ตเพื่อสลับทีม หรือแตะคนในคิวเพื่อเปลี่ยนตัว"
+                  ? "แตะอีกคนบนคอร์ตนี้หรือคอร์ตอื่นเพื่อสลับ หรือแตะคนในคิวเพื่อเปลี่ยนตัว"
                   : "แตะผู้เล่นเพื่อสลับทีม / เปลี่ยนตัวก่อนเริ่มเกม"}
               </p>
             )}
@@ -228,11 +233,12 @@ export function CourtCard({
                 </motion.button>
                 {started ? (
                   <motion.button
-                    whileTap={press}
+                    whileTap={finishing ? undefined : press}
                     onClick={() => onFinish(court.id)}
-                    className="lime-button shine-button h-12 flex-[2] rounded-[15px] text-caption font-extrabold transition-all duration-200 hover:-translate-y-0.5"
+                    disabled={finishing}
+                    className="lime-button shine-button h-12 flex-[2] rounded-[15px] text-caption font-extrabold transition-all duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
                   >
-                    จบเกม + กลับคิว
+                    {finishing ? "กำลังจบเกม…" : "จบเกม + กลับคิว"}
                   </motion.button>
                 ) : (
                   <motion.button
