@@ -237,6 +237,36 @@ button {
   box-shadow: 0 14px 28px -16px rgba(121, 174, 12, 0.9);
 }
 
+/* "เริ่มเกม" — a court loaded and primed to launch. Teal-navy tuned to KortQ's
+   daylight palette: a deep navy pulled toward the sage "sky" family so it sits
+   with the warm greens instead of fighting them — and harmonises with the
+   emerald glow a court gets once it is live. The glow and rim are the theme's
+   own --sky (rgba 143,178,160); a soft mint-white label keeps it easy on the
+   eye and reads instantly apart from the saturated lime "จบเกม + กลับคิว" and
+   the plain white hairline of "ยกเลิก". Lime stays the app's universal
+   primary; this treatment is used for starting a game and nowhere else. */
+.start-button {
+  background:
+    radial-gradient(120% 96% at 16% 0%, rgba(143, 178, 160, 0.22), transparent 58%),
+    linear-gradient(140deg, #2b4f63, #1d3a4a 52%, #162c37);
+  border: 1.5px solid rgba(143, 178, 160, 0.42);
+  color: #eaf3ee;
+  box-shadow:
+    0 12px 26px -16px rgba(15, 32, 30, 0.9),
+    inset 0 1px 0 rgba(200, 226, 214, 0.16);
+}
+
+/* Hover is a contrast step, not a move: the sky rim firms up and a faint halo
+   lifts off the edge, so the control feels pressable without anything
+   sliding around. */
+.start-button:hover {
+  border-color: rgba(143, 178, 160, 0.66);
+  box-shadow:
+    0 14px 30px -14px rgba(15, 32, 30, 0.95),
+    0 0 0 1px rgba(143, 178, 160, 0.2),
+    inset 0 1px 0 rgba(200, 226, 214, 0.24);
+}
+
 .court-grain {
   background-image:
     linear-gradient(118deg, rgba(255, 255, 255, 0.28), transparent 35%),

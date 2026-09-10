@@ -244,7 +244,7 @@ export function CourtCard({
                   <motion.button
                     whileTap={press}
                     onClick={() => onStart(court.id)}
-                    className="lime-button shine-button h-12 flex-[2] rounded-[15px] text-caption font-extrabold transition-all duration-200 hover:-translate-y-0.5"
+                    className="start-button flex h-12 flex-[2] items-center justify-center whitespace-nowrap rounded-[15px] px-3 text-caption font-extrabold transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0"
                   >
                     เริ่มเกม
                   </motion.button>
