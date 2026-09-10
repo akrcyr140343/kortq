@@ -422,7 +422,8 @@ async function commitAssignment(
     startedAt: null,
   });
   for (const id of ids) {
-    batch.update(playerRef(id), { status: "playing", courtId: targetCourtId, fairSkips: 0 });
+    // fair-v3: skip reset happens at startGame, not on court entry.
+    batch.update(playerRef(id), { status: "playing", courtId: targetCourtId });
   }
   // Safety net: whoever lands on a court is removed from the staged "next game"
   // so nobody is ever in both nextUp and a court. This is also what clears
@@ -468,11 +469,42 @@ export async function startGame(
   expectedTeamA: string[],
   expectedTeamB: string[],
 ): Promise<void> {
+  // fair-v3: fairSkips accounting lives HERE (real game start), not in the Fair
+  // decision. Pin the Fair-input revision + enumerate players from the SERVER
+  // before the tx. Order matters: read the session (revision) FIRST, then the
+  // players, so the enumeration is never older than the revision we pin to.
+  const sessionSnap = await getDocFromServer(sessionRef);
+  if (!sessionSnap.exists()) throw new Error("ไม่พบสนามที่เปิดอยู่");
+  if (sessionSnap.metadata.fromCache || sessionSnap.metadata.hasPendingWrites) throw new Error(START_STALE);
+  const session0 = sessionSnap.data() as Session;
+  const expectedRevision = session0.fairRevision ?? 0;
+  const expectedCreatedAt = session0.createdAt;
+
+  const playersSnap = await getDocsFromServer(playersCol);
+  if (playersSnap.metadata.fromCache || playersSnap.metadata.hasPendingWrites) throw new Error(START_STALE);
+
   await runTransaction(db, async (tx) => {
+    // Read the court FIRST so an already-started game is a silent no-op double
+    // tap — BEFORE the revision guard, so re-tapping a game that started
+    // successfully never surfaces START_STALE.
     const cSnap = await tx.get(courtRef(targetCourtId));
     if (!cSnap.exists()) throw new Error("ไม่พบคอร์ตนี้");
     const court = cSnap.data() as Omit<Court, "id">;
     if (court.startedAt != null) return; // already running — nothing to do
+
+    // Not started yet: enforce the Fair-input consistency guard. Every Fair-input
+    // mutation (add/remove/rest/assign/fair/finish/promote/…) bumps fairRevision,
+    // so an unchanged revision proves the player set + statuses are exactly as
+    // enumerated. Any change → abort (never proceed on a stale set). This re-check
+    // runs on every Firestore auto-retry too, so a retry can never silently reuse
+    // an outdated snapshot. NB: keep the "every such mutation bumps fairRevision"
+    // invariant intact, or this guard would miss changes.
+    const freshSession = await tx.get(sessionRef);
+    const s = freshSession.exists() ? (freshSession.data() as Session) : null;
+    if (!s || !s.active || s.createdAt !== expectedCreatedAt || (s.fairRevision ?? 0) !== expectedRevision) {
+      throw new Error(START_STALE);
+    }
+    const reserved = new Set([...(s.nextUp?.teamA ?? []), ...(s.nextUp?.teamB ?? [])]);
 
     if (!sameMembers(court.teamA, expectedTeamA) || !sameMembers(court.teamB, expectedTeamB)) {
       throw new Error("ผู้เล่นในคอร์ตเปลี่ยนไปแล้ว ลองใหม่อีกครั้ง");
@@ -481,11 +513,30 @@ export async function startGame(
     if (court.teamA.length !== 2 || court.teamB.length !== 2 || new Set(ids).size !== 4) {
       throw new Error("ต้องมีผู้เล่นครบ 2 ต่อ 2 (4 คน) ก่อนเริ่มเกม");
     }
+    const starters = new Set(ids);
+
+    // Read every player FRESH in the tx; all values below come from these reads,
+    // never from the pre-tx snapshot (playersSnap gives only the ref list).
+    const fresh = await Promise.all(playersSnap.docs.map((d) => tx.get(d.ref)));
+    const byId = new Map(fresh.map((snap) => [snap.id, snap]));
     for (const id of ids) {
-      const pSnap = await tx.get(playerRef(id));
-      const p = pSnap.exists() ? (pSnap.data() as Omit<Player, "id">) : null;
+      const snap = byId.get(id);
+      const p = snap?.exists() ? (snap.data() as Omit<Player, "id">) : null;
       if (!p || p.status !== "playing" || p.courtId !== targetCourtId) {
         throw new Error("สถานะผู้เล่นไม่ตรงกับคอร์ต ลองใหม่อีกครั้ง");
+      }
+    }
+
+    // ---- writes: fairSkips changes ONLY here ----
+    // The four who start reset to 0; every other eligible-and-waiting player
+    // (not resting, not on another court, not Next Up reserved) is +1 — a real
+    // game they were passed over for.
+    for (const id of ids) tx.update(playerRef(id), { fairSkips: 0 });
+    for (const snap of fresh) {
+      if (!snap.exists() || starters.has(snap.id) || reserved.has(snap.id)) continue;
+      const p = snap.data() as Omit<Player, "id">;
+      if (p.status === "waiting" && p.courtId == null) {
+        tx.update(playerRef(snap.id), { fairSkips: increment(1) });
       }
     }
     tx.update(courtRef(targetCourtId), { startedAt: Date.now() });
@@ -500,6 +551,7 @@ export async function assignToCourt(targetCourtId: string, players: Player[]): P
 }
 
 const FAIR_STALE = "คิว คอร์ต หรือประวัติเปลี่ยนระหว่างจับแฟร์ กรุณากดใหม่";
+const START_STALE = "คิว/สนามเปลี่ยนระหว่างกดเริ่มเกม กรุณากดเริ่มเกมใหม่";
 const emptyNextUp = (): NextUp => ({ teamA: [], teamB: [] });
 const nextUpMatches = (a: NextUp, b: NextUp) => sameMembers(a.teamA, b.teamA) && sameMembers(a.teamB, b.teamB);
 const fairPlayerSnapshot = (p: Player) => JSON.stringify([
@@ -565,12 +617,11 @@ async function commitFairDecision(
   const plan = planFairMatch(candidates, matches, aliases);
   const teamA = plan.teamA.map((p) => p.id), teamB = plan.teamB.map((p) => p.id);
   const selectedIds = new Set([...teamA, ...teamB]);
+  // fair-v3: Fair never mutates fairSkips (that happens at startGame). Kept for the
+  // log schema (skipTransitions.size == pool.size); every entry is a no-op so the
+  // log never claims an increment/reset that did not happen.
   const skipTransitions = candidates.map((p) => ({
-    id: p.id, before: p.fairSkips ?? 0,
-    // Reservation freezes the existing count. Releasing it in a reroll restores
-    // that same count and adds ONE skip for this newly eligible, missed decision.
-    after: selectedIds.has(p.id) ? (target === "nextup" ? p.fairSkips ?? 0 : 0) : (p.fairSkips ?? 0) + 1,
-    action: selectedIds.has(p.id) ? (target === "nextup" ? "reserve-freeze" : "court-entry-reset") : "eligible-skip",
+    id: p.id, before: p.fairSkips ?? 0, after: p.fairSkips ?? 0, action: "unchanged",
   }));
   const decisionRef = doc(collection(db, "fairLogs")); // allocate once; not a write
   const decision = {
@@ -602,11 +653,10 @@ async function commitFairDecision(
       const snap = freshCourts[i];
       if (!snap.exists() || fairCourtSnapshot({ ...snap.data(), id: snap.id } as Court) !== fairCourtSnapshot(courts[i])) throw new Error(FAIR_STALE);
     }
-    for (const change of skipTransitions) {
-      tx.update(playerRef(change.id), {
-        fairSkips: change.after,
-        ...(target !== "nextup" && selectedIds.has(change.id) ? { status: "playing", courtId: target } : {}),
-      });
+    // Court Fair still puts the chosen four on the court; it no longer touches
+    // fairSkips (startGame owns that). Next Up writes nothing to player docs.
+    if (target !== "nextup") {
+      for (const id of selectedIds) tx.update(playerRef(id), { status: "playing", courtId: target });
     }
     if (target !== "nextup") tx.update(courtRef(target), { teamA, teamB, startedAt: null });
     tx.update(sessionRef, {
@@ -790,7 +840,8 @@ export async function substituteCourtPlayer(
     // Outgoing player → back of the queue.
     tx.update(playerRef(courtPlayerId), { status: "waiting", courtId: null, queuedAt: Date.now() });
     // Incoming player → onto the court (game not started, so no game count).
-    tx.update(playerRef(waitingPlayerId), { status: "playing", courtId: targetCourtId, fairSkips: 0 });
+    // fair-v3: skip reset happens at startGame, not on court entry.
+    tx.update(playerRef(waitingPlayerId), { status: "playing", courtId: targetCourtId });
     tx.update(sessionRef, { fairRevision: increment(1) });
   });
 }
@@ -992,7 +1043,8 @@ export async function promoteNextUp(
     // ---- writes: exact teams (no re-balance), clock paused, nextUp cleared ----
     tx.update(courtRef(targetCourtId), { teamA, teamB, startedAt: null });
     for (const id of ids) {
-      tx.update(playerRef(id), { status: "playing", courtId: targetCourtId, fairSkips: 0 });
+      // fair-v3: skip reset happens at startGame, not on court entry.
+      tx.update(playerRef(id), { status: "playing", courtId: targetCourtId });
     }
     tx.update(sessionRef, { nextUp: { teamA: [], teamB: [] }, fairRevision: increment(1) });
   });

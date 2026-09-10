@@ -2,7 +2,7 @@
 import type { Match, Player } from "./types";
 import type { TeamSplit } from "./matchmaking";
 
-export const FAIR_ALGORITHM_VERSION = "fair-v2";
+export const FAIR_ALGORITHM_VERSION = "fair-v3";
 export const FAIR_SCHEMA_VERSION = 1;
 export const FAIR_PARAMETERS = {
   overdueAfterSkips: 2,
@@ -12,7 +12,7 @@ export const FAIR_PARAMETERS = {
   relationshipFormula: "lifetimeCount + max(0, recentPlayerGames - age)^2",
   ageDefinition: "min(completed games each player played since their latest encounter in this role)",
   overdueOrder: ["fairSkips descending", "queuedAt ascending", "player ID ascending"],
-  skipPolicy: "only successful eligible Fair decisions; reserve freezes, court entry resets, eligible omission increments",
+  skipPolicy: "fairSkips change only at game start (startGame): the four who start reset to 0, each eligible waiting player not in that game +1; Fair/manual/promote/substitute/cancel/finish never change it; Next Up reservations are excluded",
   selectionOrder: ["forced membership", "coPlayer", "queueTimeSum", "gamesPlayedSum", "player IDs"],
   splitOrder: ["skillDiff <= bestSkillDiff + skillSlack", "relationshipRepeat", "skillDiff", "option index"],
 } as const;

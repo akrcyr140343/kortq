@@ -1,17 +1,19 @@
-# Fair Match v2 — behavior และคู่มือทดสอบด้วยมือ
+# Fair Match (fair-v3) — behavior และคู่มือทดสอบด้วยมือ
 
-สถานะเอกสาร: implementation ใน working tree ยังไม่ได้ build/lint/typecheck/browser test หรือ deploy
+สถานะเอกสาร: fair-v3 ใน working tree ผ่าน typecheck/lint แล้ว ยังไม่ได้ build/browser test หรือ deploy
 
 ## กติกาที่ใช้
 
 1. ใช้เฉพาะ Court Fair และ Next Up Fair; manual/random ยังเลือกและแบ่งทีมด้วย behavior เดิม
-2. `Player.fairSkips` ที่ไม่มีค่า = 0; นับเพิ่มเฉพาะ successful Fair decision ที่คนนั้น eligible แต่ไม่ถูกเลือก
-3. `fairSkips >= 2` ต้องอยู่ในกลุ่มบังคับเลือกก่อน Variety ถ้าเกิน 4 คน เรียง skip มากก่อน → queuedAt เก่าก่อน → Player ID เพื่อให้ tie คงที่ คนที่เหลือเก็บ count เดิมและบวก skip ของครั้งนี้
-4. Resting/playing/คนที่ถูก Next Up จองขณะกด Court Fair ไม่ถูกเพิ่มหรือล้าง skip
-5. Stage เข้า Next Up ไม่ reset skip: เก็บค่าไว้เป็นสิทธิ์ที่ freeze อยู่ Reroll รวม staged เดิมเป็น eligible; ถ้าถูกเลือกอีก count คงเดิม ถ้าหลุด count เดิม + 1 สำหรับ reroll ที่ถูกข้ามครั้งนี้
-6. เข้า court จริงจาก Fair/manual/random/promote/substitute จะ reset skip = 0; ไม่รอ finishGame และไม่เปลี่ยน gamesPlayed
-7. Manual clear/substitute/rest ไม่ถูก Fair ขัดขวาง การออกจาก reservation โดยยังไม่ลงคอร์ตไม่ทำให้สิทธิ์ที่ freeze ไว้หาย
+2. **fair-v3:** `Player.fairSkips` เปลี่ยนเฉพาะตอน **เริ่มเกมจริง (`startGame`)** เท่านั้น ไม่ใช่ตอน Fair decision — เพื่อให้ skip สะท้อน "การพลาดโอกาสลงเล่นจริง" ไม่ใช่จำนวนครั้งที่กด Fair (ค่าที่ไม่มี = 0)
+3. เมื่อเริ่มเกม: 4 คนที่เริ่มเล่น reset `fairSkips = 0`; คนที่ ณ ตอนนั้น eligible+waiting แต่ไม่ได้ลงเกมนี้ +1; ไม่เปลี่ยน `gamesPlayed`
+4. Resting / playing คอร์ตอื่น / คนที่ถูก Next Up จอง — ไม่ถูกนับ +1 และไม่ถูก reset ตอน startGame
+5. Fair decision / reroll / Next Up stage / promote / manual / random / substitute **ไม่เปลี่ยน `fairSkips`** (การ reset ย้ายไป startGame); `finishGame` และ cancel ก่อนเริ่มเกมก็ไม่เปลี่ยน
+6. `fairSkips >= 2` ต้องอยู่ในกลุ่มบังคับเลือกก่อน Variety ถ้าเกิน 4 คน เรียง skip มากก่อน → queuedAt เก่าก่อน → Player ID เพื่อให้ tie คงที่
+7. `fairLogs.skipTransitions` คงไว้ตาม schema (`size == pool.size`) แต่ทุกรายการเป็น no-op: `before == after`, `action = "unchanged"` — log ไม่อ้างว่ามี increment/reset ที่ไม่ได้เกิดจริง (การเปลี่ยน skip ที่ startGame ยังไม่มี historical audit log)
 8. ไม่มี MAX_POOL และไม่มี gamesPlayed eligibility gate
+
+> หมายเหตุ: fair-v3 นับ skip ตอน `startGame` ทุก scenario ด้านล่างจึงระบุขั้น "เริ่มเกม" ให้ชัดว่า skip ขยับตอนไหน
 
 ## Relationship และ recency
 
@@ -40,14 +42,15 @@
 - เปิด/ปิด session รวมการล้าง players/courts/history และเขียน session/revision ใน batch เดียว ไม่เปิดช่องให้ Fair เห็นประวัติที่ล้างแล้วแต่ session ยัง active อยู่
 - การชำระเงินและแก้ Profile ที่ไม่เปลี่ยนผู้เล่นใน session ไม่เพิ่ม revision; payment ใช้ update เพื่อไม่สร้าง player ที่ถูกลบกลับมาจากหน้าจอเก่า
 - Fair อ่าน session จาก server ก่อน แล้วอ่าน players/courts/history จาก server; ไม่ยอมรับ snapshot ที่ยังมี pending local writes และคำนวณ decision ก้อนเดียว
-- Transaction ตรวจ session revision/identity/reservation และข้อมูลของ players/courts ทั้งชุดก่อนเขียน assignment พร้อม skip transitions
-- ถ้าข้อมูลที่เกี่ยวข้องเปลี่ยนก่อน commit ให้ abort และขอให้กดใหม่ ไม่มีการเพิ่ม skip หรือสร้าง success log จาก decision ที่ abort
+- Transaction ตรวจ session revision/identity/reservation และข้อมูลของ players/courts ทั้งชุดก่อนเขียน assignment; fair-v3 assignment เขียนเฉพาะทีม/สถานะ ไม่แตะ fairSkips (skipTransitions ใน log เป็น no-op)
+- ถ้าข้อมูลที่เกี่ยวข้องเปลี่ยนก่อน commit ให้ abort และขอให้กดใหม่ ไม่เขียน assignment หรือสร้าง success log จาก decision ที่ abort
+- `startGame` เป็นจุดเดียวที่เปลี่ยน fairSkips: pin `fairRevision` จาก server ก่อน tx แล้วอ่าน players ทั้งชุดใน tx; ถ้า revision ไม่ตรง → abort ด้วย START_STALE (ครอบคลุม retry ไม่ใช้ snapshot เก่า); reset 4 คนที่เริ่ม = 0, +1 คน eligible+waiting ที่ไม่ได้ลง (ยกเว้น resting/คอร์ตอื่น/Next Up reserved); double-tap เกมที่เริ่มแล้ว = no-op
 - Next Up โหลดคิว/history ใหม่หลัง modal ยืนยัน และตรวจว่ารายการที่ยืนยันให้แทนที่ยังไม่เปลี่ยน
 - UI กัน Fair กดซ้อนในเครื่องเดียว; transaction ตรวจ Fair ที่แข่งกันระหว่างเครื่อง
 - `profileId` เป็น stable identity; Match ใหม่เก็บ `teamAIdentities/teamBIdentities` ติดไปด้วย
 - Match เก่าที่มีเพียง Player IDs ใช้ current players และ `session.fairPlayerIdentities` เชื่อมตัวตน; บันทึก alias ก่อนลบ player และตอน Fair สำเร็จ
 - ไม่แก้ gamesPlayed semantics: re-add จาก Profile เริ่ม gamesPlayed = 0 ตามเดิม แต่ relationship memory ยังคงอยู่
-- Manual/random/swap ไม่มี history avoidance; เพิ่มเพียง revision metadata และ reset skip เมื่อเข้า court ตามสิทธิ์ที่ได้รับ
+- Manual/random/swap ไม่มี history avoidance; เพิ่มเพียง revision metadata และไม่เปลี่ยน fairSkips (reset ย้ายไป startGame)
 
 ## Logs
 
@@ -68,7 +71,7 @@ Rules ใหม่ให้ browser create เท่านั้น ไม่ใ
 ### 1. เริ่ม session / เกม 2 กับ 3 ไม่เป็น gate
 
 - เพิ่มอย่างน้อย 8 คน แล้วกด Fair ลงคอร์ตว่าง
-- ต้องได้ 4 คน, skill split ผ่าน guard, คน eligible ที่ไม่ได้รับเลือกมี fairSkips = 1
+- ต้องได้ 4 คน, skill split ผ่าน guard; หลังกด "เริ่มเกม" คนที่เริ่ม fairSkips = 0 และคน eligible+waiting ที่ไม่ได้ลง fairSkips = 1 (ก่อนเริ่มเกม skip ยังไม่ขยับ)
 - ให้มีผู้เล่นที่ gamesPlayed ต่างกัน 2/3 โดยเล่นเกมจริง หรือจัด fixture ใน session ทดสอบ
 - ตรวจ log ว่าทั้งสองกลุ่มอยู่ใน pool พร้อมกัน ไม่มีการตัดเพราะ gamesPlayed
 - เพื่อตรวจการเล่นร่วมกันแน่นอน ให้เหลือ eligible 4 คนซึ่งมีทั้ง gamesPlayed 2 และ 3; Fair ต้องลงทั้งสี่ได้
@@ -76,33 +79,32 @@ Rules ใหม่ให้ browser create เท่านั้น ไม่ใ
 ### 2. Guarantee เมื่อ capacity เพียงพอ
 
 - เริ่มด้วย 12 คนพร้อมเล่น เปิด 3 คอร์ต และไม่มีประวัติ/skip
-- กด Court Fair ลงคอร์ต 1: อีก 8 คน fairSkips = 1
-- กด Court Fair ลงคอร์ต 2: อีก 4 คน fairSkips = 2
-- กด Court Fair ลงคอร์ต 3: ต้องได้ 4 คนสุดท้าย, forcedIds ครบ 4, fairSkips ของผู้ลงคอร์ต = 0
+- กด Court Fair ลงคอร์ต 1 แล้วเริ่มเกม: อีก 8 คน fairSkips = 1
+- กด Court Fair ลงคอร์ต 2 แล้วเริ่มเกม: อีก 4 คน fairSkips = 2
+- กด Court Fair ลงคอร์ต 3 แล้วเริ่มเกม: ต้องได้ 4 คนสุดท้าย, forcedIds ครบ 4, fairSkips ของผู้เริ่มเล่น = 0 (skip ขยับตอนเริ่มเกม ไม่ใช่ตอนกด Fair)
 - ทดสอบอีกครั้งโดยมี history ที่ทำให้คน overdue มีคู่ซ้ำ: forced membership ยังต้องชนะ Variety
 
 ### 3. Capacity exception และเก็บสิทธิ์คนที่เหลือ
 
-- เริ่ม 21 คน/3 คอร์ต ไม่มี skip แล้วกด Fair สองคอร์ตแรก
-- จะเหลือ 13 คนที่ skip = 2; decision ถัดไปต้อง capacityException = true
+- เริ่ม 21 คน/3 คอร์ต ไม่มี skip แล้วกด Fair สองคอร์ตแรกแล้วเริ่มเกมทั้งสอง
+- จะเหลือ 13 คนที่ skip = 2; Court Fair ถัดไปต้อง capacityException = true
 - ต้องเลือก 4 คนตาม queuedAt เก่าสุดจาก overdue group (ID ตัดสินเมื่อเวลาเท่ากัน)
-- อีก 9 คนต้อง skip = 3 ไม่เป็น 0 หรือค้างที่ 2
+- เริ่มเกมคอร์ตที่สาม: อีก 9 คนต้อง skip = 3 ไม่เป็น 0 หรือค้างที่ 2
 - หลังคอร์ตว่างอีกครั้ง คน skip มากกว่าต้องมาก่อนคน skip น้อยกว่า แม้คนหลังมี relationships สดกว่า
 
 ### 4. ไม่สะสม skip ตอน ineligible
 
-- จด skip ของคน resting, คนบน court และคน reserved ใน Next Up
-- ทำ Court Fair สำเร็จด้วยคนอื่น: ทั้งสามกลุ่มต้องไม่เปลี่ยน skip และมี excluded reason ถูกต้อง
-- กลับจากพักแล้วกด Fair: เริ่มนับเฉพาะ decision ที่กลับมา eligible; เวลา queuedAt เปลี่ยนตาม behavior พักเดิม
-- ให้เหลือคน eligible น้อยกว่า 4 แล้วกด Fair: ต้อง error โดย skip/revision ไม่เพิ่มและไม่มี success log
+- จด skip ของคน resting, คนบน court อื่น และคน reserved ใน Next Up
+- จัดชุดอื่นลงคอร์ตแล้วเริ่มเกม: ทั้งสามกลุ่มต้องไม่ถูก +1 (Court Fair เองไม่เปลี่ยน skip อยู่แล้ว) และมี excluded reason ถูกต้องใน log
+- กลับจากพักแล้ว: เริ่มนับ +1 เฉพาะเกมที่เริ่มหลังกลับมา eligible; เวลา queuedAt เปลี่ยนตาม behavior พักเดิม
+- ให้เหลือคน eligible น้อยกว่า 4 แล้วกด Fair: ต้อง error โดย revision ไม่เพิ่มและไม่มี success log
 
-### 5. Next Up freeze / reroll / promote
+### 5. Next Up (ไม่เปลี่ยน skip) / reroll / promote
 
-- เติมคอร์ตให้ครบ แล้วตั้ง Next Up ด้วย Fair; จด skip ของคนที่ถูกจองจาก log `before`
-- หลัง stage ค่า skip ต้องเท่ากับ before ไม่ reset; `action = reserve-freeze`
-- Reroll หลายครั้งจนมีสมาชิกเดิมถูกนำออก (อาจได้ชุดเดิมได้หากยังเหมาะสม)
-- คนเดิมที่ยังอยู่: skip คงเดิม คนที่หลุด: skip ก่อนถูกจอง + 1 จาก reroll ที่พลาด ไม่เริ่มใหม่จาก 0
-- เมื่อคอร์ตว่าง promote: ต้องใช้ทีมที่แสดงใน Next Up และ reset skip ของสี่คน = 0 ไม่มี Fair log ใหม่จาก promotion
+- เติมคอร์ตให้ครบ แล้วตั้ง Next Up ด้วย Fair: fairSkips ของทุกคน (ทั้งที่ถูกจองและที่เหลือ) ต้องไม่เปลี่ยน
+- ดู log: ทุก `skipTransitions` เป็น no-op — `before == after`, `action = "unchanged"`
+- Reroll หลายครั้งจนมีสมาชิกเดิมถูกนำออก (อาจได้ชุดเดิมได้หากยังเหมาะสม): fairSkips ไม่เปลี่ยนไม่ว่าถูกเลือกหรือหลุด — ไม่มีการนับ reroll เป็น skip
+- เมื่อคอร์ตว่าง promote: ต้องใช้ทีมที่แสดงใน Next Up; promote ไม่เปลี่ยน skip และไม่มี Fair log ใหม่ — ต้องกด "เริ่มเกม" จึง reset สี่คน = 0
 - ซ้ำกรณีมี manual swap ใน Next Up ก่อน promote: ทีมที่ Admin จัดต้องถูกใช้ตรง ๆ
 
 ### 6. Recent relationships มีแรงหลีกเลี่ยงจริง
@@ -150,8 +152,8 @@ Rules ใหม่ให้ browser create เท่านั้น ไม่ใ
 - กดคนละคอร์ตพร้อมกัน: อาจมีคำขอ stale ให้กดใหม่ หรือทั้งคู่สำเร็จจาก snapshot คนละช่วง; ผู้เล่นต้องไม่ซ้อน
 - เปิด modal reroll ค้างไว้ แล้วอีกเครื่องเปลี่ยน Next Up: ยืนยันที่เครื่องแรกต้องไม่เขียนทับ reservation ใหม่
 - เปิด modal ค้าง แล้วอีกเครื่องให้ผู้เล่นพัก/จบเกม โดย Next Up เดิมไม่เปลี่ยน: เมื่อยืนยันต้องใช้คิว/history จาก server หลัง modal
-- กด Fair ซ้ำเร็ว ๆ ในเครื่องเดียว: ต้องไม่มีการเพิ่ม skip ซ้ำจากคำขอที่ UI กันไว้
-- เปลี่ยนคิว/finish ระหว่างอ่านและ commit: ต้อง abort ถ้า snapshot เปลี่ยน; skip ของคำขอที่ล้มเหลวต้องไม่ถูกเพิ่ม
+- กดเริ่มเกมซ้ำเร็ว ๆ ในเครื่องเดียว/หลายเครื่อง: เกมที่เริ่มแล้วเป็น no-op double tap ไม่ +1 ซ้ำ และไม่ขึ้น START_STALE
+- เปลี่ยนคิว/พัก/finish ระหว่างอ่านและ commit ของ startGame: ต้อง abort ด้วย START_STALE เมื่อ fairRevision เปลี่ยน โดยไม่ +1 บางส่วน; Fair decision ที่ snapshot เปลี่ยนก็ต้อง abort เช่นเดิม
 - ตรวจ revision ก่อน/หลังแต่ละ action: เพิ่ม/ลบ/พัก/กลับเข้าคิว, manual/random/Fair ลงคอร์ต, start/cancel/finish, court swap/substitute/ข้ามคอร์ต, Next Up เลือกเอง/เพิ่ม/ลบ/clear/swap/substitute/Fair/promote และเปิด/ปิด session ต้องเพิ่มเมื่อมี write สำเร็จ (no-op ที่ไม่ได้เขียนไม่เพิ่ม)
 - ลบผู้เล่นจากอีกเครื่องแล้วกดชำระเงินจากหน้าจอเก่า: ต้องไม่สร้าง Player ที่มีแต่ข้อมูลชำระเงินกลับมา
 
@@ -164,7 +166,7 @@ Rules ใหม่ให้ browser create เท่านั้น ไม่ใ
 
 ### 13. Logs / failure isolation / session end
 
-- Court Fair และ Next Up Fair สำเร็จ: ตรวจ log ของ target ตรงกัน, skipTransitions ตรง players, chosen split ตรง assignment ตอน commit
+- Court Fair และ Next Up Fair สำเร็จ: ตรวจ log ของ target ตรงกัน, skipTransitions ครบตาม pool แต่ทุกรายการ no-op (before==after, action=unchanged), chosen split ตรง assignment ตอน commit
 - ตรวจทุก split รวมตัวที่ไม่ผ่าน skill guard; alternatives มากสุด 5 และอาจน้อยกว่านั้นเมื่อ forced membership จำกัดตัวเลือก
 - Replay จาก pool และ pairInputs ทั้งหมดได้แม้ pool >24; คู่หรือ role ที่ไม่มีใน pairInputs ให้คิดเป็น 0 ไม่ต้องมี historyOrder หรือสำเนาประวัติต่อ alternative
 - ใน environment ที่ปฏิเสธ log create: Fair assignment ต้องยังสำเร็จ และ developer console มี `[Fair Match] decision log failed`
@@ -176,13 +178,14 @@ Rules ใหม่ให้ browser create เท่านั้น ไม่ใ
 
 - เลือกคนเองลงคอร์ตและตั้ง Next Up เอง: ยังใช้ skill balancer เดิม แม้เกิด teammate/opponent ซ้ำ
 - Swap/substitute ทั้ง court และ Next Up: exact slot ของ Admin ต้องคงอยู่ ไม่ rebalance กลับ
-- Random ยังสุ่มตามเดิม; แค่ reset fairSkips ของผู้ที่ลงคอร์ต
+- Random ยังสุ่มตามเดิม; ไม่เปลี่ยน fairSkips ตอนลงคอร์ต (reset ขยับไป startGame)
 - Assign/start/stage/promote ไม่เพิ่ม gamesPlayed; finish เพิ่มหนึ่ง; cancel ไม่เพิ่มและไม่สร้าง Match
 
 ## ข้อจำกัดที่ต้องทราบ
 
 - Guarantee มี capacity exception ตามที่อนุมัติ และหมายถึงสิทธิ์ถูกจัดลงคอร์ต ไม่ใช่รับประกันเกมเล่นจนจบ; Admin ยกเลิก/override ได้
 - Skip state เริ่ม 0 สำหรับ session Player ใหม่; การ re-add รักษา relationship memory แต่ไม่กู้ skip ของ Player ที่ลบไป
+- fair-v3 ไม่มี historical audit ของการเปลี่ยน fairSkips ที่ `startGame`: `fairLogs` เก็บเฉพาะ Fair decision (skipTransitions เป็น no-op) และไม่มี log จาก startGame; player doc เห็นได้แค่ค่า `fairSkips` **ปัจจุบัน** เท่านั้น ย้อน timeline การ +1 รายเกมของแต่ละคนไม่ได้ — ถ้าต้องการ audit ระดับนั้นต้องเพิ่ม logging ที่ startGame (อยู่นอก scope งานนี้)
 - ถ้า Player ถูกลบไปก่อนใช้เวอร์ชันนี้และไม่มี alias/identity เหลือในข้อมูลเก่า จะระบุตัวตนย้อนหลังจาก ID ล้วนไม่ได้ การลบ Profile แล้วสร้าง Profile ใหม่ไม่ใช่การ re-add Profile เดิม
 - ทุกอุปกรณ์ต้องใช้เวอร์ชันใหม่ การเขียนด้วยแอปเก่าหรือแก้ history ใน Console ระหว่าง Fair อาจไม่ปรับ revision ตาม protocol
 - Fair transaction ป้องกัน stale Fair writes; manual assignment/staging แบบ blind write เดิมยังสามารถ override ภายหลังได้ ไม่ได้รื้อ concurrency policy ของ manual ใน scope นี้

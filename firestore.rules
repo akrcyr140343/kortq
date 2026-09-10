@@ -35,7 +35,7 @@ service cloud.firestore {
           'excluded', 'skipTransitions', 'teamA', 'teamB', 'assignmentAckAtClient', 'createdAt'
         ])
         && request.resource.data.schemaVersion == 1
-        && request.resource.data.algorithmVersion == 'fair-v2'
+        && request.resource.data.algorithmVersion in ['fair-v2', 'fair-v3']
         && request.resource.data.decisionId == decisionId
         && request.resource.data.createdAt == request.time
         && request.resource.data.sessionCreatedAt is int
