@@ -18,6 +18,7 @@ export interface Player {
   paid?: boolean; // court-fee settlement for this session (admin-verified, manual)
   paidAt?: number | null; // ms when marked paid
   profileId?: string | null; // link to the permanent roster Profile they were added from
+  fairSkips?: number; // eligible Fair decisions missed; frozen in Next Up, cleared on court entry
 }
 
 /**
@@ -75,6 +76,8 @@ export interface Session {
   createdAt: number;
   feePerHead?: number; // baht each player owes for the session (0 = not set yet)
   nextUp?: NextUp; // staged "next game" (เกมถัดไป); absent/empty = not set
+  fairRevision?: number; // incremented atomically by every app mutation of Fair inputs
+  fairPlayerIdentities?: Record<string, string>; // Player ID -> stable identity, retained after removal
 }
 
 /**
@@ -91,6 +94,8 @@ export interface Match {
   players: string[]; // all ids in the game (teamA + teamB)
   startedAt: number; // ms — from the court when the game began
   finishedAt: number; // ms — when the game was ended
+  teamAIdentities?: string[]; // immutable identities; legacy matches resolve through session aliases
+  teamBIdentities?: string[];
 }
 
 export const SKILL_SCORE: Record<Skill, number> = {

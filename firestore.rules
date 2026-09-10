@@ -21,5 +21,44 @@ service cloud.firestore {
     match /profiles/{profileId} {
       allow read, write: if true;
     }
+    // Phase 1 diagnostics: browser append only; inspect through Firebase Console.
+    // This does not authenticate the writer under the existing no-Auth model.
+    match /fairLogs/{decisionId} {
+      allow read, update, delete: if false;
+      allow create: if request.resource.data.keys().hasOnly([
+          'algorithmVersion', 'schemaVersion', 'parameters', 'historyCount',
+          'pool', 'overdueIds', 'forcedIds', 'capacityException', 'candidateCount',
+          'selected', 'alternatives', 'bestSkillDiff', 'splitOptions', 'pairInputs',
+          'exactFoursomeInputs', 'decisionId', 'target', 'eventKind', 'sessionCreatedAt',
+          'revisionBefore', 'revisionAfter', 'snapshotReadStartedAtClient', 'decidedAtClient',
+          'planningFinishedAtClient', 'historyReady', 'snapshotSource', 'previousNextUp',
+          'excluded', 'skipTransitions', 'teamA', 'teamB', 'assignmentAckAtClient', 'createdAt'
+        ])
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.algorithmVersion == 'fair-v2'
+        && request.resource.data.decisionId == decisionId
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.sessionCreatedAt is int
+        && request.resource.data.historyReady == true
+        && request.resource.data.historyCount is int
+        && request.resource.data.historyCount >= 0
+        && request.resource.data.candidateCount is int
+        && request.resource.data.candidateCount >= 1
+        && request.resource.data.parameters is map
+        && request.resource.data.pool is list
+        && request.resource.data.pool.size() >= 4
+        && request.resource.data.pairInputs is list
+        && request.resource.data.skipTransitions is list
+        && request.resource.data.skipTransitions.size() == request.resource.data.pool.size()
+        && request.resource.data.alternatives is list
+        && request.resource.data.alternatives.size() <= 5
+        && request.resource.data.splitOptions is list
+        && request.resource.data.splitOptions.size() == 3
+        && request.resource.data.teamA is list && request.resource.data.teamA.size() == 2
+        && request.resource.data.teamB is list && request.resource.data.teamB.size() == 2
+        && ((request.resource.data.target == 'nextup' && request.resource.data.eventKind == 'fair-staging')
+          || (request.resource.data.target.matches('^court-[1-9][0-9]*$')
+            && request.resource.data.eventKind == 'fair-court-assignment'));
+    }
   }
 }

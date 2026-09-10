@@ -1,251 +1,241 @@
-// Fair matchmaking — the "จับแฟร์" button.
-//
-// Pure, Firestore-free scoring/selection so weights are easy to tune and unit
-// test. The random (randomAssign) and manual paths are untouched; this is an
-// additional strategy layered on top of the same
-// Player/Match data.
-//
-// Goal, in three stages:
-//   1. Fairness  — players who have played less and waited longer go first.
-//   2. Variety   — avoid replaying the same foursomes / partners.
-//   3. Balance   — split the chosen four into skill-even teams.
-
+// Pure Fair engine. Manual/random balancing never imports this policy.
 import type { Match, Player } from "./types";
 import type { TeamSplit } from "./matchmaking";
 
-// ---- Tunable weights -------------------------------------------------------
-// Higher weight = the factor matters more. Kept as named constants (no magic
-// numbers) so the club can re-balance behaviour later without touching logic.
-
-/** Penalty weights when choosing WHICH four players play next. */
-export const FAIR_WEIGHTS = {
-  sameFoursome: 100, // the exact same 4 recently played together — punish hard
-  coPlayer: 12, // per pair that keeps meeting (decayed by recency)
-  // The candidate pool is no longer games-capped (see buildCandidatePool), so
-  // waiting time is the primary fairness signal that keeps a long waiter from
-  // being frozen out, while still letting variety and the games gap trade off
-  // inside the score rather than acting as a hard eligibility gate.
-  waiting: 6, // per MINUTE waited less than the longest waiter in the pool
-  gamesPlayed: 4, // per game already played — favours those who played less
-};
-
-/** Penalty weights when splitting the chosen four into team A / team B. */
-export const TEAM_WEIGHTS = {
-  skillDiff: 10, // per point of skill-score gap between the teams
-  repeatPartner: 6, // per past game the pairing were partners (decayed)
-};
-
-// Only the most recent games carry weight; older ones matter little and this
-// bounds the work. C(MAX_POOL,4) foursomes are scored per pick. MAX_POOL is a
-// safety bound set well ABOVE any realistic waiting-queue size, so it never acts
-// as a business selection filter — it only caps the combinatorial work for a
-// pathologically large queue (C(24,4) = 10626, still trivial to score once).
-const RECENT_WINDOW = 20;
-const MAX_POOL = 24;
-
-// Waiting is measured in minutes waited *less* than the longest waiter in the
-// pool. Sub-minute gaps are effectively equal (so near-equal waits let variety
-// decide the pick); the cap stops a just-joined player from being frozen out
-// forever once others rack up games.
-const WAIT_UNIT_MS = 60_000;
-const WAIT_CAP_MINUTES = 15;
-
-/** Standard "not enough players" error — matches the wording used elsewhere. */
+export const FAIR_ALGORITHM_VERSION = "fair-v2";
+export const FAIR_SCHEMA_VERSION = 1;
+export const FAIR_PARAMETERS = {
+  overdueAfterSkips: 2,
+  recentPlayerGames: 3,
+  skillSlack: 2,
+  alternativeCount: 5,
+  relationshipFormula: "lifetimeCount + max(0, recentPlayerGames - age)^2",
+  ageDefinition: "min(completed games each player played since their latest encounter in this role)",
+  overdueOrder: ["fairSkips descending", "queuedAt ascending", "player ID ascending"],
+  skipPolicy: "only successful eligible Fair decisions; reserve freezes, court entry resets, eligible omission increments",
+  selectionOrder: ["forced membership", "coPlayer", "queueTimeSum", "gamesPlayedSum", "player IDs"],
+  splitOrder: ["skillDiff <= bestSkillDiff + skillSlack", "relationshipRepeat", "skillDiff", "option index"],
+} as const;
 export const NOT_ENOUGH_WAITING = "ต้องมีผู้เล่นในคิว 'รอ' อย่างน้อย 4 คน";
 
-// ---- Small helpers ---------------------------------------------------------
+export const stablePlayerIdentity = (p: Pick<Player, "id" | "profileId">): string =>
+  p.profileId ? `profile:${p.profileId}` : `player:${p.id}`;
+const compareId = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
+const key = (ids: string[]) => JSON.stringify([...ids].sort(compareId));
 
-function scoreSum(players: Player[]): number {
-  return players.reduce((total, p) => total + p.score, 0);
+interface Encounter {
+  count: number;
+  lastAppearances: [number, number];
+  lastMatchId: string;
 }
-
-/**
- * age 0 = most recent finished game. Gentle linear falloff to 0 at the window
- * edge (1.0, 0.95, 0.90, …). Deliberately shallow: a steep decay would make
- * reusing an *older* pair as cheap as splitting up a very recent one, which
- * hides the difference between clustering the same group and cross-mixing.
- */
-function recencyWeight(age: number): number {
-  return Math.max(0, (RECENT_WINDOW - age) / RECENT_WINDOW);
+export interface RelationshipScore {
+  count: number;
+  age: number | null;
+  recentBonus: number;
+  total: number;
+  lastMatchId: string | null;
 }
+interface PairHistory {
+  identities: [string, string];
+  coPlayer?: Encounter;
+  teammate?: Encounter;
+  opponent?: Encounter;
+}
+export interface IndexedPair {
+  identities: [string, string];
+  coPlayer: RelationshipScore;
+  teammate: RelationshipScore;
+  opponent: RelationshipScore;
+}
+export interface FairHistoryIndex {
+  pairs: Map<string, IndexedPair>;
+  foursomes: Map<string, number>;
+}
+const emptyScore = (): RelationshipScore => ({ count: 0, age: null, recentBonus: 0, total: 0, lastMatchId: null });
 
-/**
- * Minutes each pool player waited *less* than the longest waiter (0 = the
- * longest waiter), capped. Near-equal queue times collapse to ~0 for everyone,
- * so variety — not a rank artefact — decides between otherwise-fair picks.
+/** Scan the whole session once. Recency uses personal appearances, not gamesPlayed
+ * (which can reset on re-add), wall time, or unrelated games on other courts.
+ * One encounter costs 10/5/2/1 after 0/1/2/3+ intervening games for BOTH players.
+ * Every occurrence contributes 1; the latest encounter adds one recency bonus.
  */
-function waitPenalties(pool: Player[]): Map<string, number> {
-  const oldest = Math.min(...pool.map((p) => p.queuedAt));
-  const out = new Map<string, number>();
-  for (const p of pool) {
-    const minutes = (p.queuedAt - oldest) / WAIT_UNIT_MS;
-    out.set(p.id, Math.min(WAIT_CAP_MINUTES, minutes));
+export function indexFairHistory(matches: Match[], aliases: Record<string, string>): FairHistoryIndex {
+  const appearances = new Map<string, number>();
+  const history = new Map<string, PairHistory>();
+  const foursomes = new Map<string, number>();
+  const ordered = [...matches].sort((a, b) => a.finishedAt - b.finishedAt || compareId(a.id, b.id));
+  const identity = (id: string) => aliases[id] ?? `player:${id}`;
+  for (const match of ordered) {
+    const teamA = match.teamAIdentities ?? match.teamA.map(identity);
+    const teamB = match.teamBIdentities ?? match.teamB.map(identity);
+    const all = [...teamA, ...teamB];
+    if (teamA.length !== 2 || teamB.length !== 2 || new Set(all).size !== 4 || !Number.isFinite(match.finishedAt)) {
+      throw new Error("ประวัติเกมไม่สมบูรณ์ จับแฟร์ไม่ได้ — ตรวจสอบประวัติก่อน");
+    }
+    for (const id of all) appearances.set(id, (appearances.get(id) ?? 0) + 1);
+    const fourKey = key(all);
+    foursomes.set(fourKey, (foursomes.get(fourKey) ?? 0) + 1);
+    for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) {
+      const identities = [all[i], all[j]].sort(compareId) as [string, string];
+      const pairKey = key(identities);
+      const pair: PairHistory = history.get(pairKey) ?? { identities };
+      const role = (i < 2) === (j < 2) ? "teammate" : "opponent";
+      for (const field of ["coPlayer", role] as const) {
+        pair[field] = {
+          count: (pair[field]?.count ?? 0) + 1,
+          lastAppearances: [appearances.get(identities[0])!, appearances.get(identities[1])!],
+          lastMatchId: match.id,
+        };
+      }
+      history.set(pairKey, pair);
+    }
   }
-  return out;
+  const pairs = new Map<string, IndexedPair>();
+  for (const [pairKey, pair] of history) {
+    const score = (encounter?: Encounter): RelationshipScore => {
+      if (!encounter) return emptyScore();
+      const age = Math.min(...pair.identities.map((id, i) => appearances.get(id)! - encounter.lastAppearances[i]));
+      const recentBonus = Math.max(0, FAIR_PARAMETERS.recentPlayerGames - age) ** 2;
+      return { count: encounter.count, age, recentBonus, total: encounter.count + recentBonus, lastMatchId: encounter.lastMatchId };
+    };
+    pairs.set(pairKey, { identities: pair.identities, coPlayer: score(pair.coPlayer), teammate: score(pair.teammate), opponent: score(pair.opponent) });
+  }
+  return { pairs, foursomes };
 }
 
-/** Most-recent-first, capped to the recency window, with a cached id set. */
-function recentMatches(matches: Match[]): Array<{ set: Set<string>; teamA: Set<string>; teamB: Set<string> }> {
-  return [...matches]
-    .sort((a, b) => b.finishedAt - a.finishedAt)
-    .slice(0, RECENT_WINDOW)
-    .map((m) => ({
-      set: new Set(m.players),
-      teamA: new Set(m.teamA),
-      teamB: new Set(m.teamB),
-    }));
+export interface SelectionScore {
+  coPlayer: number;
+  lifetimeOccurrences: number;
+  recentBonus: number;
+  distinctRepeatedPairs: number;
+  exactFoursomeOccurrences: number; // diagnostic only, never an extra penalty
+  queueTimeSum: number;
+  waitingDeficitMinutes: number; // uncapped, diagnostic only
+  gamesPlayedSum: number;
+}
+interface Alternative {
+  players: string[];
+  score: SelectionScore;
+}
+export interface SplitOption {
+  teamA: string[];
+  teamB: string[];
+  repeatTeammate: number;
+  repeatOpponent: number;
+  totalRepeat: number;
+  skillDiff: number;
+  passesSkillGuard: boolean;
+  chosen: boolean;
 }
 
-/** All 4-player combinations of `items` (index order preserved). */
-function combinationsOfFour<T>(items: T[]): T[][] {
-  const out: T[][] = [];
-  const n = items.length;
-  for (let a = 0; a < n - 3; a++)
-    for (let b = a + 1; b < n - 2; b++)
-      for (let c = b + 1; c < n - 1; c++)
-        for (let d = c + 1; d < n; d++) out.push([items[a], items[b], items[c], items[d]]);
-  return out;
-}
-
-// ---- Step 1 — candidate pool ----------------------------------------------
-
-/**
- * Build the pool of players eligible to be picked next.
- *
- * Every waiting player is eligible — there is no games-based hard filter, so the
- * scorer (foursomePenalty) is free to skip a slightly fresher player in order to
- * avoid a repeat. Fairness (fewest games, then longest wait) only sets the
- * ORDER, and decides which few are dropped when the queue exceeds MAX_POOL (a
- * safety bound, not a business filter). With 4 or fewer waiting there is only
- * one possible foursome, so a repeat is unavoidable and accepted.
- */
+/** No games-based eligibility gate and no truncated candidate pool. */
 export function buildCandidatePool(waiting: Player[]): Player[] {
-  const byFairness = (a: Player, b: Player) =>
-    a.gamesPlayed - b.gamesPlayed || a.queuedAt - b.queuedAt;
-
-  const w = waiting.filter((p) => p.status === "waiting");
-  if (w.length <= 4) return [...w];
-
-  return [...w].sort(byFairness).slice(0, MAX_POOL);
-}
-
-// ---- Step 4 — pick the fairest / most varied four -------------------------
-
-/** Penalty for one foursome. Lower is better. Exported for tuning/tests. */
-export function foursomePenalty(
-  four: Player[],
-  waitMinutes: Map<string, number>,
-  recent: ReturnType<typeof recentMatches>,
-): number {
-  const ids = four.map((p) => p.id);
-
-  // Exact same 4 as a recent game.
-  let sameFoursome = 0;
-  // Any pair that shared a recent game.
-  let coPlayer = 0;
-  for (let age = 0; age < recent.length; age++) {
-    const m = recent[age];
-    if (m.set.size === 4 && ids.every((id) => m.set.has(id))) {
-      sameFoursome += recencyWeight(age);
-    }
-    for (let i = 0; i < ids.length; i++)
-      for (let j = i + 1; j < ids.length; j++)
-        if (m.set.has(ids[i]) && m.set.has(ids[j])) coPlayer += recencyWeight(age);
+  const pool = waiting.filter((p) => p.status === "waiting" && p.courtId == null).sort((a, b) => compareId(a.id, b.id));
+  if (new Set(pool.map(stablePlayerIdentity)).size !== pool.length) {
+    throw new Error("มีผู้เล่นคนเดียวกันซ้ำในคิว กรุณาตรวจสอบก่อนจับแฟร์");
   }
-
-  const waitPenalty = ids.reduce((s, id) => s + (waitMinutes.get(id) ?? 0), 0);
-  const gamesPenalty = four.reduce((s, p) => s + p.gamesPlayed, 0);
-
-  return (
-    FAIR_WEIGHTS.sameFoursome * sameFoursome +
-    FAIR_WEIGHTS.coPlayer * coPlayer +
-    FAIR_WEIGHTS.waiting * waitPenalty +
-    FAIR_WEIGHTS.gamesPlayed * gamesPenalty
-  );
-}
-
-/**
- * Choose the four players who should play next. Throws if fewer than 4 are
- * waiting (same contract as randomAssign). With no match history
- * this degrades to pure fairness (waiting + gamesPlayed), i.e. FIFO-ish.
- */
-export function selectFairFour(waiting: Player[], matches: Match[]): Player[] {
-  const w = waiting.filter((p) => p.status === "waiting");
-  if (w.length < 4) throw new Error(NOT_ENOUGH_WAITING);
-
-  const pool = buildCandidatePool(w);
-  if (pool.length === 4) return pool; // only one possible foursome
-
-  const waitMinutes = waitPenalties(pool);
-  const recent = recentMatches(matches);
-
-  let best: Player[] | null = null;
-  let bestScore = Infinity;
-  let bestWait = Infinity;
-  for (const combo of combinationsOfFour(pool)) {
-    const score = foursomePenalty(combo, waitMinutes, recent);
-    // Summed wait deficit — smaller means this four waited longer overall.
-    const wait = combo.reduce((s, p) => s + (waitMinutes.get(p.id) ?? 0), 0);
-    // Tie-break toward the longer waiters (smaller deficit) so fairness never
-    // loses to variety when penalties are equal.
-    if (score < bestScore || (score === bestScore && wait < bestWait)) {
-      best = combo;
-      bestScore = score;
-      bestWait = wait;
+  for (const p of pool) {
+    if (!Number.isFinite(p.queuedAt) || !Number.isInteger(p.gamesPlayed) || p.gamesPlayed < 0 ||
+        !Number.isInteger(p.score) || p.score < 1 || p.score > 4 ||
+        !Number.isSafeInteger(p.fairSkips ?? 0) || (p.fairSkips ?? 0) < 0) {
+      throw new Error("ข้อมูลผู้เล่นไม่สมบูรณ์ กรุณาตรวจสอบก่อนจับแฟร์");
     }
   }
-  return best!;
+  return pool;
 }
 
-// ---- Step 5 — split the four into skill-even, fresh-partner teams ---------
-
-/** How often `pair` were partners (same team) across recent games. */
-function partnerRepeat(pair: Player[], recent: ReturnType<typeof recentMatches>): number {
-  const [x, y] = pair;
-  let n = 0;
-  for (let age = 0; age < recent.length; age++) {
-    const m = recent[age];
-    const together =
-      (m.teamA.has(x.id) && m.teamA.has(y.id)) || (m.teamB.has(x.id) && m.teamB.has(y.id));
-    if (together) n += recencyWeight(age);
-  }
-  return n;
+function* choose<T>(items: T[], count: number, start = 0, prefix: T[] = []): Generator<T[]> {
+  if (count === 0) { yield prefix; return; }
+  for (let i = start; i <= items.length - count; i++) yield* choose(items, count - 1, i + 1, [...prefix, items[i]]);
 }
 
-/**
- * Split exactly four into two pairs. Prefers even skill, then breaks up
- * partners who keep playing together. Only 3 pairings exist, so check all.
- * Falls back gracefully when there's no history (pure skill balance).
- */
-export function fairSplitOfFour(four: Player[], matches: Match[]): TeamSplit {
-  const recent = recentMatches(matches);
-  const [a, b, c, d] = four;
-  const options: Array<[Player[], Player[]]> = [
-    [[a, b], [c, d]],
-    [[a, c], [b, d]],
-    [[a, d], [b, c]],
-  ];
-
-  let best: (TeamSplit & { penalty: number }) | null = null;
-  for (const [teamA, teamB] of options) {
-    const diff = Math.abs(scoreSum(teamA) - scoreSum(teamB));
-    const repeat = partnerRepeat(teamA, recent) + partnerRepeat(teamB, recent);
-    const penalty = TEAM_WEIGHTS.skillDiff * diff + TEAM_WEIGHTS.repeatPartner * repeat;
-    if (best === null || penalty < best.penalty || (penalty === best.penalty && diff < best.diff)) {
-      best = { teamA, teamB, diff, penalty };
+export function planFairMatch(waiting: Player[], matches: Match[], storedAliases: Record<string, string> = {}) {
+  const pool = buildCandidatePool(waiting);
+  if (pool.length < 4) throw new Error(NOT_ENOUGH_WAITING);
+  const aliases = { ...storedAliases };
+  for (const p of pool) aliases[p.id] = stablePlayerIdentity(p);
+  const index = indexFairHistory(matches, aliases);
+  const oldest = Math.min(...pool.map((p) => p.queuedAt));
+  const overdue = pool.filter((p) => (p.fairSkips ?? 0) >= FAIR_PARAMETERS.overdueAfterSkips)
+    .sort((a, b) => (b.fairSkips ?? 0) - (a.fairSkips ?? 0) || a.queuedAt - b.queuedAt || compareId(a.id, b.id));
+  const forced = overdue.slice(0, 4);
+  const forcedIds = new Set(forced.map((p) => p.id));
+  const remaining = pool.filter((p) => !forcedIds.has(p.id));
+  const relation = (a: Player, b: Player, role: "coPlayer" | "teammate" | "opponent") =>
+    index.pairs.get(key([stablePlayerIdentity(a), stablePlayerIdentity(b)]))?.[role] ?? emptyScore();
+  const selectionScore = (four: Player[]): SelectionScore => {
+    let lifetimeOccurrences = 0, recentBonus = 0, distinctRepeatedPairs = 0;
+    for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) {
+      const s = relation(four[i], four[j], "coPlayer");
+      lifetimeOccurrences += s.count;
+      recentBonus += s.recentBonus;
+      if (s.count) distinctRepeatedPairs++;
     }
+    return {
+      coPlayer: lifetimeOccurrences + recentBonus, lifetimeOccurrences, recentBonus, distinctRepeatedPairs,
+      exactFoursomeOccurrences: index.foursomes.get(key(four.map(stablePlayerIdentity))) ?? 0,
+      queueTimeSum: four.reduce((sum, p) => sum + p.queuedAt, 0),
+      waitingDeficitMinutes: four.reduce((sum, p) => sum + (p.queuedAt - oldest) / 60_000, 0),
+      gamesPlayedSum: four.reduce((sum, p) => sum + p.gamesPlayed, 0),
+    };
+  };
+  const compare = (a: Alternative, b: Alternative) =>
+    a.score.coPlayer - b.score.coPlayer || a.score.queueTimeSum - b.score.queueTimeSum ||
+    a.score.gamesPlayedSum - b.score.gamesPlayedSum || compareId(key(a.players), key(b.players));
+  const top: Alternative[] = [];
+  let candidateCount = 0;
+  for (const rest of choose(remaining, 4 - forced.length)) {
+    const four = [...forced, ...rest].sort((a, b) => compareId(a.id, b.id));
+    const candidate = { players: four.map((p) => p.id), score: selectionScore(four) };
+    candidateCount++;
+    const at = top.findIndex((other) => compare(candidate, other) < 0);
+    if (at >= 0) top.splice(at, 0, candidate);
+    else if (top.length < FAIR_PARAMETERS.alternativeCount + 1) top.push(candidate);
+    if (top.length > FAIR_PARAMETERS.alternativeCount + 1) top.pop();
   }
-  return { teamA: best!.teamA, teamB: best!.teamB, diff: best!.diff };
-}
-
-// ---- Composition -----------------------------------------------------------
-
-/**
- * Full "จับแฟร์" plan: pick four, then split them. Returns a TeamSplit ready
- * for the court, reusing the same shape as balanceTeams(). Throws if fewer
- * than 4 players are waiting.
- */
-export function planFairMatch(waiting: Player[], matches: Match[]): TeamSplit {
-  const four = selectFairFour(waiting, matches);
-  return fairSplitOfFour(four, matches);
+  const selected = top[0];
+  const byId = new Map(pool.map((p) => [p.id, p]));
+  const [a, b, c, d] = selected.players.map((id) => byId.get(id)!);
+  const teams: Array<[Player[], Player[]]> = [[[a, b], [c, d]], [[a, c], [b, d]], [[a, d], [b, c]]];
+  const sum = (team: Player[]) => team.reduce((s, p) => s + p.score, 0);
+  const bestSkillDiff = Math.min(...teams.map(([ta, tb]) => Math.abs(sum(ta) - sum(tb))));
+  const splitOptions: SplitOption[] = teams.map(([ta, tb]) => {
+    const repeatTeammate = relation(ta[0], ta[1], "teammate").total + relation(tb[0], tb[1], "teammate").total;
+    let repeatOpponent = 0;
+    for (const x of ta) for (const y of tb) repeatOpponent += relation(x, y, "opponent").total;
+    const skillDiff = Math.abs(sum(ta) - sum(tb));
+    return { teamA: ta.map((p) => p.id), teamB: tb.map((p) => p.id), repeatTeammate, repeatOpponent,
+      totalRepeat: repeatTeammate + repeatOpponent, skillDiff,
+      passesSkillGuard: skillDiff <= bestSkillDiff + FAIR_PARAMETERS.skillSlack, chosen: false };
+  });
+  let chosen = -1;
+  for (let i = 0; i < splitOptions.length; i++) {
+    const option = splitOptions[i];
+    if (!option.passesSkillGuard) continue;
+    if (chosen < 0 || option.totalRepeat < splitOptions[chosen].totalRepeat ||
+        (option.totalRepeat === splitOptions[chosen].totalRepeat && option.skillDiff < splitOptions[chosen].skillDiff)) chosen = i;
+  }
+  splitOptions[chosen].chosen = true;
+  const split: TeamSplit = { teamA: teams[chosen][0], teamB: teams[chosen][1], diff: splitOptions[chosen].skillDiff };
+  const poolIdentities = new Set(pool.map(stablePlayerIdentity));
+  return {
+    ...split,
+    diagnostics: {
+      algorithmVersion: FAIR_ALGORITHM_VERSION, schemaVersion: FAIR_SCHEMA_VERSION, parameters: FAIR_PARAMETERS,
+      historyCount: matches.length,
+      pool: pool.map((p) => ({ id: p.id, identity: stablePlayerIdentity(p), name: p.name, skill: p.skill, score: p.score,
+        gamesPlayed: p.gamesPlayed, queuedAt: p.queuedAt, fairSkips: p.fairSkips ?? 0,
+        waitingDeficitMinutes: (p.queuedAt - oldest) / 60_000 })),
+      overdueIds: overdue.map((p) => p.id), forcedIds: forced.map((p) => p.id), capacityException: overdue.length > 4,
+      candidateCount, selected, alternatives: top.slice(1), bestSkillDiff, splitOptions,
+      // Missing pairs/roles are zero. Store each relevant aggregate once, not
+      // raw history or copies per alternative; these replay every candidate/split.
+      pairInputs: [...index.pairs.values()].filter((p) => p.identities.every((id) => poolIdentities.has(id)))
+        .map((p) => ({ identities: p.identities, coPlayer: p.coPlayer,
+          ...(p.teammate.count ? { teammate: p.teammate } : {}),
+          ...(p.opponent.count ? { opponent: p.opponent } : {}),
+        })),
+      exactFoursomeInputs: [...index.foursomes].filter(([k]) => (JSON.parse(k) as string[]).every((id) => poolIdentities.has(id)))
+        .map(([k, count]) => ({ identities: JSON.parse(k) as string[], count })),
+    },
+  };
 }

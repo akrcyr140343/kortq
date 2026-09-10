@@ -4,12 +4,16 @@ import {
   deleteDoc,
   doc,
   getDocs,
+  getDocFromServer,
+  getDocsFromServer,
   increment,
   onSnapshot,
   orderBy,
   query,
   runTransaction,
+  serverTimestamp,
   setDoc,
+  updateDoc,
   writeBatch,
 } from "firebase/firestore";
 import { db } from "./firebase";
@@ -18,13 +22,14 @@ import {
   normalizeNameKey,
   type Court,
   type Match,
+  type NextUp,
   type Player,
   type Profile,
   type Session,
   type Skill,
 } from "./types";
 import { balanceTeams, shuffle } from "./matchmaking";
-import { planFairMatch, NOT_ENOUGH_WAITING } from "./fairmatch";
+import { planFairMatch, stablePlayerIdentity } from "./fairmatch";
 
 // ---- Firestore paths -------------------------------------------------------
 // A single active session lives at sessions/current, with players and courts
@@ -108,13 +113,17 @@ export function subscribeCourts(
 }
 
 export function subscribeMatches(
-  cb: (matches: Match[]) => void,
+  cb: (matches: Match[], serverReady: boolean) => void,
   onError?: (e: Error) => void,
 ) {
   const q = query(matchesCol, orderBy("finishedAt", "asc"));
   return onSnapshot(
     q,
-    (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Match, "id">) }))),
+    { includeMetadataChanges: true },
+    (snap) => cb(
+      snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Match, "id">) })),
+      !snap.metadata.fromCache && !snap.metadata.hasPendingWrites,
+    ),
     (e) => onError?.(e),
   );
 }
@@ -137,7 +146,7 @@ export function subscribeProfiles(
 
 // ---- Helpers ---------------------------------------------------------------
 
-async function deleteAll(): Promise<void> {
+async function deleteAll(batch: ReturnType<typeof writeBatch>): Promise<void> {
   const [playersSnap, courtsSnap, matchesSnap] = await Promise.all([
     getDocs(playersCol),
     getDocs(courtsCol),
@@ -145,24 +154,25 @@ async function deleteAll(): Promise<void> {
   ]);
   // Firestore batches cap at 500 ops; our data is tiny (~21 players + 3 courts
   // + a session's worth of finished games).
-  const batch = writeBatch(db);
   playersSnap.forEach((d) => batch.delete(d.ref));
   courtsSnap.forEach((d) => batch.delete(d.ref));
   matchesSnap.forEach((d) => batch.delete(d.ref));
-  await batch.commit();
+  // Commit with the session identity/revision and new courts: Fair must never
+  // see an active session with half-cleared history.
 }
 
 // ---- Session ---------------------------------------------------------------
 
 export async function startSession(courtCount: number): Promise<void> {
-  await deleteAll(); // fresh start — clear any leftovers
   const batch = writeBatch(db);
-  batch.set(sessionRef, {
+  await deleteAll(batch); // fresh start — clear any leftovers
+  const session: Session = {
     active: true,
     courtCount,
     createdAt: Date.now(),
     feePerHead: 0,
-  } satisfies Session);
+  };
+  batch.set(sessionRef, { ...session, fairRevision: increment(1) });
   for (let i = 1; i <= courtCount; i++) {
     batch.set(courtRef(courtId(i)), {
       index: i,
@@ -175,8 +185,11 @@ export async function startSession(courtCount: number): Promise<void> {
 }
 
 export async function endSession(): Promise<void> {
-  await deleteAll();
-  await setDoc(sessionRef, { active: false, courtCount: 0, createdAt: Date.now() } satisfies Session);
+  const batch = writeBatch(db);
+  await deleteAll(batch);
+  const session: Session = { active: false, courtCount: 0, createdAt: Date.now() };
+  batch.set(sessionRef, { ...session, fairRevision: increment(1) });
+  await batch.commit();
 }
 
 // ---- Players ---------------------------------------------------------------
@@ -216,6 +229,8 @@ export async function addPlayer(name: string, skill: Skill, sessionCreatedAt: nu
     paidAt: null,
     profileId: pRef.id,
   } satisfies Omit<Player, "id">);
+  // Fair reads collection membership outside its transaction; this detects new IDs.
+  batch.update(sessionRef, { fairRevision: increment(1) });
   await batch.commit();
 }
 
@@ -252,6 +267,8 @@ export async function addPlayerFromProfile(profileId: string, sessionCreatedAt: 
       paidAt: null,
       profileId,
     } satisfies Omit<Player, "id">);
+
+    tx.update(sessionRef, { fairRevision: increment(1) });
 
     // Cap visitCount at +1 per Profile per session (tracked by lastCountedSession).
     const alreadyCounted = profile.lastCountedSession === sessionCreatedAt;
@@ -309,7 +326,11 @@ export async function deletePlayer(id: string): Promise<void> {
     // Also drop them from the staged "next game" if they were in it, so a
     // deleted player can never linger in nextUp (arrayRemove is a no-op when
     // the id isn't there).
-    tx.update(sessionRef, { "nextUp.teamA": arrayRemove(id), "nextUp.teamB": arrayRemove(id) });
+    tx.update(sessionRef, {
+      "nextUp.teamA": arrayRemove(id), "nextUp.teamB": arrayRemove(id),
+      [`fairPlayerIdentities.${id}`]: stablePlayerIdentity({ id, ...player }),
+      fairRevision: increment(1),
+    });
     tx.delete(playerRef(id));
   });
 }
@@ -347,6 +368,7 @@ export async function setPlayerResting(id: string, resting: boolean): Promise<vo
       }
       tx.update(playerRef(id), { status: "waiting", queuedAt: now, courtId: null });
     }
+    tx.update(sessionRef, { fairRevision: increment(1) });
   });
 }
 
@@ -362,7 +384,8 @@ export async function setSessionFee(feePerHead: number): Promise<void> {
 
 /** Flip one player's payment status (paid ⇄ unpaid). */
 export async function setPlayerPaid(id: string, paid: boolean): Promise<void> {
-  await setDoc(playerRef(id), { paid, paidAt: paid ? Date.now() : null }, { merge: true });
+  // A stale payment tap must not recreate a deleted player outside the revision protocol.
+  await updateDoc(playerRef(id), { paid, paidAt: paid ? Date.now() : null });
 }
 
 /** Clear every player's payment status — a fresh collection round. */
@@ -378,8 +401,8 @@ export async function resetPayments(players: Player[]): Promise<void> {
 
 /**
  * Write a chosen team split onto a court and mark its players as playing.
- * Shared by every assignment strategy (random, manual, fair) so they all touch
- * Firestore the same way.
+ * Used by manual/random assignment. Fair validates and writes its decision and
+ * skip transitions together in commitFairDecision instead.
  *
  * The game clock does NOT start here — `startedAt` stays null until the admin
  * presses "เริ่มเกม" (startGame). While it's null the four players sit on the
@@ -399,14 +422,17 @@ async function commitAssignment(
     startedAt: null,
   });
   for (const id of ids) {
-    batch.update(playerRef(id), { status: "playing", courtId: targetCourtId });
+    batch.update(playerRef(id), { status: "playing", courtId: targetCourtId, fairSkips: 0 });
   }
   // Safety net: whoever lands on a court is removed from the staged "next game"
   // so nobody is ever in both nextUp and a court. This is also what clears
   // nextUp when a court is filled by promoting it (the promoted four ARE the
   // nextUp). arrayRemove of ids that aren't staged is a harmless no-op, so it
   // never disturbs a partially-filled nextUp assembled from other players.
-  batch.update(sessionRef, { "nextUp.teamA": arrayRemove(...ids), "nextUp.teamB": arrayRemove(...ids) });
+  batch.update(sessionRef, {
+    "nextUp.teamA": arrayRemove(...ids), "nextUp.teamB": arrayRemove(...ids),
+    fairRevision: increment(1),
+  });
   await batch.commit();
 }
 
@@ -463,6 +489,7 @@ export async function startGame(
       }
     }
     tx.update(courtRef(targetCourtId), { startedAt: Date.now() });
+    tx.update(sessionRef, { fairRevision: increment(1) });
   });
 }
 
@@ -472,23 +499,136 @@ export async function assignToCourt(targetCourtId: string, players: Player[]): P
   await commitAssignment(targetCourtId, teamA, teamB);
 }
 
-/**
- * Fair auto-fill for an empty court: pick the four players who most deserve to
- * play next (fewest games + longest wait) while avoiding recently repeated
- * foursomes/partners, then split them into skill-even teams. Falls back to
- * plain fairness when there's little/no match history. Throws if fewer than 4
- * are waiting — same contract as randomAssign.
+const FAIR_STALE = "คิว คอร์ต หรือประวัติเปลี่ยนระหว่างจับแฟร์ กรุณากดใหม่";
+const emptyNextUp = (): NextUp => ({ teamA: [], teamB: [] });
+const nextUpMatches = (a: NextUp, b: NextUp) => sameMembers(a.teamA, b.teamA) && sameMembers(a.teamB, b.teamB);
+const fairPlayerSnapshot = (p: Player) => JSON.stringify([
+  p.id, p.name, p.skill, p.score, p.profileId ?? null, p.status, p.courtId ?? null,
+  p.gamesPlayed, p.queuedAt, p.fairSkips ?? 0,
+]);
+const fairCourtSnapshot = (c: Court) => JSON.stringify([c.index, c.teamA, c.teamB, c.startedAt]);
+
+/** Both Fair buttons use fresh server reads and ONE immutable decision. Every
+ * app mutation of Fair inputs increments the revision atomically; transaction
+ * reads also protect existing players/courts and reservations.
+ * A stale decision aborts, never writes skips/logs.
+ * Manual selection/balancing is unchanged. All clients must use this version for
+ * revision protection against newly-created player/history documents.
  */
+async function commitFairDecision(
+  target: string,
+  expectedSessionCreatedAt: number,
+  expectedNextUp?: NextUp,
+): Promise<void> {
+  const snapshotReadStartedAtClient = Date.now();
+  const sessionSnap = await getDocFromServer(sessionRef);
+  if (!sessionSnap.exists()) throw new Error("ไม่พบสนามที่เปิดอยู่");
+  if (sessionSnap.metadata.fromCache || sessionSnap.metadata.hasPendingWrites) throw new Error(FAIR_STALE);
+  const session = sessionSnap.data() as Session;
+  if (!session.active || session.createdAt !== expectedSessionCreatedAt) throw new Error("รอบสนามเปลี่ยนแล้ว กรุณาโหลดใหม่");
+  const revision = session.fairRevision ?? 0;
+  const previousNextUp = session.nextUp ?? emptyNextUp();
+  if (target === "nextup" && (!expectedNextUp || !nextUpMatches(previousNextUp, expectedNextUp))) throw new Error(FAIR_STALE);
+
+  // History errors propagate; an offline/cache-only empty result is never accepted.
+  const [playersSnap, courtsSnap, matchesSnap] = await Promise.all([
+    getDocsFromServer(playersCol), getDocsFromServer(courtsCol), getDocsFromServer(matchesCol),
+  ]);
+  // Server reads can still expose this client's pending local writes. Do not
+  // treat an unacknowledged history/queue overlay as the authoritative input.
+  if ([playersSnap, courtsSnap, matchesSnap].some((snap) => snap.metadata.fromCache || snap.metadata.hasPendingWrites)) {
+    throw new Error(FAIR_STALE);
+  }
+  const players = playersSnap.docs.map((d) => ({ ...d.data(), id: d.id } as Player));
+  const courts = courtsSnap.docs.map((d) => ({ ...d.data(), id: d.id } as Court));
+  const matches = matchesSnap.docs.map((d) => ({ ...d.data(), id: d.id } as Match));
+  const onCourt = new Set(courts.flatMap((c) => [...c.teamA, ...c.teamB]));
+  const reserved = new Set([...previousNextUp.teamA, ...previousNextUp.teamB]);
+  if (target === "nextup") {
+    if (reserved.size === 0 && (courts.length !== session.courtCount || courts.some((c) => c.teamA.length + c.teamB.length === 0))) {
+      throw new Error("จัดผู้เล่นลงคอร์ตให้ครบก่อน จึงจะตั้งเกมถัดไปได้");
+    }
+  } else {
+    const court = courts.find((c) => c.id === target);
+    if (!court || court.teamA.length + court.teamB.length > 0 || court.startedAt != null) throw new Error("คอร์ตนี้ไม่ว่างแล้ว");
+  }
+  const eligibility = (p: Player): string | null => {
+    if (p.status !== "waiting") return p.status;
+    if (p.courtId != null || onCourt.has(p.id)) return "on-court";
+    if (target !== "nextup" && reserved.has(p.id)) return "nextup-reserved";
+    return null;
+  };
+  const candidates = players.filter((p) => eligibility(p) === null);
+  const aliases = { ...session.fairPlayerIdentities };
+  for (const p of players) aliases[p.id] = stablePlayerIdentity(p);
+  const decidedAtClient = Date.now();
+  const plan = planFairMatch(candidates, matches, aliases);
+  const teamA = plan.teamA.map((p) => p.id), teamB = plan.teamB.map((p) => p.id);
+  const selectedIds = new Set([...teamA, ...teamB]);
+  const skipTransitions = candidates.map((p) => ({
+    id: p.id, before: p.fairSkips ?? 0,
+    // Reservation freezes the existing count. Releasing it in a reroll restores
+    // that same count and adds ONE skip for this newly eligible, missed decision.
+    after: selectedIds.has(p.id) ? (target === "nextup" ? p.fairSkips ?? 0 : 0) : (p.fairSkips ?? 0) + 1,
+    action: selectedIds.has(p.id) ? (target === "nextup" ? "reserve-freeze" : "court-entry-reset") : "eligible-skip",
+  }));
+  const decisionRef = doc(collection(db, "fairLogs")); // allocate once; not a write
+  const decision = {
+    ...plan.diagnostics, decisionId: decisionRef.id, target,
+    eventKind: target === "nextup" ? "fair-staging" : "fair-court-assignment",
+    sessionCreatedAt: session.createdAt, revisionBefore: revision, revisionAfter: revision + 1,
+    snapshotReadStartedAtClient, decidedAtClient, planningFinishedAtClient: Date.now(),
+    historyReady: true, snapshotSource: "server-reads-validated-at-commit",
+    previousNextUp, excluded: players.filter((p) => eligibility(p) !== null).map((p) => ({ id: p.id, reason: eligibility(p) })),
+    skipTransitions, teamA, teamB,
+  };
+
+  await runTransaction(db, async (tx) => {
+    const freshSessionSnap = await tx.get(sessionRef);
+    const fresh = freshSessionSnap.exists() ? freshSessionSnap.data() as Session : null;
+    if (!fresh?.active || fresh.createdAt !== session.createdAt || (fresh.fairRevision ?? 0) !== revision ||
+        fresh.courtCount !== session.courtCount || !nextUpMatches(fresh.nextUp ?? emptyNextUp(), previousNextUp)) throw new Error(FAIR_STALE);
+    // Read ALL existing players, not just the selected four: fairness depends on
+    // those skipped too. Membership changes/new matches increment fairRevision.
+    const [freshPlayers, freshCourts] = await Promise.all([
+      Promise.all(playersSnap.docs.map((d) => tx.get(d.ref))),
+      Promise.all(courtsSnap.docs.map((d) => tx.get(d.ref))),
+    ]);
+    for (let i = 0; i < players.length; i++) {
+      const snap = freshPlayers[i];
+      if (!snap.exists() || fairPlayerSnapshot({ ...snap.data(), id: snap.id } as Player) !== fairPlayerSnapshot(players[i])) throw new Error(FAIR_STALE);
+    }
+    for (let i = 0; i < courts.length; i++) {
+      const snap = freshCourts[i];
+      if (!snap.exists() || fairCourtSnapshot({ ...snap.data(), id: snap.id } as Court) !== fairCourtSnapshot(courts[i])) throw new Error(FAIR_STALE);
+    }
+    for (const change of skipTransitions) {
+      tx.update(playerRef(change.id), {
+        fairSkips: change.after,
+        ...(target !== "nextup" && selectedIds.has(change.id) ? { status: "playing", courtId: target } : {}),
+      });
+    }
+    if (target !== "nextup") tx.update(courtRef(target), { teamA, teamB, startedAt: null });
+    tx.update(sessionRef, {
+      fairRevision: revision + 1, fairPlayerIdentities: aliases,
+      ...(target === "nextup" ? { nextUp: { teamA, teamB } } : {}),
+    });
+  });
+
+  // Best effort AFTER the assignment acknowledges success. Never block the UI
+  // on logging, recompute the decision, or put external effects inside a retrying tx.
+  const writeLog = async () => {
+    await setDoc(decisionRef, { ...decision, assignmentAckAtClient: Date.now(), createdAt: serverTimestamp() });
+  };
+  void writeLog().catch((error: unknown) => console.warn("[Fair Match] decision log failed", decisionRef.id, error));
+}
+
+/** Court Fair uses the same engine/skip policy as Next Up, excluding reservations. */
 export async function fairAssign(
   targetCourtId: string,
-  waiting: Player[],
-  matches: Match[],
+  sessionCreatedAt: number,
 ): Promise<void> {
-  if (waiting.length < 4) {
-    throw new Error(NOT_ENOUGH_WAITING);
-  }
-  const { teamA, teamB } = planFairMatch(waiting, matches);
-  await commitAssignment(targetCourtId, teamA, teamB);
+  await commitFairDecision(targetCourtId, sessionCreatedAt);
 }
 
 /**
@@ -550,6 +690,7 @@ export async function removeFromCourt(
     for (const id of onThisCourt) {
       tx.update(playerRef(id), { status: "waiting", courtId: null });
     }
+    tx.update(sessionRef, { fairRevision: increment(1) });
   });
 }
 
@@ -586,6 +727,7 @@ export async function swapCourtPlayers(
     }
     const swap = (ids: string[]) => ids.map((id) => (id === idA ? idB : id === idB ? idA : id));
     tx.update(courtRef(targetCourtId), { teamA: swap(court.teamA), teamB: swap(court.teamB) });
+    tx.update(sessionRef, { fairRevision: increment(1) });
   });
 }
 
@@ -648,7 +790,8 @@ export async function substituteCourtPlayer(
     // Outgoing player → back of the queue.
     tx.update(playerRef(courtPlayerId), { status: "waiting", courtId: null, queuedAt: Date.now() });
     // Incoming player → onto the court (game not started, so no game count).
-    tx.update(playerRef(waitingPlayerId), { status: "playing", courtId: targetCourtId });
+    tx.update(playerRef(waitingPlayerId), { status: "playing", courtId: targetCourtId, fairSkips: 0 });
+    tx.update(sessionRef, { fairRevision: increment(1) });
   });
 }
 
@@ -705,6 +848,7 @@ export async function swapAcrossCourts(
     tx.update(courtRef(courtIdB), { teamA: putAinB(courtB.teamA), teamB: putAinB(courtB.teamB) });
     tx.update(playerRef(idA), { courtId: courtIdB });
     tx.update(playerRef(idB), { courtId: courtIdA });
+    tx.update(sessionRef, { fairRevision: increment(1) });
   });
 }
 
@@ -712,14 +856,15 @@ export async function swapAcrossCourts(
 // A single staged next game on the session doc: sessions/current.nextUp =
 // { teamA, teamB }. Staged players keep status "waiting" (they're just
 // earmarked) — the UI hides them from the open queue and excludes them from
-// every assignment pool, so they can't be grabbed twice. Cleared on promote
+// court assignment pools. A Fair reroll includes them to reconsider the reservation.
+// Cleared on promote
 // (via commitAssignment's arrayRemove) and on session start/end (both overwrite
 // the whole session doc). The `nextUp` map is always written whole so it can
 // never end up half-populated.
 
 /** Overwrite the staged next game with a specific A/B split (ids). */
 export async function setNextUp(teamA: string[], teamB: string[]): Promise<void> {
-  await setDoc(sessionRef, { nextUp: { teamA, teamB } }, { merge: true });
+  await setDoc(sessionRef, { nextUp: { teamA, teamB }, fairRevision: increment(1) }, { merge: true });
 }
 
 /** Clear the staged next game. */
@@ -727,16 +872,9 @@ export async function clearNextUp(): Promise<void> {
   await setNextUp([], []);
 }
 
-/**
- * Stage the next game from the fair-match engine: pick the four who most
- * deserve to play next and split them into even teams — the same logic as the
- * court "จับแฟร์". Throws if fewer than 4 are available (candidates should
- * already exclude anyone currently staged/on court).
- */
-export async function setNextUpFair(candidates: Player[], matches: Match[]): Promise<void> {
-  if (candidates.length < 4) throw new Error(NOT_ENOUGH_WAITING);
-  const { teamA, teamB } = planFairMatch(candidates, matches);
-  await setNextUp(teamA.map((p) => p.id), teamB.map((p) => p.id));
+/** Reroll includes old staged players, with their skip entitlement still frozen. */
+export async function setNextUpFair(sessionCreatedAt: number, expectedNextUp: NextUp): Promise<void> {
+  await commitFairDecision("nextup", sessionCreatedAt, expectedNextUp);
 }
 
 /**
@@ -779,7 +917,9 @@ export async function substituteNextUpPlayer(
   if (outId === inId) return;
   const replace = (ids: string[]) => ids.map((id) => (id === outId ? inId : id));
   const batch = writeBatch(db);
-  batch.update(sessionRef, { nextUp: { teamA: replace(teamA), teamB: replace(teamB) } });
+  batch.update(sessionRef, {
+    nextUp: { teamA: replace(teamA), teamB: replace(teamB) }, fairRevision: increment(1),
+  });
   batch.update(playerRef(outId), { queuedAt: Date.now() });
   await batch.commit();
 }
@@ -852,9 +992,9 @@ export async function promoteNextUp(
     // ---- writes: exact teams (no re-balance), clock paused, nextUp cleared ----
     tx.update(courtRef(targetCourtId), { teamA, teamB, startedAt: null });
     for (const id of ids) {
-      tx.update(playerRef(id), { status: "playing", courtId: targetCourtId });
+      tx.update(playerRef(id), { status: "playing", courtId: targetCourtId, fairSkips: 0 });
     }
-    tx.update(sessionRef, { nextUp: { teamA: [], teamB: [] } });
+    tx.update(sessionRef, { nextUp: { teamA: [], teamB: [] }, fairRevision: increment(1) });
   });
 }
 
@@ -893,12 +1033,14 @@ export async function finishGame(targetCourtId: string, expectedStartedAt: numbe
     if (court.teamA.length !== 2 || court.teamB.length !== 2 || new Set(ids).size !== 4) {
       throw new Error("สถานะเกมผิดปกติ (ไม่ใช่ 2 ต่อ 2) — ใช้ปุ่มยกเลิกแล้วจัดใหม่");
     }
+    const identities: Record<string, string> = {};
     for (const id of ids) {
       const pSnap = await tx.get(playerRef(id));
       const p = pSnap.exists() ? (pSnap.data() as Omit<Player, "id">) : null;
       if (!p || p.status !== "playing" || p.courtId !== targetCourtId) {
         throw new Error("สถานะผู้เล่นไม่ตรงกับคอร์ต — ใช้ปุ่มยกเลิกแล้วจัดใหม่");
       }
+      identities[id] = stablePlayerIdentity({ id, ...p });
     }
 
     const now = Date.now();
@@ -916,10 +1058,14 @@ export async function finishGame(targetCourtId: string, expectedStartedAt: numbe
       courtId: targetCourtId,
       teamA: court.teamA,
       teamB: court.teamB,
+      teamAIdentities: court.teamA.map((id) => identities[id]),
+      teamBIdentities: court.teamB.map((id) => identities[id]),
       players: ids,
       startedAt: court.startedAt,
       finishedAt: now,
     } satisfies Omit<Match, "id">);
+    // Invalidates any Fair plan fetched before this new history document existed.
+    tx.update(sessionRef, { fairRevision: increment(1) });
     tx.update(courtRef(targetCourtId), { teamA: [], teamB: [], startedAt: null });
   });
 }

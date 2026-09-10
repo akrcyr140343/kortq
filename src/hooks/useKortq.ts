@@ -13,6 +13,8 @@ export interface KortqState {
   players: Player[];
   courts: Court[];
   matches: Match[]; // finished games this session (for fair matchmaking)
+  fairHistoryReady: boolean;
+  fairHistoryError: string | null;
   waiting: Player[]; // status "waiting", ordered by queue position
   resting: Player[]; // status "resting"
   assignable: Player[]; // waiting MINUS anyone staged in Next Up (the real pool)
@@ -32,6 +34,8 @@ export function useKortq(): KortqState {
   const [players, setPlayers] = useState<Player[]>([]);
   const [courts, setCourts] = useState<Court[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
+  const [fairHistoryReady, setFairHistoryReady] = useState(false);
+  const [fairHistoryError, setFairHistoryError] = useState<string | null>(null);
   const [ready, setReady] = useState({ session: false, players: false, courts: false });
   const [error, setError] = useState<string | null>(null);
 
@@ -55,9 +59,17 @@ export function useKortq(): KortqState {
         setCourts(c);
         setReady((r) => ({ ...r, courts: true }));
       }, fail),
-      // Match history is optional context for fair matchmaking — don't gate
-      // initial loading on it, and don't fail the whole app if it errors.
-      subscribeMatches(setMatches),
+      // Gate ONLY Fair, leaving manual available. Fair also fetches and validates
+      // a fresh server snapshot at every press; it never uses this UI cache to score.
+      subscribeMatches((m, serverReady) => {
+        setMatches(m);
+        setFairHistoryReady(serverReady);
+        setFairHistoryError(null);
+      }, (e) => {
+        console.warn("[KortQ] Fair history unavailable", e);
+        setFairHistoryReady(false);
+        setFairHistoryError("โหลดประวัติสำหรับจับแฟร์ไม่สำเร็จ กรุณาโหลดหน้าใหม่");
+      }),
     ];
     return () => unsubs.forEach((u) => u());
   }, []);
@@ -98,6 +110,8 @@ export function useKortq(): KortqState {
       players,
       courts,
       matches,
+      fairHistoryReady,
+      fairHistoryError,
       waiting,
       resting,
       assignable,
@@ -106,5 +120,5 @@ export function useKortq(): KortqState {
       nextUpCount,
       playersById,
     };
-  }, [loading, error, session, players, courts, matches]);
+  }, [loading, error, session, players, courts, matches, fairHistoryReady, fairHistoryError]);
 }

@@ -162,7 +162,8 @@ export default function Home() {
     error,
     session,
     courts,
-    matches,
+    fairHistoryReady,
+    fairHistoryError,
     waiting,
     resting,
     assignable,
@@ -186,6 +187,8 @@ export default function Home() {
   // Manual "เลือกเอง" mode: admin is picking 4 from the queue to stage as the
   // next game (reuses the normal selection + the bottom bar to confirm).
   const [nextUpPicking, setNextUpPicking] = useState(false);
+  // One in-flight Fair action per device, including the reroll confirmation.
+  const fairInFlight = useRef(false);
 
   const sessionActive = session?.active ?? false;
   // Rule 1: a next game can only be booked once every open court already has
@@ -274,7 +277,7 @@ export default function Home() {
   const handleEndSession = useCallback(async () => {
     const ok = await modal.confirm({
       title: "ปิดสนามวันนี้?",
-      message: "ข้อมูลของวันนี้จะถูกล้าง",
+      message: "ข้อมูลคิว คอร์ต และประวัติเกมวันนี้จะถูกล้าง บันทึกวิเคราะห์การจับแฟร์ยังเก็บไว้",
       confirmLabel: "ปิดสนาม",
     });
     if (!ok) return;
@@ -294,13 +297,19 @@ export default function Home() {
 
   const handleFair = useCallback(
     async (courtId: string) => {
+      if (fairInFlight.current) return;
+      fairInFlight.current = true;
       try {
-        await fairAssign(courtId, assignable, matches);
+        if (!session?.active) throw new Error("ยังไม่ได้เปิดสนาม");
+        if (!fairHistoryReady) throw new Error(fairHistoryError ?? "กำลังโหลดประวัติ กรุณารอก่อนจับแฟร์");
+        await fairAssign(courtId, session.createdAt);
       } catch (e) {
         window.alert(e instanceof Error ? e.message : "จับแฟร์ไม่สำเร็จ");
+      } finally {
+        fairInFlight.current = false;
       }
     },
-    [assignable, matches],
+    [session, fairHistoryReady, fairHistoryError],
   );
 
   const handleAssignSelected = useCallback(
@@ -453,30 +462,37 @@ export default function Home() {
   }, []);
 
   const handleStageFair = useCallback(async () => {
-    // Creating (0 → set) is gated on all courts being filled; re-rolling an
-    // existing staged game is just an edit and isn't gated.
-    if (nextUpCount === 0 && !allCourtsAssigned) {
-      window.alert("จัดผู้เล่นลงคอร์ตให้ครบก่อน จึงจะตั้งเกมถัดไปได้");
-      return;
-    }
-    if (nextUpCount > 0) {
-      const ok = await modal.confirm({
-        title: "มีเกมถัดไปอยู่แล้ว",
-        message: "แทนที่ด้วยชุดใหม่?",
-        confirmLabel: "แทนที่",
-      });
-      if (!ok) return;
-    }
+    if (fairInFlight.current) return;
+    fairInFlight.current = true;
     try {
+      if (!session?.active) throw new Error("ยังไม่ได้เปิดสนาม");
+      if (!fairHistoryReady) throw new Error(fairHistoryError ?? "กำลังโหลดประวัติ กรุณารอก่อนจับแฟร์");
+      // Creating (0 -> set) requires filled courts; reroll is an edit.
+      if (nextUpCount === 0 && !allCourtsAssigned) {
+        window.alert("จัดผู้เล่นลงคอร์ตให้ครบก่อน จึงจะตั้งเกมถัดไปได้");
+        return;
+      }
+      if (nextUpCount > 0) {
+        const ok = await modal.confirm({
+          title: "มีเกมถัดไปอยู่แล้ว",
+          message: "คำนวณเกมถัดไปใหม่? อาจได้ผู้เล่นชุดเดิมหากยังเหมาะสมที่สุด",
+          confirmLabel: "แทนที่",
+        });
+        if (!ok) return;
+      }
       // Re-roll draws from the whole queue (staged players are released back).
-      await setNextUpFair(waiting, matches);
+      // The DB loads current queue/history AFTER confirmation; only the expected
+      // reservation/session identity is captured here, to reject stale replacements.
+      await setNextUpFair(session.createdAt, session.nextUp ?? { teamA: [], teamB: [] });
       setNextUpSel(null);
       setNextUpPicking(false);
       setSelectedIds(new Set());
     } catch (e) {
       window.alert(e instanceof Error ? e.message : "จับแฟร์ไม่สำเร็จ");
+    } finally {
+      fairInFlight.current = false;
     }
-  }, [nextUpCount, allCourtsAssigned, waiting, matches, modal]);
+  }, [nextUpCount, allCourtsAssigned, session, fairHistoryReady, fairHistoryError, modal]);
 
   const handleStageSelected = useCallback(async () => {
     if (!allCourtsAssigned) return;
