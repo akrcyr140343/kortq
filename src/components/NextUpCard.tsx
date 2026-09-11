@@ -49,6 +49,9 @@ function NextUpSide({
             >
               <SkillBadge skill={p.skill} />
               <span className="min-w-0 flex-1 truncate text-body font-extrabold leading-tight text-ink">{p.name}</span>
+              {/* Finished-games count — mirrors CourtCard: always shown (incl. 0),
+                  quieter than the name, never truncated. Sits before the ✕. */}
+              <span className="shrink-0 text-eyebrow font-semibold tabular-nums text-ink-4">· {p.gamesPlayed ?? 0} เกม</span>
               {isAdmin && (
                 <button
                   type="button"
