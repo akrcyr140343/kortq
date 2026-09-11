@@ -461,26 +461,8 @@ button {
   animation: kq-qr-glow 3.2s ease-in-out infinite;
 }
 
-/* Tiny accent sparkles around the QR card frame — twinkle, never distract. */
-@keyframes kq-twinkle {
-  0%,
-  100% {
-    opacity: 0.2;
-    transform: scale(0.82);
-  }
-  50% {
-    opacity: 0.85;
-    transform: scale(1);
-  }
-}
-
-.twinkle {
-  animation: kq-twinkle 2.8s ease-in-out infinite;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .qr-glow,
-  .twinkle {
+  .qr-glow {
     animation: none;
   }
 }
