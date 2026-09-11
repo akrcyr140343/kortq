@@ -176,7 +176,10 @@ export function PlayerRegistryDrawer({
             className="absolute inset-y-0 right-0 flex h-full w-full flex-col bg-canvas shadow-[0_0_60px_-10px_rgba(16,35,24,0.5)] sm:max-w-md"
           >
             {/* ── Header ────────────────────────────────────────────── */}
-            <div className="club-panel relative shrink-0 overflow-hidden px-5 pb-5 pt-5">
+            {/* Full-screen overlay sits under the iOS status bar / Dynamic Island
+                (viewport-fit=cover + black-translucent), so add the top inset to
+                the design's pt-5. env() is 0 on desktop → layout unchanged there. */}
+            <div className="club-panel relative shrink-0 overflow-hidden px-5 pb-5 pt-[calc(env(safe-area-inset-top)+1.25rem)]">
               <div aria-hidden className="absolute -right-8 -top-10 h-32 w-32 rounded-full bg-mint/20 blur-2xl" />
               <div className="relative flex items-start justify-between gap-3">
                 <div>
@@ -312,7 +315,9 @@ export function PlayerRegistryDrawer({
             </div>
 
             {/* ── Footer — multi-add ────────────────────────────────── */}
-            <div className="shrink-0 border-t border-line bg-white/70 px-5 py-3.5 backdrop-blur">
+            {/* Bottom inset keeps the add button clear of the Home Indicator; env()
+                is 0 on desktop so the padding stays the design's py-3.5 there. */}
+            <div className="shrink-0 border-t border-line bg-white/70 px-5 pt-3.5 pb-[calc(env(safe-area-inset-bottom)+0.875rem)] backdrop-blur">
               <div className="flex items-center gap-3">
                 <motion.button
                   whileTap={selectableCount > 0 ? press : undefined}
