@@ -8,9 +8,9 @@ import type { Skill } from "@/lib/types";
  */
 const TIER: Record<Skill, string> = {
   NB: "bg-slate-100 text-slate-600 ring-slate-200",
-  BG: "bg-sky-wash text-sky-deep ring-sky/25",
-  N: "bg-mint-wash text-mint-deep ring-mint/35",
-  S: "bg-coral-wash text-coral-deep ring-coral/25",
+  "BG-": "bg-sky-wash text-sky-deep ring-sky/25",
+  BG: "bg-mint-wash text-mint-deep ring-mint/35",
+  N: "bg-coral-wash text-coral-deep ring-coral/25",
 };
 
 export function SkillBadge({ skill, className = "" }: { skill: Skill; className?: string }) {

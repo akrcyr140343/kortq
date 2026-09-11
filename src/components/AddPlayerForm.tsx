@@ -6,14 +6,14 @@ import { SKILLS, type Skill } from "@/lib/types";
 import { press } from "./motion";
 import { E2 } from "./ui";
 
-const DEFAULT_SKILL: Skill = "BG";
+const DEFAULT_SKILL: Skill = "BG-";
 
 /** Segmented rank control — the active chip borrows that rank's own hue. */
 const ACTIVE_TIER: Record<Skill, string> = {
   NB: "bg-slate-500 text-white shadow-sm",
-  BG: "bg-sky text-white shadow-sm",
-  N: "bg-mint text-accent-deep shadow-sm",
-  S: "bg-coral text-white shadow-sm",
+  "BG-": "bg-sky text-white shadow-sm",
+  BG: "bg-mint text-accent-deep shadow-sm",
+  N: "bg-coral text-white shadow-sm",
 };
 
 export function AddPlayerForm({

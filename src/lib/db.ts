@@ -62,24 +62,33 @@ export function subscribeSession(
   );
 }
 
-const VALID_SKILLS = new Set<Skill>(["NB", "BG", "N", "S"]);
+const VALID_SKILLS = new Set<Skill>(["NB", "BG-", "BG", "N"]);
 
 /**
- * Normalise a stored skill label to the current NB/BG/N/S scheme.
+ * Normalise a stored skill label to the current NB/BG-/BG/N scheme.
  *
- * Older player docs used BG/BG+, where "BG" meant score 1. The rename makes
- * "BG" mean score 2, so a legacy "BG" is disambiguated by its stored `score`
- * (score 1 → NB, score 2 → BG). `score` itself is never changed here, so every
- * matchmaking path — which reads `score`, not the label — is unaffected.
+ * `score` is authoritative and never rewritten here, so a normalised label stays
+ * consistent with the score the doc was saved with, and every matchmaking path —
+ * which reads `score`, not the label — is unaffected.
  *
- * In practice startSession() wipes all players, so this only matters for a
- * session already in progress across the deploy; it's cheap insurance so no
- * "BG+" (or mislabeled beginner) can ever reach the UI.
+ * Current-scheme labels pass straight through: existing "BG"/"N" are deliberately
+ * NOT migrated (business decision), so their badge is unchanged and their score
+ * only shifts to the new SKILL_SCORE when they are next re-added from a Profile.
+ *
+ * Only genuinely legacy/foreign labels are remapped, disambiguated by their stored
+ * score:
+ *   - "BG+"  → "BG-"  (an ancient score-2 tier)
+ *   - "BG"   → "NB" when its score is ≤1 (an ancient beginner mislabel); otherwise
+ *              it is a current "BG" and is kept as-is.
+ * Anything unknown or removed (e.g. a stray "S") falls back to "NB", the LOWEST
+ * tier — never "N", so a data anomaly can never be auto-promoted to the new
+ * strongest tier. In practice startSession() wipes all players, so this only
+ * matters for a session already in progress across the deploy.
  */
 function normalizeSkill(skill: string, score: number): Skill {
-  if (skill === "BG+") return "BG"; // old score-2 tier → new BG
-  if (skill === "BG") return score <= 1 ? "NB" : "BG"; // legacy beginner vs new BG
-  return VALID_SKILLS.has(skill as Skill) ? (skill as Skill) : "N";
+  if (skill === "BG+") return "BG-"; // ancient score-2 tier → new score-2 label
+  if (skill === "BG") return score <= 1 ? "NB" : "BG"; // ancient beginner vs current BG (kept)
+  return VALID_SKILLS.has(skill as Skill) ? (skill as Skill) : "NB";
 }
 
 export function subscribePlayers(

@@ -1,7 +1,7 @@
 // Domain types for KortQ
 
-// Skill tiers, weakest → strongest. NB = beginner (อ่อนสุด), S = strongest (เก่งสุด).
-export type Skill = "NB" | "BG" | "N" | "S";
+// Skill tiers, weakest → strongest. NB = beginner (อ่อนสุด), N = strongest (เก่งสุด).
+export type Skill = "NB" | "BG-" | "BG" | "N";
 
 export type PlayerStatus = "waiting" | "playing" | "resting";
 
@@ -9,7 +9,7 @@ export interface Player {
   id: string;
   name: string;
   skill: Skill;
-  score: number; // derived from skill: NB=1, BG=2, N=3, S=4 (used for matchmaking only)
+  score: number; // derived from skill: NB=1, BG-=2, BG=3, N=4 (used for matchmaking only)
   status: PlayerStatus;
   courtId: string | null; // set while status === "playing"
   gamesPlayed: number; // number of games finished this session
@@ -100,20 +100,20 @@ export interface Match {
 
 export const SKILL_SCORE: Record<Skill, number> = {
   NB: 1,
-  BG: 2,
-  N: 3,
-  S: 4,
+  "BG-": 2,
+  BG: 3,
+  N: 4,
 };
 
 // Order shown in the skill picker (weakest → strongest).
-export const SKILLS: Skill[] = ["NB", "BG", "N", "S"];
+export const SKILLS: Skill[] = ["NB", "BG-", "BG", "N"];
 
 // Tailwind classes for each skill badge (light theme — soft tint + readable text).
-// Colours stay pinned to the numeric rank: NB keeps the old score-1 tint, BG the
-// old score-2 tint, so a player's badge colour is unchanged for a given score.
+// Colours stay pinned to the numeric rank: score 1 keeps the sky tint, score 2 the
+// teal tint, and so on, so a player's badge colour is unchanged for a given score.
 export const SKILL_STYLE: Record<Skill, string> = {
   NB: "bg-sky-100 text-sky-700 ring-sky-300",
-  BG: "bg-teal-100 text-teal-700 ring-teal-300",
-  N: "bg-amber-100 text-amber-700 ring-amber-300",
-  S: "bg-rose-100 text-rose-700 ring-rose-300",
+  "BG-": "bg-teal-100 text-teal-700 ring-teal-300",
+  BG: "bg-amber-100 text-amber-700 ring-amber-300",
+  N: "bg-rose-100 text-rose-700 ring-rose-300",
 };

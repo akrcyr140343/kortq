@@ -17,9 +17,9 @@ import { press } from "./motion";
 /** Segmented rank control — mirrors AddPlayerForm's active-chip hues. */
 const ACTIVE_TIER: Record<Skill, string> = {
   NB: "bg-slate-500 text-white shadow-sm",
-  BG: "bg-sky text-white shadow-sm",
-  N: "bg-mint text-accent-deep shadow-sm",
-  S: "bg-coral text-white shadow-sm",
+  "BG-": "bg-sky text-white shadow-sm",
+  BG: "bg-mint text-accent-deep shadow-sm",
+  N: "bg-coral text-white shadow-sm",
 };
 
 /** Relative "last joined" label, coarse on purpose. */
