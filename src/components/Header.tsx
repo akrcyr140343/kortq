@@ -85,15 +85,27 @@ function QrClubButton({ onClick }: { onClick: () => void }) {
   );
 }
 
+/** History glyph — a clock with a back-arrow, for "ประวัติการเล่น". */
+function HistoryGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden>
+      <path d="M3.5 12a8.5 8.5 0 1 0 2.5-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M6 3.5V7h3.5M12 8v4.2l2.8 1.8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function Header({
   session,
   onEndSession,
   onOpenPayments,
+  onOpenHistory,
   unpaidCount = 0,
 }: {
   session: Session | null;
   onEndSession: () => void;
   onOpenPayments?: () => void;
+  onOpenHistory?: () => void;
   unpaidCount?: number;
 }) {
   const { isAdmin, lock } = useAdmin();
@@ -135,6 +147,19 @@ export function Header({
 
         {/* ── Actions ───────────────────────────────────────────── */}
         <div className="flex items-center gap-2">
+          {/* ประวัติการเล่น — read-only, every role, only while a session is open. */}
+          {sessionActive && onOpenHistory && (
+            <motion.button
+              whileTap={press}
+              onClick={onOpenHistory}
+              aria-label="ประวัติการเล่น"
+              className="flex h-10 items-center gap-1.5 rounded-full border border-white/15 bg-white/8 px-3 text-caption font-bold text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/14 sm:px-4"
+            >
+              <HistoryGlyph />
+              <span className="hidden sm:inline">ประวัติ</span>
+            </motion.button>
+          )}
+
           {/* QR ก๊วน — every role, every state (even before a session opens). */}
           <QrClubButton onClick={() => setShowQr(true)} />
 

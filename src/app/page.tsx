@@ -38,6 +38,7 @@ import { NextUpCard } from "@/components/NextUpCard";
 import { QueuePanel } from "@/components/QueuePanel";
 import { PaymentDrawer } from "@/components/PaymentDrawer";
 import { PlayerRegistryDrawer } from "@/components/PlayerRegistryDrawer";
+import { MatchHistoryDrawer } from "@/components/MatchHistoryDrawer";
 import { SkillBadge } from "@/components/SkillBadge";
 import { press } from "@/components/motion";
 import { E2 } from "@/components/ui";
@@ -162,6 +163,7 @@ export default function Home() {
     error,
     session,
     courts,
+    matches,
     fairHistoryReady,
     fairHistoryError,
     waiting,
@@ -177,6 +179,11 @@ export default function Home() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showPayments, setShowPayments] = useState(false);
   const [showRegistry, setShowRegistry] = useState(false);
+  // Read-only session play history — open to every role while a session runs.
+  // Stored as the createdAt of the session it was opened for (null = closed), so
+  // it derives shut when the session ends or a new one starts (createdAt changes)
+  // without an effect: a stale-session open can never leak into the next session.
+  const [historyForSession, setHistoryForSession] = useState<number | null>(null);
   const [activeView, setActiveView] = useState<AppView>("courts");
   // A player picked on a not-yet-started court, waiting for a second tap to
   // swap with (another court player, or a waiting player). Null = idle.
@@ -191,6 +198,10 @@ export default function Home() {
   const fairInFlight = useRef(false);
 
   const sessionActive = session?.active ?? false;
+  // Derived open-state: true only while THIS session (by createdAt) is the one
+  // history was opened for. Ends the drawer on session end / new session with no
+  // setState-in-effect.
+  const showHistory = session != null && historyForSession === session.createdAt;
   // Rule 1: a next game can only be booked once every open court already has
   // players (each court either playing or waiting-to-start).
   const allCourtsAssigned =
@@ -667,6 +678,7 @@ export default function Home() {
         session={session}
         onEndSession={handleEndSession}
         onOpenPayments={() => setShowPayments(true)}
+        onOpenHistory={() => setHistoryForSession(session?.createdAt ?? null)}
         unpaidCount={unpaidCount}
       />
 
@@ -876,6 +888,19 @@ export default function Home() {
           profiles={profiles}
           sessionProfileIds={sessionProfileIds}
           sessionCreatedAt={session?.createdAt ?? 0}
+        />
+      )}
+
+      {/* Read-only play history — every role, no admin gate. */}
+      {sessionActive && (
+        <MatchHistoryDrawer
+          open={showHistory}
+          onClose={() => setHistoryForSession(null)}
+          matches={matches}
+          players={players}
+          playersById={playersById}
+          session={session}
+          courts={courts}
         />
       )}
     </div>
