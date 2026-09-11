@@ -400,7 +400,7 @@ async function commitAssignment(
     startedAt: null,
   });
   for (const id of ids) {
-    // fair-v3: skip reset happens at startGame, not on court entry.
+    // fair-v4: skip reset happens at startGame, not on court entry.
     batch.update(playerRef(id), { status: "playing", courtId: targetCourtId });
   }
   // Safety net: whoever lands on a court is removed from the staged "next game"
@@ -447,7 +447,7 @@ export async function startGame(
   expectedTeamA: string[],
   expectedTeamB: string[],
 ): Promise<void> {
-  // fair-v3: fairSkips accounting lives HERE (real game start), not in the Fair
+  // fair-v4: fairSkips accounting lives HERE (real game start), not in the Fair
   // decision. Pin the Fair-input revision + enumerate players from the SERVER
   // before the tx. Order matters: read the session (revision) FIRST, then the
   // players, so the enumeration is never older than the revision we pin to.
@@ -600,7 +600,7 @@ async function commitFairDecision(
   const plan = planFairMatch(candidates, matches, aliases, currentFoursome);
   const teamA = plan.teamA.map((p) => p.id), teamB = plan.teamB.map((p) => p.id);
   const selectedIds = new Set([...teamA, ...teamB]);
-  // fair-v3: Fair never mutates fairSkips (that happens at startGame). Kept for the
+  // fair-v4: Fair never mutates fairSkips (that happens at startGame). Kept for the
   // log schema (skipTransitions.size == pool.size); every entry is a no-op so the
   // log never claims an increment/reset that did not happen.
   const skipTransitions = candidates.map((p) => ({
@@ -823,7 +823,7 @@ export async function substituteCourtPlayer(
     // Outgoing player → back of the queue.
     tx.update(playerRef(courtPlayerId), { status: "waiting", courtId: null, queuedAt: Date.now() });
     // Incoming player → onto the court (game not started, so no game count).
-    // fair-v3: skip reset happens at startGame, not on court entry.
+    // fair-v4: skip reset happens at startGame, not on court entry.
     tx.update(playerRef(waitingPlayerId), { status: "playing", courtId: targetCourtId });
     tx.update(sessionRef, { fairRevision: increment(1) });
   });
@@ -1026,7 +1026,7 @@ export async function promoteNextUp(
     // ---- writes: exact teams (no re-balance), clock paused, nextUp cleared ----
     tx.update(courtRef(targetCourtId), { teamA, teamB, startedAt: null });
     for (const id of ids) {
-      // fair-v3: skip reset happens at startGame, not on court entry.
+      // fair-v4: skip reset happens at startGame, not on court entry.
       tx.update(playerRef(id), { status: "playing", courtId: targetCourtId });
     }
     tx.update(sessionRef, { nextUp: { teamA: [], teamB: [] }, fairRevision: increment(1) });

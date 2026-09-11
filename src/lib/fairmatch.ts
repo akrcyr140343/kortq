@@ -2,7 +2,7 @@
 import type { Match, Player } from "./types";
 import type { TeamSplit } from "./matchmaking";
 
-export const FAIR_ALGORITHM_VERSION = "fair-v3";
+export const FAIR_ALGORITHM_VERSION = "fair-v4";
 export const FAIR_SCHEMA_VERSION = 1;
 export const FAIR_PARAMETERS = {
   overdueAfterSkips: 2,

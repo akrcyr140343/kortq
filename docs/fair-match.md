@@ -1,11 +1,11 @@
-# Fair Match (fair-v3) — behavior และคู่มือทดสอบด้วยมือ
+# Fair Match (fair-v4) — behavior และคู่มือทดสอบด้วยมือ
 
-สถานะเอกสาร: fair-v3 ใน working tree ผ่าน typecheck/lint แล้ว ยังไม่ได้ build/browser test หรือ deploy
+สถานะเอกสาร: fair-v4 ใน working tree ผ่าน typecheck/lint แล้ว ยังไม่ได้ build/browser test หรือ deploy
 
 ## กติกาที่ใช้
 
 1. ใช้เฉพาะ Court Fair และ Next Up Fair; manual/random ยังเลือกและแบ่งทีมด้วย behavior เดิม
-2. **fair-v3:** `Player.fairSkips` เปลี่ยนเฉพาะตอน **เริ่มเกมจริง (`startGame`)** เท่านั้น ไม่ใช่ตอน Fair decision — เพื่อให้ skip สะท้อน "การพลาดโอกาสลงเล่นจริง" ไม่ใช่จำนวนครั้งที่กด Fair (ค่าที่ไม่มี = 0)
+2. **fair-v4:** `Player.fairSkips` เปลี่ยนเฉพาะตอน **เริ่มเกมจริง (`startGame`)** เท่านั้น ไม่ใช่ตอน Fair decision — เพื่อให้ skip สะท้อน "การพลาดโอกาสลงเล่นจริง" ไม่ใช่จำนวนครั้งที่กด Fair (ค่าที่ไม่มี = 0)
 3. เมื่อเริ่มเกม: 4 คนที่เริ่มเล่น reset `fairSkips = 0`; คนที่ ณ ตอนนั้น eligible+waiting แต่ไม่ได้ลงเกมนี้ +1; ไม่เปลี่ยน `gamesPlayed`
 4. Resting / playing คอร์ตอื่น / คนที่ถูก Next Up จอง — ไม่ถูกนับ +1 และไม่ถูก reset ตอน startGame
 5. Fair decision / reroll / Next Up stage / promote / manual / random / substitute **ไม่เปลี่ยน `fairSkips`** (การ reset ย้ายไป startGame); `finishGame` และ cancel ก่อนเริ่มเกมก็ไม่เปลี่ยน
@@ -13,7 +13,7 @@
 7. `fairLogs.skipTransitions` คงไว้ตาม schema (`size == pool.size`) แต่ทุกรายการเป็น no-op: `before == after`, `action = "unchanged"` — log ไม่อ้างว่ามี increment/reset ที่ไม่ได้เกิดจริง (การเปลี่ยน skip ที่ startGame ยังไม่มี historical audit log)
 8. ไม่มี MAX_POOL และไม่มี gamesPlayed eligibility gate
 
-> หมายเหตุ: fair-v3 นับ skip ตอน `startGame` ทุก scenario ด้านล่างจึงระบุขั้น "เริ่มเกม" ให้ชัดว่า skip ขยับตอนไหน
+> หมายเหตุ: fair-v4 นับ skip ตอน `startGame` ทุก scenario ด้านล่างจึงระบุขั้น "เริ่มเกม" ให้ชัดว่า skip ขยับตอนไหน
 
 ## Relationship และ recency
 
@@ -42,7 +42,7 @@
 - เปิด/ปิด session รวมการล้าง players/courts/history และเขียน session/revision ใน batch เดียว ไม่เปิดช่องให้ Fair เห็นประวัติที่ล้างแล้วแต่ session ยัง active อยู่
 - การแก้ Profile ที่ไม่เปลี่ยนผู้เล่นใน session ไม่เพิ่ม revision
 - Fair อ่าน session จาก server ก่อน แล้วอ่าน players/courts/history จาก server; ไม่ยอมรับ snapshot ที่ยังมี pending local writes และคำนวณ decision ก้อนเดียว
-- Transaction ตรวจ session revision/identity/reservation และข้อมูลของ players/courts ทั้งชุดก่อนเขียน assignment; fair-v3 assignment เขียนเฉพาะทีม/สถานะ ไม่แตะ fairSkips (skipTransitions ใน log เป็น no-op)
+- Transaction ตรวจ session revision/identity/reservation และข้อมูลของ players/courts ทั้งชุดก่อนเขียน assignment; fair-v4 assignment เขียนเฉพาะทีม/สถานะ ไม่แตะ fairSkips (skipTransitions ใน log เป็น no-op)
 - ถ้าข้อมูลที่เกี่ยวข้องเปลี่ยนก่อน commit ให้ abort และขอให้กดใหม่ ไม่เขียน assignment หรือสร้าง success log จาก decision ที่ abort
 - `startGame` เป็นจุดเดียวที่เปลี่ยน fairSkips: pin `fairRevision` จาก server ก่อน tx แล้วอ่าน players ทั้งชุดใน tx; ถ้า revision ไม่ตรง → abort ด้วย START_STALE (ครอบคลุม retry ไม่ใช้ snapshot เก่า); reset 4 คนที่เริ่ม = 0, +1 คน eligible+waiting ที่ไม่ได้ลง (ยกเว้น resting/คอร์ตอื่น/Next Up reserved); double-tap เกมที่เริ่มแล้ว = no-op
 - Next Up โหลดคิว/history ใหม่หลัง modal ยืนยัน และตรวจว่ารายการที่ยืนยันให้แทนที่ยังไม่เปลี่ยน
@@ -185,7 +185,7 @@ Rules ใหม่ให้ browser create เท่านั้น ไม่ใ
 
 - Guarantee มี capacity exception ตามที่อนุมัติ และหมายถึงสิทธิ์ถูกจัดลงคอร์ต ไม่ใช่รับประกันเกมเล่นจนจบ; Admin ยกเลิก/override ได้
 - Skip state เริ่ม 0 สำหรับ session Player ใหม่; การ re-add รักษา relationship memory แต่ไม่กู้ skip ของ Player ที่ลบไป
-- fair-v3 ไม่มี historical audit ของการเปลี่ยน fairSkips ที่ `startGame`: `fairLogs` เก็บเฉพาะ Fair decision (skipTransitions เป็น no-op) และไม่มี log จาก startGame; player doc เห็นได้แค่ค่า `fairSkips` **ปัจจุบัน** เท่านั้น ย้อน timeline การ +1 รายเกมของแต่ละคนไม่ได้ — ถ้าต้องการ audit ระดับนั้นต้องเพิ่ม logging ที่ startGame (อยู่นอก scope งานนี้)
+- fair-v4 ไม่มี historical audit ของการเปลี่ยน fairSkips ที่ `startGame`: `fairLogs` เก็บเฉพาะ Fair decision (skipTransitions เป็น no-op) และไม่มี log จาก startGame; player doc เห็นได้แค่ค่า `fairSkips` **ปัจจุบัน** เท่านั้น ย้อน timeline การ +1 รายเกมของแต่ละคนไม่ได้ — ถ้าต้องการ audit ระดับนั้นต้องเพิ่ม logging ที่ startGame (อยู่นอก scope งานนี้)
 - ถ้า Player ถูกลบไปก่อนใช้เวอร์ชันนี้และไม่มี alias/identity เหลือในข้อมูลเก่า จะระบุตัวตนย้อนหลังจาก ID ล้วนไม่ได้ การลบ Profile แล้วสร้าง Profile ใหม่ไม่ใช่การ re-add Profile เดิม
 - ทุกอุปกรณ์ต้องใช้เวอร์ชันใหม่ การเขียนด้วยแอปเก่าหรือแก้ history ใน Console ระหว่าง Fair อาจไม่ปรับ revision ตาม protocol
 - Fair transaction ป้องกัน stale Fair writes; manual assignment/staging แบบ blind write เดิมยังสามารถ override ภายหลังได้ ไม่ได้รื้อ concurrency policy ของ manual ใน scope นี้
