@@ -22,15 +22,11 @@ function HistoryGlyph() {
 export function Header({
   session,
   onEndSession,
-  onOpenPayments,
   onOpenHistory,
-  unpaidCount = 0,
 }: {
   session: Session | null;
   onEndSession: () => void;
-  onOpenPayments?: () => void;
   onOpenHistory?: () => void;
-  unpaidCount?: number;
 }) {
   const { isAdmin, lock } = useAdmin();
   const [showPin, setShowPin] = useState(false);
@@ -85,21 +81,6 @@ export function Header({
 
           {isAdmin ? (
             <>
-              {sessionActive && onOpenPayments && (
-                <motion.button
-                  whileTap={press}
-                  onClick={onOpenPayments}
-                  className="relative h-10 rounded-full border border-white/15 bg-white/8 px-4 text-caption font-bold text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/14"
-                >
-                  <span className="sm:hidden">฿</span>
-                  <span className="hidden sm:inline">ยอดเงิน</span>
-                  {unpaidCount > 0 && (
-                    <span className="numeral absolute -right-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-coral px-1 text-[0.62rem] leading-none text-white shadow-sm">
-                      {unpaidCount}
-                    </span>
-                  )}
-                </motion.button>
-              )}
               <span className="hidden rounded-full bg-white/10 px-3 py-2 text-[0.7rem] font-bold text-mint sm:block">
                 ✦ แอดมิน
               </span>

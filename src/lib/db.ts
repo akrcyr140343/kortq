@@ -13,7 +13,6 @@ import {
   runTransaction,
   serverTimestamp,
   setDoc,
-  updateDoc,
   writeBatch,
 } from "firebase/firestore";
 import { db } from "./firebase";
@@ -179,7 +178,6 @@ export async function startSession(courtCount: number): Promise<void> {
     active: true,
     courtCount,
     createdAt: Date.now(),
-    feePerHead: 0,
   };
   batch.set(sessionRef, { ...session, fairRevision: increment(1) });
   for (let i = 1; i <= courtCount; i++) {
@@ -234,8 +232,6 @@ export async function addPlayer(name: string, skill: Skill, sessionCreatedAt: nu
     gamesPlayed: 0,
     createdAt: now,
     queuedAt: now,
-    paid: false,
-    paidAt: null,
     profileId: pRef.id,
   } satisfies Omit<Player, "id">);
   // Fair reads collection membership outside its transaction; this detects new IDs.
@@ -272,8 +268,6 @@ export async function addPlayerFromProfile(profileId: string, sessionCreatedAt: 
       gamesPlayed: 0,
       createdAt: now,
       queuedAt: now,
-      paid: false,
-      paidAt: null,
       profileId,
     } satisfies Omit<Player, "id">);
 
@@ -379,31 +373,6 @@ export async function setPlayerResting(id: string, resting: boolean): Promise<vo
     }
     tx.update(sessionRef, { fairRevision: increment(1) });
   });
-}
-
-// ---- Payments --------------------------------------------------------------
-// Manual, admin-verified settlement. No bank API: the admin sees a slip in the
-// LINE group and flips the player's status here. Rides the existing player
-// subscription, so every device updates in real time.
-
-/** Set the per-head court fee for the current session (baht). */
-export async function setSessionFee(feePerHead: number): Promise<void> {
-  await setDoc(sessionRef, { feePerHead: Math.max(0, Math.round(feePerHead)) }, { merge: true });
-}
-
-/** Flip one player's payment status (paid ⇄ unpaid). */
-export async function setPlayerPaid(id: string, paid: boolean): Promise<void> {
-  // A stale payment tap must not recreate a deleted player outside the revision protocol.
-  await updateDoc(playerRef(id), { paid, paidAt: paid ? Date.now() : null });
-}
-
-/** Clear every player's payment status — a fresh collection round. */
-export async function resetPayments(players: Player[]): Promise<void> {
-  const batch = writeBatch(db);
-  for (const p of players) {
-    batch.update(playerRef(p.id), { paid: false, paidAt: null });
-  }
-  await batch.commit();
 }
 
 // ---- Matchmaking -----------------------------------------------------------

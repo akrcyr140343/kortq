@@ -15,8 +15,6 @@ export interface Player {
   gamesPlayed: number; // number of games finished this session
   createdAt: number; // ms — first time added
   queuedAt: number; // ms — last time entered the waiting queue (used for FIFO fairness)
-  paid?: boolean; // court-fee settlement for this session (admin-verified, manual)
-  paidAt?: number | null; // ms when marked paid
   profileId?: string | null; // link to the permanent roster Profile they were added from
   fairSkips?: number; // eligible Fair decisions missed; frozen in Next Up, cleared on court entry
 }
@@ -74,7 +72,6 @@ export interface Session {
   active: boolean;
   courtCount: number; // 2 or 3
   createdAt: number;
-  feePerHead?: number; // baht each player owes for the session (0 = not set yet)
   nextUp?: NextUp; // staged "next game" (เกมถัดไป); absent/empty = not set
   fairRevision?: number; // incremented atomically by every app mutation of Fair inputs
   fairPlayerIdentities?: Record<string, string>; // Player ID -> stable identity, retained after removal

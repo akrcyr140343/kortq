@@ -36,7 +36,6 @@ import { StartSession } from "@/components/StartSession";
 import { CourtCard } from "@/components/CourtCard";
 import { NextUpCard } from "@/components/NextUpCard";
 import { QueuePanel } from "@/components/QueuePanel";
-import { PaymentDrawer } from "@/components/PaymentDrawer";
 import { PlayerRegistryDrawer } from "@/components/PlayerRegistryDrawer";
 import { MatchHistoryDrawer } from "@/components/MatchHistoryDrawer";
 import { SkillBadge } from "@/components/SkillBadge";
@@ -177,7 +176,6 @@ export default function Home() {
   } = useKortq();
   const modal = useModal();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [showPayments, setShowPayments] = useState(false);
   const [showRegistry, setShowRegistry] = useState(false);
   // Read-only session play history — open to every role while a session runs.
   // Stored as the createdAt of the session it was opened for (null = closed), so
@@ -215,10 +213,9 @@ export default function Home() {
     [players],
   );
 
-  // Never leave the payment/registry drawers open outside an admin session.
+  // Never leave the registry drawer open outside an admin session.
   useEffect(() => {
     if (!isAdmin || !sessionActive) {
-      setShowPayments(false);
       setShowRegistry(false);
     }
   }, [isAdmin, sessionActive]);
@@ -654,7 +651,6 @@ export default function Home() {
     players.reduce((sum, p) => sum + (p.gamesPlayed ?? 0), 0) / 4,
   );
   const activeCourts = courts.filter((c) => c.teamA.length + c.teamB.length > 0).length;
-  const unpaidCount = players.filter((p) => !(p.paid ?? false)).length;
 
   const selectedPlayers = useMemo(
     () => assignable.filter((p) => selectedIds.has(p.id)),
@@ -677,9 +673,7 @@ export default function Home() {
       <Header
         session={session}
         onEndSession={handleEndSession}
-        onOpenPayments={() => setShowPayments(true)}
         onOpenHistory={() => setHistoryForSession(session?.createdAt ?? null)}
-        unpaidCount={unpaidCount}
       />
 
       {error ? (
@@ -869,15 +863,6 @@ export default function Home() {
           onChange={setActiveView}
           waitingCount={assignable.length}
           courtCount={courts.length}
-        />
-      )}
-
-      {isAdmin && sessionActive && (
-        <PaymentDrawer
-          open={showPayments}
-          onClose={() => setShowPayments(false)}
-          players={players}
-          feePerHead={session?.feePerHead ?? 0}
         />
       )}
 

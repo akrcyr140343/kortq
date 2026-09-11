@@ -40,7 +40,7 @@
 
 - ทุก action ที่เปลี่ยน Fair input เพิ่ม `fairRevision` ใน write ชุดเดียวกัน: เพิ่ม/ลบ player, พัก/กลับเข้าคิว, ลง/ยกเลิก/เริ่ม/จบคอร์ต, swap/substitute, ทุกการแก้ Next Up/promote และ successful Fair decision
 - เปิด/ปิด session รวมการล้าง players/courts/history และเขียน session/revision ใน batch เดียว ไม่เปิดช่องให้ Fair เห็นประวัติที่ล้างแล้วแต่ session ยัง active อยู่
-- การชำระเงินและแก้ Profile ที่ไม่เปลี่ยนผู้เล่นใน session ไม่เพิ่ม revision; payment ใช้ update เพื่อไม่สร้าง player ที่ถูกลบกลับมาจากหน้าจอเก่า
+- การแก้ Profile ที่ไม่เปลี่ยนผู้เล่นใน session ไม่เพิ่ม revision
 - Fair อ่าน session จาก server ก่อน แล้วอ่าน players/courts/history จาก server; ไม่ยอมรับ snapshot ที่ยังมี pending local writes และคำนวณ decision ก้อนเดียว
 - Transaction ตรวจ session revision/identity/reservation และข้อมูลของ players/courts ทั้งชุดก่อนเขียน assignment; fair-v3 assignment เขียนเฉพาะทีม/สถานะ ไม่แตะ fairSkips (skipTransitions ใน log เป็น no-op)
 - ถ้าข้อมูลที่เกี่ยวข้องเปลี่ยนก่อน commit ให้ abort และขอให้กดใหม่ ไม่เขียน assignment หรือสร้าง success log จาก decision ที่ abort
@@ -155,7 +155,6 @@ Rules ใหม่ให้ browser create เท่านั้น ไม่ใ
 - กดเริ่มเกมซ้ำเร็ว ๆ ในเครื่องเดียว/หลายเครื่อง: เกมที่เริ่มแล้วเป็น no-op double tap ไม่ +1 ซ้ำ และไม่ขึ้น START_STALE
 - เปลี่ยนคิว/พัก/finish ระหว่างอ่านและ commit ของ startGame: ต้อง abort ด้วย START_STALE เมื่อ fairRevision เปลี่ยน โดยไม่ +1 บางส่วน; Fair decision ที่ snapshot เปลี่ยนก็ต้อง abort เช่นเดิม
 - ตรวจ revision ก่อน/หลังแต่ละ action: เพิ่ม/ลบ/พัก/กลับเข้าคิว, manual/random/Fair ลงคอร์ต, start/cancel/finish, court swap/substitute/ข้ามคอร์ต, Next Up เลือกเอง/เพิ่ม/ลบ/clear/swap/substitute/Fair/promote และเปิด/ปิด session ต้องเพิ่มเมื่อมี write สำเร็จ (no-op ที่ไม่ได้เขียนไม่เพิ่ม)
-- ลบผู้เล่นจากอีกเครื่องแล้วกดชำระเงินจากหน้าจอเก่า: ต้องไม่สร้าง Player ที่มีแต่ข้อมูลชำระเงินกลับมา
 
 ### 12. History ไม่พร้อม / network error
 
