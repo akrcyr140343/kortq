@@ -148,7 +148,22 @@ function* choose<T>(items: T[], count: number, start = 0, prefix: T[] = []): Gen
   for (let i = start; i <= items.length - count; i++) yield* choose(items, count - 1, i + 1, [...prefix, items[i]]);
 }
 
-export function planFairMatch(waiting: Player[], matches: Match[], storedAliases: Record<string, string> = {}) {
+/**
+ * `currentFoursome` (ids of the set already staged) turns a Next Up "จับแฟร์ใหม่"
+ * into a cursor over the SAME ranked alternatives instead of always re-picking the
+ * best: it advances to the next-ranked candidate after the current one and wraps
+ * at the end of the group the engine keeps (alternativeCount + 1). The ranking,
+ * forced/overdue guarantee and split logic are untouched, so every candidate —
+ * including the rerolled one — still contains all overdue players and is split by
+ * the same teammate/opponent-repeat + skill-guard rules. Court Fair and the first
+ * Next Up "จับแฟร์" pass no `currentFoursome` and keep the best (top[0]).
+ */
+export function planFairMatch(
+  waiting: Player[],
+  matches: Match[],
+  storedAliases: Record<string, string> = {},
+  currentFoursome?: string[],
+) {
   const pool = buildCandidatePool(waiting);
   if (pool.length < 4) throw new Error(NOT_ENOUGH_WAITING);
   const aliases = { ...storedAliases };
@@ -192,7 +207,19 @@ export function planFairMatch(waiting: Player[], matches: Match[], storedAliases
     else if (top.length < FAIR_PARAMETERS.alternativeCount + 1) top.push(candidate);
     if (top.length > FAIR_PARAMETERS.alternativeCount + 1) top.pop();
   }
-  const selected = top[0];
+  // top is sorted best → worst. Default (initial Fair / Court Fair) takes the best.
+  // A Next Up reroll advances the cursor to the candidate after the current staged
+  // set and wraps; if the current set isn't among the ranked alternatives it falls
+  // back to the best (which necessarily differs); with a single candidate it holds.
+  const selectRerolled = (): Alternative => {
+    if (!currentFoursome || currentFoursome.length !== 4 || top.length <= 1) return top[0];
+    const current = key(currentFoursome);
+    const idx = top.findIndex((c) => key(c.players) === current);
+    if (idx < 0) return top[0];
+    return top[(idx + 1) % top.length];
+  };
+  const selected = selectRerolled();
+  const alternatives = top.filter((c) => c !== selected); // ≤ 5 (top holds ≤ 6)
   const byId = new Map(pool.map((p) => [p.id, p]));
   const [a, b, c, d] = selected.players.map((id) => byId.get(id)!);
   const teams: Array<[Player[], Player[]]> = [[[a, b], [c, d]], [[a, c], [b, d]], [[a, d], [b, c]]];
@@ -226,7 +253,7 @@ export function planFairMatch(waiting: Player[], matches: Match[], storedAliases
         gamesPlayed: p.gamesPlayed, queuedAt: p.queuedAt, fairSkips: p.fairSkips ?? 0,
         waitingDeficitMinutes: (p.queuedAt - oldest) / 60_000 })),
       overdueIds: overdue.map((p) => p.id), forcedIds: forced.map((p) => p.id), capacityException: overdue.length > 4,
-      candidateCount, selected, alternatives: top.slice(1), bestSkillDiff, splitOptions,
+      candidateCount, selected, alternatives, bestSkillDiff, splitOptions,
       // Missing pairs/roles are zero. Store each relevant aggregate once, not
       // raw history or copies per alternative; these replay every candidate/split.
       pairInputs: [...index.pairs.values()].filter((p) => p.identities.every((id) => poolIdentities.has(id)))

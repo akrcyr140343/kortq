@@ -592,7 +592,12 @@ async function commitFairDecision(
   const aliases = { ...session.fairPlayerIdentities };
   for (const p of players) aliases[p.id] = stablePlayerIdentity(p);
   const decidedAtClient = Date.now();
-  const plan = planFairMatch(candidates, matches, aliases);
+  // A Next Up reroll (target "nextup" with a full staged set already present) walks
+  // to the next Fair-ranked candidate after the current one; the first Next Up Fair
+  // (empty staged) and every Court Fair pass no cursor and keep the best.
+  const stagedFoursome = [...previousNextUp.teamA, ...previousNextUp.teamB];
+  const currentFoursome = target === "nextup" && stagedFoursome.length === 4 ? stagedFoursome : undefined;
+  const plan = planFairMatch(candidates, matches, aliases, currentFoursome);
   const teamA = plan.teamA.map((p) => p.id), teamB = plan.teamB.map((p) => p.id);
   const selectedIds = new Set([...teamA, ...teamB]);
   // fair-v3: Fair never mutates fairSkips (that happens at startGame). Kept for the
