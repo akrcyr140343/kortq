@@ -34,6 +34,7 @@ function Side({
   align,
   selectable,
   selectedId,
+  warnCount,
   onPlayerTap,
 }: {
   ids: string[];
@@ -42,9 +43,11 @@ function Side({
   align: "left" | "right";
   selectable: boolean;
   selectedId: string | null;
+  warnCount: number; // finished games this team's pair already played together (0 = none)
   onPlayerTap?: (id: string) => void;
 }) {
   const right = align === "right";
+  const warn = warnCount > 0;
   return (
     <div className={`flex min-w-0 flex-1 flex-col gap-2.5 ${right ? "items-end" : "items-start"}`}>
       <span className={`rounded-full px-2.5 py-1 text-[0.62rem] font-extrabold ${right ? "bg-sky-wash text-sky-deep" : "bg-coral-wash text-coral-deep"}`}>{label}</span>
@@ -74,7 +77,9 @@ function Side({
               } ${
                 chosen
                   ? "border-accent bg-accent-wash ring-2 ring-accent"
-                  : "border-white/80 bg-white/72"
+                  : warn
+                    ? "border-amber-300 bg-amber-50 ring-1 ring-amber-300"
+                    : "border-white/80 bg-white/72"
               } ${selectable ? "cursor-pointer" : ""}`}
             >
               <SkillBadge skill={p.skill} />
@@ -86,6 +91,12 @@ function Side({
           );
         })}
       </div>
+      {/* Repeat-teammate warning — advisory only, never blocks start/swap. */}
+      {warn && (
+        <span className={`flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[0.6rem] font-bold text-amber-700 ring-1 ring-amber-200 ${right ? "self-end" : "self-start"}`}>
+          <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />คู่ซ้ำ · เคยคู่กัน {warnCount} เกม
+        </span>
+      )}
     </div>
   );
 }
@@ -98,6 +109,7 @@ export function CourtCard({
   selectedCount,
   swapSelectedId,
   nextUpCount,
+  pairWarn,
   finishing = false,
   onFair,
   onRandom,
@@ -117,6 +129,7 @@ export function CourtCard({
   selectedCount: number;
   swapSelectedId: string | null; // player selected for swapping on THIS court
   nextUpCount: number; // staged Next Up size (0 = none, 1–3 = locked, 4 = ready)
+  pairWarn?: (ids: string[]) => number; // finished games this team's pair already played together
   finishing?: boolean; // a finish request for THIS court is in flight (UI guard)
   index?: number;
   onFair: (courtId: string) => void;
@@ -140,6 +153,11 @@ export function CourtCard({
   //   nextUpCount === 0        → normal assignment
   // While any next game is staged, an empty court can't take a manual drop.
   const canDrop = isAdmin && !occupied && selectedCount >= 2 && nextUpCount === 0;
+
+  // Repeat-teammate warning only while the game hasn't started (assigned). Once
+  // it starts, teams are locked in and the warning is no longer actionable.
+  const warnA = assigned && pairWarn ? pairWarn(court.teamA) : 0;
+  const warnB = assigned && pairWarn ? pairWarn(court.teamB) : 0;
 
   // A fresh `startedAt` means players just landed here — wash the card once.
   const [flash, setFlash] = useState(false);
@@ -200,6 +218,7 @@ export function CourtCard({
                 align="left"
                 selectable={isAdmin && assigned}
                 selectedId={swapSelectedId}
+                warnCount={warnA}
                 onPlayerTap={(id) => onPlayerTap(court.id, id)}
               />
               <div className="w-px self-stretch bg-gradient-to-b from-transparent via-line-2 to-transparent" />
@@ -210,6 +229,7 @@ export function CourtCard({
                 align="right"
                 selectable={isAdmin && assigned}
                 selectedId={swapSelectedId}
+                warnCount={warnB}
                 onPlayerTap={(id) => onPlayerTap(court.id, id)}
               />
             </div>

@@ -7,6 +7,8 @@ import { useModal } from "@/context/ModalContext";
 import { useKortq } from "@/hooks/useKortq";
 import { useProfiles } from "@/hooks/useProfiles";
 import { normalizeNameKey, type Skill } from "@/lib/types";
+import { stablePlayerIdentity } from "@/lib/fairmatch";
+import { buildTeammatePairCounts, teammatePairKey } from "@/lib/matchHistory";
 import {
   addPlayer,
   addPlayerFromProfile,
@@ -657,6 +659,27 @@ export default function Home() {
     [assignable, selectedIds],
   );
 
+  // Repeat-teammate ("คู่ซ้ำ") warning. Derived purely from finished matches of
+  // THIS session via the existing stable-identity flow — no Firestore read/write,
+  // no Fair-engine input. teamPairWarn() returns how many finished games the
+  // team's two CURRENT members already spent together (0 = none). Because it
+  // reads live player identities, it re-derives on every swap/substitute.
+  const teammatePairCounts = useMemo(
+    () => buildTeammatePairCounts(matches, playersById, session),
+    [matches, playersById, session],
+  );
+  const teamPairWarn = useCallback(
+    (ids: string[]): number => {
+      if (ids.length !== 2) return 0; // only a full pair can repeat
+      const a = playersById.get(ids[0]);
+      const b = playersById.get(ids[1]);
+      if (!a || !b) return 0;
+      const k = teammatePairKey(stablePlayerIdentity(a), stablePlayerIdentity(b));
+      return teammatePairCounts.get(k) ?? 0;
+    },
+    [teammatePairCounts, playersById],
+  );
+
   // What a tap in the queue currently means, for the queue banner + row taps.
   const queuePick = swapSel
     ? { active: true, label: "แตะเพื่อนในคิวเพื่อเปลี่ยนตัวลงคอร์ต" }
@@ -743,6 +766,7 @@ export default function Home() {
                       selectedCount={selectedIds.size}
                       swapSelectedId={swapSel?.courtId === court.id ? swapSel.playerId : null}
                       nextUpCount={nextUpCount}
+                      pairWarn={teamPairWarn}
                       finishing={finishingIds.has(court.id)}
                       onFair={handleFair}
                       onRandom={handleRandom}
@@ -762,6 +786,7 @@ export default function Home() {
                   teamA={nextUpTeamA}
                   teamB={nextUpTeamB}
                   count={nextUpCount}
+                  pairWarn={teamPairWarn}
                   selectedId={nextUpSel}
                   canStageFair={waiting.length >= 4}
                   canCreate={allCourtsAssigned}

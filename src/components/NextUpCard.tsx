@@ -17,6 +17,7 @@ function NextUpSide({
   align,
   isAdmin,
   selectedId,
+  warnCount,
   onPlayerTap,
   onRemove,
 }: {
@@ -25,10 +26,12 @@ function NextUpSide({
   align: "left" | "right";
   isAdmin: boolean;
   selectedId: string | null;
+  warnCount: number; // finished games this team's pair already played together (0 = none)
   onPlayerTap: (id: string) => void;
   onRemove: (id: string) => void;
 }) {
   const right = align === "right";
+  const warn = warnCount > 0;
   return (
     <div className={`flex min-w-0 flex-1 flex-col gap-2.5 ${right ? "items-end" : "items-start"}`}>
       <span className={`rounded-full px-2.5 py-1 text-[0.62rem] font-extrabold ${right ? "bg-sky-wash text-sky-deep" : "bg-coral-wash text-coral-deep"}`}>{label}</span>
@@ -44,14 +47,34 @@ function NextUpSide({
               className={`anim-pop flex min-w-0 items-center gap-2 rounded-[13px] border px-2.5 py-2 shadow-[0_8px_18px_-16px_rgba(32,35,63,0.45)] transition-all duration-150 ${
                 right ? "flex-row-reverse" : ""
               } ${
-                chosen ? "border-accent bg-accent-wash ring-2 ring-accent" : "border-white/80 bg-white/72"
+                chosen
+                  ? "border-accent bg-accent-wash ring-2 ring-accent"
+                  : warn
+                    ? "border-amber-300 bg-amber-50 ring-1 ring-amber-300"
+                    : "border-white/80 bg-white/72"
               } ${isAdmin ? "cursor-pointer" : ""}`}
             >
               <SkillBadge skill={p.skill} />
-              <span className="min-w-0 flex-1 truncate text-body font-extrabold leading-tight text-ink">{p.name}</span>
-              {/* Finished-games count — mirrors CourtCard: always shown (incl. 0),
-                  quieter than the name, never truncated. Sits before the ✕. */}
-              <span className="shrink-0 text-eyebrow font-semibold tabular-nums text-ink-4">· {p.gamesPlayed ?? 0} เกม</span>
+              {/* Name is the priority datum. On narrow mobile (two teams share a
+                  row) it keeps full size and wraps to 2 lines before truncating,
+                  with "· N เกม" demoted to a quieter line below. From sm up there
+                  is room, so it collapses back to the original single inline row. */}
+              <div
+                className={`flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2 ${
+                  right ? "items-end sm:flex-row-reverse sm:justify-end" : "items-start"
+                }`}
+              >
+                <span
+                  className={`line-clamp-2 text-body font-extrabold leading-tight text-ink [overflow-wrap:anywhere] sm:line-clamp-none sm:min-w-0 sm:flex-1 sm:truncate ${
+                    right ? "text-right sm:text-left" : ""
+                  }`}
+                >
+                  {p.name}
+                </span>
+                {/* Finished-games count — always shown (incl. 0), quieter than the
+                    name and never truncated. Sits before the ✕. */}
+                <span className="shrink-0 text-eyebrow font-semibold tabular-nums text-ink-4">· {p.gamesPlayed ?? 0} เกม</span>
+              </div>
               {isAdmin && (
                 <button
                   type="button"
@@ -71,6 +94,12 @@ function NextUpSide({
           );
         })}
       </div>
+      {/* Repeat-teammate warning — advisory only, never blocks promote/swap. */}
+      {warn && (
+        <span className={`flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[0.6rem] font-bold text-amber-700 ring-1 ring-amber-200 ${right ? "self-end" : "self-start"}`}>
+          <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />คู่ซ้ำ · เคยคู่กัน {warnCount} เกม
+        </span>
+      )}
     </div>
   );
 }
@@ -80,6 +109,7 @@ export function NextUpCard({
   teamA,
   teamB,
   count,
+  pairWarn,
   selectedId,
   canStageFair,
   canCreate,
@@ -96,6 +126,7 @@ export function NextUpCard({
   teamA: Player[];
   teamB: Player[];
   count: number;
+  pairWarn?: (ids: string[]) => number; // finished games this team's pair already played together
   selectedId: string | null;
   canStageFair: boolean; // enough players in the queue to form a game (≥4)
   canCreate: boolean; // every court is already filled → Next Up may be created
@@ -110,6 +141,10 @@ export function NextUpCard({
 }) {
   const empty = count === 0;
   const complete = count === 4;
+  // Next Up is always pre-game, so the repeat-teammate warning applies whenever
+  // a side holds a full pair (advisory only — never blocks promote).
+  const warnA = pairWarn ? pairWarn(teamA.map((p) => p.id)) : 0;
+  const warnB = pairWarn ? pairWarn(teamB.map((p) => p.id)) : 0;
 
   return (
     <section className={`${E2} anim-enter shrink-0 overflow-hidden rounded-[24px] p-4`} style={staggerDelay(2)}>
@@ -192,6 +227,7 @@ export function NextUpCard({
               align="left"
               isAdmin={isAdmin}
               selectedId={selectedId}
+              warnCount={warnA}
               onPlayerTap={onPlayerTap}
               onRemove={onRemovePlayer}
             />
@@ -202,6 +238,7 @@ export function NextUpCard({
               align="right"
               isAdmin={isAdmin}
               selectedId={selectedId}
+              warnCount={warnB}
               onPlayerTap={onPlayerTap}
               onRemove={onRemovePlayer}
             />

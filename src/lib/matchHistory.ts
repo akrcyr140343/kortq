@@ -201,6 +201,41 @@ export function summarizePlayer(
 }
 
 /**
+ * Order-independent key for a teammate pair (two stable identities). Sorted so
+ * (a,b) and (b,a) collapse to one bucket.
+ */
+export function teammatePairKey(a: string, b: string): string {
+  return a < b ? `${a}|${b}` : `${b}|${a}`;
+}
+
+/**
+ * How many finished games each identity-pair spent ON THE SAME TEAM this
+ * session. Pure and read-only — resolves every match slot through the same
+ * stable-identity flow as the rest of this module (so a Profile re-add merges,
+ * a removed player still counts), and only looks at teams of two. Used by the
+ * pre-game "คู่ซ้ำ" (repeat-teammate) warning; never a Fair-engine input.
+ */
+export function buildTeammatePairCounts(
+  matches: Match[],
+  playersById: Map<string, Player>,
+  session: Session | null,
+): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const m of matches) {
+    const teams = [
+      teamIdentities(m.teamA, m.teamAIdentities, playersById, session),
+      teamIdentities(m.teamB, m.teamBIdentities, playersById, session),
+    ];
+    for (const team of teams) {
+      if (team.length !== 2) continue;
+      const k = teammatePairKey(team[0], team[1]);
+      counts.set(k, (counts.get(k) ?? 0) + 1);
+    }
+  }
+  return counts;
+}
+
+/**
  * The whole session as an ordered list of games (Team A vs Team B), oldest
  * first — matches arrive ordered by finishedAt, but this re-sorts defensively.
  */
