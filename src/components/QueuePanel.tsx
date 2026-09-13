@@ -151,7 +151,7 @@ function SectionHead({ title, count }: { title: string; count: number }) {
   return (
     <div className="mb-3 flex items-center justify-between">
       <div>
-        <span className="block text-sm font-extrabold text-ink">{title}</span>
+        <span className="section-heading block text-sm text-ink">{title}</span>
         <span className="mt-0.5 block text-[0.66rem] font-medium text-ink-3">เรียงตามเวลาที่เข้าคิว</span>
       </div>
       <span className="numeral grid h-10 min-w-10 place-items-center rounded-[14px] bg-mint-wash px-2 text-lede leading-none text-mint-deep ring-1 ring-inset ring-mint/25">{count}</span>
@@ -189,7 +189,7 @@ export function QueuePanel({
   const selectionFull = selectedIds.size >= 4;
 
   return (
-    <div className="anim-enter flex flex-col gap-4 lg:h-full lg:min-h-0" style={staggerDelay(3)}>
+    <div className="anim-enter flex flex-col gap-4 xl:h-full xl:min-h-0" style={staggerDelay(3)}>
       {isAdmin && (
         <div className="shrink-0">
           <AddPlayerForm onAddPlayer={onAddPlayer} onOpenRegistry={onOpenRegistry} />
@@ -198,7 +198,7 @@ export function QueuePanel({
 
       {/* The rail scrolls on its own so a long queue never stretches the
           courts column beside it. */}
-      <div className="scroll-pane flex flex-col gap-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1.5">
+      <div className="scroll-pane flex flex-col gap-4 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1.5">
         <section className={`${E2} shrink-0 rounded-[24px] p-4`}>
           <SectionHead title="คิวรอ" count={waiting.length} />
 

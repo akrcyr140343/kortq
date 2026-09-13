@@ -6,29 +6,29 @@
 
 :root {
   /* Surfaces */
-  --canvas: #f4f6ed;
+  --canvas: #eef7f2;
   --surface: #ffffff;
-  --surface-2: #f8faf3;
+  --surface-2: #f6faf7;
 
   /* Ink ladder — four steps, each a real contrast jump */
-  --ink: #142017;
-  --ink-2: #48564a;
-  --ink-3: #778078;
-  --ink-4: #a6ada7;
+  --ink: #0b2624;
+  --ink-2: #405a58;
+  --ink-3: #6f8581;
+  --ink-4: #9eb0ad;
 
   /* Hairlines — always lighter than the fill they sit on */
-  --line: #e7eadf;
-  --line-2: #d9dfd2;
+  --line: #e0ebe6;
+  --line-2: #cbded6;
 
   /* Forest is structure; lime is action. */
-  --accent: #1d3322;
-  --accent-2: #31523a;
-  --accent-deep: #102318;
-  --accent-wash: #edf4e8;
+  --accent: #0b5148;
+  --accent-2: #0b8d86;
+  --accent-deep: #073b35;
+  --accent-wash: #e8f6ef;
 
-  --mint: #b8f23d;
-  --mint-deep: #547500;
-  --mint-wash: #f0fbd9;
+  --mint: #b8ef2f;
+  --mint-deep: #4d7b10;
+  --mint-wash: #f0fbdc;
   --coral: #f5a623;
   --coral-deep: #bd6c00;
   --coral-wash: #fff4df;
@@ -70,8 +70,9 @@
   --color-alert: var(--alert);
   --color-alert-wash: var(--alert-wash);
 
-  --font-sans: var(--font-noto-thai), var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-outfit), var(--font-noto-thai), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-body-thai), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-display-thai), var(--font-body-thai), ui-sans-serif, system-ui, sans-serif;
+  --font-numeral: var(--font-sora), var(--font-body-thai), ui-sans-serif, system-ui, sans-serif;
 
   /* Type scale — 11/14/17/21/26/32/40/56/72. Steps of 3,3,4,5,6,8,16,16:
      no two sizes sit 2px apart, so any pair that lands side by side in the
@@ -102,14 +103,106 @@ html {
 }
 
 body {
-  background:
-    linear-gradient(rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.34)),
-    var(--canvas);
+  background: var(--canvas);
   color: var(--ink);
   font-family: var(--font-sans);
+  /* The UI leans on extrabold (800), but the Thai body face tops out at 700.
+     Disable only WEIGHT synthesis so those clamp cleanly to 700 instead of a
+     smeared faux-bold — while keeping italic synthesis for the rare slanted
+     body label. Kerning + contextual alternates keep Thai marks tidy. */
+  font-synthesis-weight: none;
+  font-feature-settings: "kern", "calt";
+  letter-spacing: -0.006em;
   -webkit-tap-highlight-color: transparent;
   overflow-x: hidden;
   overscroll-behavior-y: none;
+}
+
+/* The court stays completely still. Mascots are separate transparent layers
+   below, so their movement cannot shift scenery, content or hit targets. */
+.court-artwork {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: url("/kortq-court-bg-clean.webp") center center / cover no-repeat;
+}
+
+.court-mascot {
+  position: fixed;
+  z-index: 0;
+  bottom: -9vh;
+  pointer-events: none;
+  background-position: center bottom;
+  background-repeat: no-repeat;
+  background-size: contain;
+  filter: drop-shadow(0 18px 22px rgba(22, 85, 76, 0.1));
+  will-change: transform;
+}
+
+.court-mascot-female {
+  left: -1.5rem;
+  width: min(35vw, 34rem);
+  height: min(67vh, 38rem);
+  background-image: url("/kortq-mascot-female.webp");
+  transform-origin: 48% 86%;
+  animation: kq-female-ready 6.8s ease-in-out infinite;
+}
+
+.court-mascot-male {
+  right: -1rem;
+  width: min(34vw, 32rem);
+  height: min(72vh, 42rem);
+  background-image: url("/kortq-mascot-male.webp");
+  transform-origin: 54% 88%;
+  animation: kq-male-jump 5.9s ease-in-out -2.1s infinite;
+}
+
+@keyframes kq-female-ready {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(-0.45deg);
+  }
+  50% {
+    transform: translate3d(4px, -7px, 0) rotate(0.45deg);
+  }
+}
+
+@keyframes kq-male-jump {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0.35deg);
+  }
+  48% {
+    transform: translate3d(-3px, -9px, 0) rotate(-0.55deg);
+  }
+}
+
+/* On tablet and mobile, the existing center zoom keeps the baked-in players
+   fully outside the content-safe viewport instead of leaving half a figure. */
+@media (max-width: 1279px) {
+  .court-artwork {
+    background-size: auto 125%;
+    background-position: center center;
+  }
+
+  .court-mascot-female {
+    left: -10rem;
+    width: 32rem;
+    height: 55vh;
+  }
+
+  .court-mascot-male {
+    right: -9rem;
+    width: 30rem;
+    height: 59vh;
+  }
+}
+
+@media (max-width: 767px) {
+  .court-mascot {
+    display: none;
+  }
 }
 
 /* Pastel wash — white → mint → sky, breathing on a 30s cycle. Three
@@ -119,13 +212,12 @@ body::before {
   content: "";
   position: fixed;
   inset: -25%;
-  z-index: 0;
+  z-index: 1;
   pointer-events: none;
   background-image:
-    radial-gradient(38rem 30rem at 8% 8%, rgba(184, 242, 61, 0.16), transparent 64%),
-    radial-gradient(46rem 34rem at 90% 5%, rgba(143, 178, 160, 0.15), transparent 65%),
-    radial-gradient(40rem 32rem at 65% 96%, rgba(245, 166, 35, 0.1), transparent 66%),
-    radial-gradient(30rem 25rem at 35% 60%, rgba(29, 51, 34, 0.06), transparent 70%);
+    radial-gradient(45rem 32rem at 50% 12%, rgba(255, 255, 255, 0.32), transparent 68%),
+    radial-gradient(38rem 30rem at 8% 8%, rgba(184, 239, 47, 0.07), transparent 64%),
+    radial-gradient(46rem 34rem at 90% 5%, rgba(143, 210, 202, 0.1), transparent 65%);
   animation: kq-wash 24s ease-in-out infinite alternate;
 }
 
@@ -147,13 +239,45 @@ button {
 
 .display {
   font-family: var(--font-display);
+  font-style: italic;
   font-weight: 700;
+  /* Bai Jamjuree is less condensed than the old display face, so it needs a
+     gentler negative track — tight enough to feel athletic, loose enough to
+     keep Thai tone marks legible at display sizes. */
   letter-spacing: -0.02em;
+  text-wrap: balance;
   font-variant-numeric: tabular-nums;
 }
 
-.numeral {
+.section-heading {
   font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 700;
+  letter-spacing: -0.012em;
+}
+
+.sport-title {
+  position: relative;
+  display: block;
+  width: fit-content;
+  isolation: isolate;
+}
+
+.sport-title::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: 8%;
+  bottom: -0.08em;
+  width: 58%;
+  height: 0.22em;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(255, 174, 128, 0.82), rgba(255, 201, 136, 0.24));
+  transform: rotate(-1.8deg);
+}
+
+.numeral {
+  font-family: var(--font-numeral);
   font-weight: 800;
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
@@ -176,17 +300,19 @@ button {
    ═══════════════════════════════════════════════════════════════════ */
 
 .e1 {
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(217, 223, 210, 0.84);
-  box-shadow: 0 8px 24px -18px rgba(29, 51, 34, 0.28);
+  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid rgba(196, 222, 213, 0.82);
+  box-shadow: 0 10px 28px -20px rgba(10, 81, 72, 0.28);
+  backdrop-filter: blur(14px);
 }
 
 .e2 {
-  background: rgba(255, 255, 255, 0.94);
-  border: 1px solid rgba(217, 223, 210, 0.88);
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(196, 222, 213, 0.88);
   box-shadow:
-    0 20px 45px -30px rgba(29, 51, 34, 0.34),
-    0 8px 20px -16px rgba(143, 178, 160, 0.22);
+    0 20px 45px -30px rgba(10, 81, 72, 0.38),
+    0 8px 20px -16px rgba(83, 169, 145, 0.22);
+  backdrop-filter: blur(15px);
 }
 
 .e3 {
@@ -222,19 +348,70 @@ button {
   background-size: 28px 28px;
 }
 
+.app-shell {
+  background:
+    linear-gradient(180deg, rgba(247, 252, 249, 0.08), rgba(240, 248, 244, 0.24)),
+    radial-gradient(55rem 28rem at 50% 38%, rgba(255, 255, 255, 0.28), transparent 72%);
+}
+
 .club-panel {
   background:
-    radial-gradient(circle at 88% 12%, rgba(184, 242, 61, 0.18), transparent 28%),
-    linear-gradient(135deg, #102318, #1d3322 62%, #294630);
+    radial-gradient(circle at 82% 0%, rgba(184, 239, 47, 0.18), transparent 27%),
+    linear-gradient(120deg, #073b35, #0b5148 58%, #125f55);
   color: white;
   border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 0 24px 52px -30px rgba(16, 35, 24, 0.72);
 }
 
 .lime-button {
-  background: linear-gradient(135deg, #c8ff54, #aee933);
+  background: linear-gradient(135deg, #c8ff42, #a9e921);
   color: #142017;
   box-shadow: 0 14px 28px -16px rgba(121, 174, 12, 0.9);
+}
+
+.play-button {
+  background: linear-gradient(105deg, #67cc35 0%, #0da490 54%, #008797 100%);
+  box-shadow: 0 20px 36px -18px rgba(0, 125, 114, 0.72);
+}
+
+.choice-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.55), transparent 46%);
+}
+
+.dashboard-title {
+  min-height: 3.75rem;
+}
+
+@media (min-width: 1600px) {
+  .court-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* "เกมถัดไป" lives in the court grid so its width follows the real court count.
+   Default = full row: correct for the 1-column (mobile) and 2-column
+   (sm–xl) layouts, where the courts already fill every track. */
+.next-up-cell {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+/* Only at the 3-column layout does the count matter: with 2 courts the staged
+   game spans just those 2 columns (auto-placement wraps it onto the next row,
+   aligned under the courts, leaving the empty 3rd column open) instead of
+   stretching the full width. 3 courts keep the full-row span above. */
+@media (min-width: 1600px) {
+  .next-up-cell[data-courts="2"] {
+    grid-column: span 2;
+  }
+}
+
+.stat-card:nth-child(2n) {
+  transform-origin: center bottom;
 }
 
 /* "เริ่มเกม" — a court loaded and primed to launch. Teal-navy tuned to KortQ's
@@ -530,5 +707,8 @@ button {
   }
   .kq-float {
     display: none;
+  }
+  .court-mascot {
+    animation: none !important;
   }
 }

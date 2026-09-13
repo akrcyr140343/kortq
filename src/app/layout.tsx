@@ -1,28 +1,41 @@
 import type { Metadata, Viewport } from "next";
-import { Outfit, Plus_Jakarta_Sans, Noto_Sans_Thai } from "next/font/google";
+import { Bai_Jamjuree, IBM_Plex_Sans_Thai, Sora } from "next/font/google";
 import "./globals.css";
 import { AdminProvider } from "@/context/AdminContext";
 import { ModalProvider } from "@/context/ModalContext";
 import { FloatingBackground } from "@/components/FloatingBackground";
 
-// Display — geometric, friendly, superb numerals for scores and clocks.
-const outfit = Outfit({
-  variable: "--font-outfit",
+// Numerals — Sora's geometric figures give scores, clocks and counts a sporty,
+// slightly technical character while staying legible as tabular numbers.
+const sora = Sora({
+  variable: "--font-sora",
   subsets: ["latin"],
   weight: ["600", "700", "800"],
+  display: "swap",
+  fallback: ["ui-sans-serif", "system-ui", "sans-serif"],
 });
 
-// Body — humanist counterpart to Outfit; open apertures, reads small.
-const jakarta = Plus_Jakarta_Sans({
-  variable: "--font-jakarta",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-});
-
-// Thai coverage. Sits first in the sans stack so Thai never falls back.
-const notoThai = Noto_Sans_Thai({
-  variable: "--font-noto-thai",
+// Body & UI — IBM Plex Sans Thai: an engineered, modern face that keeps Thai
+// crisp and highly readable at UI sizes while feeling more designed than a
+// neutral system face. The workhorse for labels, chips, buttons and prose.
+const bodyThai = IBM_Plex_Sans_Thai({
+  variable: "--font-body-thai",
   subsets: ["thai", "latin"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+  fallback: ["ui-sans-serif", "system-ui", "sans-serif"],
+});
+
+// Display — Bai Jamjuree: a sporty, semi-technical Thai/Latin face with a real
+// italic, so headings and eyebrows carry a dynamic, athletic voice that reads
+// distinctly from the calmer body.
+const displayThai = Bai_Jamjuree({
+  variable: "--font-display-thai",
+  subsets: ["thai", "latin"],
+  weight: ["600", "700"],
+  style: ["normal", "italic"],
+  display: "swap",
+  fallback: ["ui-sans-serif", "system-ui", "sans-serif"],
 });
 
 export const metadata: Metadata = {
@@ -51,9 +64,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="th"
-      className={`${outfit.variable} ${jakarta.variable} ${notoThai.variable} h-full antialiased`}
+      className={`${sora.variable} ${bodyThai.variable} ${displayThai.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-canvas text-ink">
+        {/* Court and athletes are separate presentation layers: the court is
+            completely still while each mascot gets its own ambient motion. */}
+        <div aria-hidden className="court-artwork" />
+        <div aria-hidden className="court-mascot court-mascot-female" />
+        <div aria-hidden className="court-mascot court-mascot-male" />
         {/* Ambient layer sits at z-0; all content is lifted above it. */}
         <FloatingBackground />
         <div className="relative z-10 min-h-full">

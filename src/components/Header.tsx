@@ -19,6 +19,16 @@ function HistoryGlyph() {
   );
 }
 
+function CalendarGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden>
+      <rect x="3.5" y="5" width="17" height="15" rx="3" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M7.5 3.5v3M16.5 3.5v3M3.5 9h17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M8 13h2M14 13h2M8 16.5h2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function Header({
   session,
   onEndSession,
@@ -35,15 +45,15 @@ export function Header({
 
   return (
     <header className="app-safe-top anim-enter sticky top-0 z-40 shrink-0 px-0 pt-0 sm:px-5 sm:pt-3">
-      <div className="club-panel mx-auto flex max-w-[1700px] items-center justify-between gap-3 overflow-hidden rounded-b-[28px] px-4 py-3 sm:rounded-[24px] sm:py-2.5">
+      <div className="club-panel mx-auto flex max-w-[1600px] items-center justify-between gap-3 overflow-hidden rounded-b-[26px] px-4 py-2.5 sm:rounded-[22px] sm:px-5">
         {/* ── Brand ─────────────────────────────────────────────── */}
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex items-center gap-3">
-            <span className="relative grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-[15px] bg-white shadow-[0_10px_26px_-14px_rgba(0,0,0,0.8)] sm:h-14 sm:w-14 sm:rounded-[16px]">
+            <span className="relative grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-[14px] bg-white shadow-[0_10px_26px_-14px_rgba(0,0,0,0.8)] sm:h-12 sm:w-12">
               <Image src="/kd-logo.png" alt="โลโก้ KD KHONDEE-TEEBAD" fill sizes="56px" className="object-cover" priority />
             </span>
             <div className="min-w-0">
-              <span className="display block text-title leading-none tracking-tight text-white sm:text-h3">
+              <span className="display block text-title leading-none tracking-tight text-white sm:text-[1.9rem]">
                 Kort<span className="text-mint">Q</span>
               </span>
               <span className="mt-1 flex items-center gap-1.5 text-[0.64rem] font-bold tracking-[0.12em] text-white/55">
@@ -55,10 +65,10 @@ export function Header({
 
           {sessionActive && (
             <>
-              <span className="hidden h-7 w-px bg-white/12 sm:block" />
-              <span className="hidden items-center gap-2 rounded-full bg-white/8 px-3 py-2 sm:flex">
-                <span className="live-dot h-2 w-2 rounded-full bg-mint shadow-[0_0_0_4px_rgba(184,242,61,0.12)]" />
-                <span className="text-[0.72rem] font-bold text-white/80">เปิดอยู่ · {session?.courtCount} คอร์ต</span>
+              <span className="hidden h-7 w-px bg-white/12 md:block" />
+              <span className="hidden items-center gap-2 rounded-full border border-white/8 bg-white/12 px-3.5 py-2 text-white shadow-inner md:flex">
+                <CalendarGlyph />
+                <span className="text-[0.72rem] font-bold">วันนี้ · {session?.courtCount} คอร์ต</span>
               </span>
             </>
           )}
@@ -81,14 +91,14 @@ export function Header({
 
           {isAdmin ? (
             <>
-              <span className="hidden rounded-full bg-white/10 px-3 py-2 text-[0.7rem] font-bold text-mint sm:block">
-                ✦ แอดมิน
+              <span className="hidden rounded-full bg-mint/14 px-3 py-2 text-[0.7rem] font-extrabold text-mint sm:block">
+                ♛ แอดมิน
               </span>
               {sessionActive && (
                 <motion.button
                   whileTap={press}
                   onClick={onEndSession}
-                  className="h-10 rounded-full px-3.5 text-caption font-bold text-white/65 transition-colors duration-200 hover:bg-white/10 hover:text-white"
+                  className="hidden h-10 rounded-full border border-white/10 bg-white/8 px-3.5 text-caption font-bold text-white/80 transition-colors duration-200 hover:bg-white/14 hover:text-white sm:block"
                 >
                   ปิดสนาม
                 </motion.button>

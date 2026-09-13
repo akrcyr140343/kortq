@@ -26,6 +26,25 @@ function CourtMarks({ live }: { live: boolean }) {
   );
 }
 
+function MiniCourtScene() {
+  return (
+    <div aria-hidden className="relative mb-2 h-20 w-full max-w-[14rem]">
+      <span className="absolute left-1/2 top-0 z-10 -translate-x-1/2 -rotate-6 text-[2.6rem] drop-shadow-md">🏸</span>
+      <svg viewBox="0 0 240 90" className="absolute inset-x-0 bottom-0 w-full overflow-visible drop-shadow-[0_8px_8px_rgba(20,119,86,.16)]">
+        <defs>
+          <linearGradient id="court-card-green" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#67c983" />
+            <stop offset="1" stopColor="#1aa079" />
+          </linearGradient>
+        </defs>
+        <path d="M44 19h152l34 61H10l34-61Z" fill="url(#court-card-green)" stroke="#158b66" strokeWidth="2" />
+        <path d="M44 19 10 80M196 19l34 61M120 19v61M25 53h190M74 19 60 80M166 19l14 61" fill="none" stroke="white" strokeOpacity=".84" strokeWidth="1.5" />
+        <path d="M37 31h166" stroke="#0a6049" strokeWidth="2.5" />
+      </svg>
+    </div>
+  );
+}
+
 /** One side of the net. Player names are the loudest type in the card. */
 function Side({
   ids,
@@ -83,10 +102,12 @@ function Side({
               } ${selectable ? "cursor-pointer" : ""}`}
             >
               <SkillBadge skill={p.skill} />
-              <span className="min-w-0 flex-1 truncate text-body font-extrabold leading-tight text-ink">{p.name}</span>
-              {/* Finished-games count — always shown (incl. 0), smaller/quieter
-                  than the name and never truncated, so admins can eyeball load. */}
-              <span className="shrink-0 text-eyebrow font-semibold tabular-nums text-ink-4">· {p.gamesPlayed ?? 0} เกม</span>
+              <span className={`flex min-w-0 flex-1 flex-col gap-0.5 ${right ? "items-end" : "items-start"}`}>
+                <span className={`line-clamp-2 text-body font-extrabold leading-tight text-ink [overflow-wrap:anywhere] ${right ? "text-right" : ""}`}>{p.name}</span>
+                {/* Finished-games count stays visible below the name, so neither
+                    datum has to surrender horizontal space on three-card rows. */}
+                <span className="shrink-0 text-eyebrow font-semibold tabular-nums text-ink-4">{p.gamesPlayed ?? 0} เกม</span>
+              </span>
             </motion.div>
           );
         })}
@@ -176,14 +197,14 @@ export function CourtCard({
       whileHover={lift}
       style={staggerDelay(index + 1)}
       onClick={canDrop ? () => onAssignSelected(court.id) : undefined}
-      className={`court-grain anim-enter relative flex h-[22rem] flex-col overflow-hidden rounded-[28px] transition-all duration-200 sm:h-[22.5rem] ${
+      className={`court-grain anim-enter relative flex h-[24.5rem] flex-col overflow-hidden rounded-[26px] transition-all duration-200 sm:h-[25rem] ${
         occupied ? LIVE : E2
       } ${canDrop ? "tap-ready cursor-pointer" : ""} ${flash ? "flash-live" : ""} ${className}`}
     >
       <CourtMarks live={occupied} />
 
       <div aria-hidden className={`absolute -right-14 -top-14 h-40 w-40 rounded-full blur-3xl ${occupied ? "bg-mint-wash" : "bg-accent-wash"}`} />
-      <div className="relative flex flex-1 flex-col p-5">
+      <div className="relative flex flex-1 flex-col p-4 xl:p-5">
         {/* ── Identity left, clock right ───────────────────────────── */}
         <header className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -191,7 +212,7 @@ export function CourtCard({
               <span className="numeral text-title leading-none">{number}</span>
             </span>
             <div>
-              <span className="block text-xs font-extrabold text-ink">คอร์ต {court.index}</span>
+              <span className="section-heading block text-xs text-ink">คอร์ต {court.index}</span>
               <span className="mt-1 block text-[0.65rem] font-semibold text-ink-3">
                 {started ? "กำลังสนุกกันอยู่" : assigned ? "จัดผู้เล่นแล้ว · แตะเพื่อสลับ" : "พร้อมรับเกมใหม่"}
               </span>
@@ -276,6 +297,7 @@ export function CourtCard({
           <div className="mt-4 flex flex-1 flex-col">
             {/* Faded center mark — signals this is a playable slot, not a gap */}
             <div className="flex flex-1 flex-col items-center justify-center">
+              <MiniCourtScene />
               <span className="flex items-center gap-2 rounded-full bg-accent px-4 py-2 text-[0.68rem] font-extrabold tracking-[0.14em] text-mint shadow-[0_12px_24px_-16px_rgba(29,51,34,0.75)]">
                 <span className="h-2 w-2 rounded-full bg-mint" /> READY
               </span>

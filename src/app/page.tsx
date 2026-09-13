@@ -48,15 +48,32 @@ import { E2 } from "@/components/ui";
 function Stat({
   label,
   value,
+  unit,
+  tone,
 }: {
   label: string;
   value: string | number;
+  unit: string;
+  tone: "sky" | "coral" | "teal" | "blue" | "green";
 }) {
+  const toneClass = {
+    sky: "from-[#71c9ef] via-[#1494d5]",
+    coral: "from-[#ffc28f] via-[#f28b37]",
+    teal: "from-[#65d8c0] via-[#159d87]",
+    blue: "from-[#75c8f5] via-[#178bd0]",
+    green: "from-[#9bdd91] via-[#4caf45]",
+  }[tone];
+
   return (
-    <div className="e1 group relative w-[7.4rem] shrink-0 overflow-hidden rounded-[18px] px-4 py-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md sm:w-auto">
-      <span className="block truncate text-[0.68rem] font-bold text-ink-3">{label}</span>
-      <span className="numeral mt-1 block text-title leading-none text-ink">{value}</span>
-      <span aria-hidden className="absolute inset-x-4 bottom-0 h-0.5 rounded-full bg-mint/45" />
+    <div className="e1 stat-card group relative min-w-[7.5rem] flex-1 overflow-hidden rounded-[18px] px-4 py-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md sm:min-w-0">
+      <span aria-hidden className={`absolute inset-x-4 top-0 h-0.5 rounded-full bg-gradient-to-r ${toneClass} to-transparent`} />
+      <span className="block min-w-0">
+        <span className="block truncate text-[0.66rem] font-bold text-ink-3">{label}</span>
+        <span className="mt-0.5 flex items-baseline gap-1">
+          <span className="numeral text-title leading-none text-ink">{value}</span>
+          <span className="text-[0.62rem] font-semibold text-ink-3">{unit}</span>
+        </span>
+      </span>
     </div>
   );
 }
@@ -65,7 +82,6 @@ function StatBand({
   totalPlayers,
   waiting,
   playing,
-  resting,
   games,
   courtsActive,
   totalCourts,
@@ -73,19 +89,18 @@ function StatBand({
   totalPlayers: number;
   waiting: number;
   playing: number;
-  resting: number;
   games: number;
   courtsActive: number;
   totalCourts: number;
 }) {
   return (
-    <div className="scroll-pane anim-enter flex shrink-0 gap-2.5 overflow-x-auto pb-1 sm:grid sm:grid-cols-3 sm:overflow-visible sm:pb-0 lg:grid-cols-6">
-      <Stat label="ผู้เล่นทั้งหมด" value={totalPlayers} />
-      <Stat label="กำลังรอ" value={waiting} />
-      <Stat label="ลงสนาม" value={playing} />
-      <Stat label="นั่งพัก" value={resting} />
-      <Stat label="เล่นแล้ว" value={games} />
-      <Stat label="คอร์ตใช้งาน" value={`${courtsActive}/${totalCourts}`} />
+    <div className="scroll-pane anim-enter flex w-full min-w-0 shrink-0 gap-2 overflow-x-auto pb-1 sm:grid sm:grid-cols-3 sm:overflow-visible sm:pb-0 xl:grid-cols-6">
+      <Stat label="ผู้เล่นทั้งหมด" value={totalPlayers} unit="คน" tone="sky" />
+      <Stat label="กำลังรอ" value={waiting} unit="คน" tone="coral" />
+      <Stat label="สนามทั้งหมด" value={totalCourts} unit="คอร์ต" tone="teal" />
+      <Stat label="กำลังเล่น" value={playing} unit="คน" tone="blue" />
+      <Stat label="เล่นแล้ว" value={games} unit="เกม" tone="green" />
+      <Stat label="คอร์ตใช้งาน" value={`${courtsActive}/${totalCourts}`} unit="คอร์ต" tone="teal" />
     </div>
   );
 }
@@ -130,7 +145,7 @@ function MobileTabBar({
   ];
 
   return (
-    <nav className="app-bottom-nav fixed inset-x-3 z-50 mx-auto max-w-sm lg:hidden" aria-label="เมนูหลัก">
+    <nav className="app-bottom-nav fixed inset-x-3 z-50 mx-auto max-w-sm xl:hidden" aria-label="เมนูหลัก">
       <div className="grid grid-cols-2 gap-1 rounded-[24px] border border-white/10 bg-accent/95 p-1.5 shadow-[0_18px_42px_-12px_rgba(16,35,24,0.62)] backdrop-blur-xl">
         {tabs.map((tab) => {
           const selected = active === tab.id;
@@ -692,7 +707,7 @@ export default function Home() {
           : { active: false, label: null };
 
   return (
-    <div className="soft-grid flex min-h-dvh flex-col lg:h-dvh lg:min-h-0 lg:overflow-hidden">
+    <div className="app-shell flex min-h-dvh flex-col xl:h-dvh xl:min-h-0 xl:overflow-hidden">
       <Header
         session={session}
         onEndSession={handleEndSession}
@@ -726,36 +741,67 @@ export default function Home() {
       ) : !sessionActive ? (
         <StartSession />
       ) : (
-        <main className="mx-auto flex w-full max-w-[1700px] flex-1 flex-col gap-4 px-3 pb-28 pt-4 sm:px-5 lg:min-h-0 lg:pb-4">
-          <StatBand
-            totalPlayers={players.length}
-            waiting={assignable.length}
-            playing={playingCount}
-            resting={resting.length}
-            games={totalGamesPlayed}
-            courtsActive={activeCourts}
-            totalCourts={courts.length}
-          />
-
-          <div className="flex items-end justify-between lg:hidden">
+        <main className="mx-auto flex w-full min-w-0 max-w-[1600px] flex-1 flex-col gap-3 overflow-x-hidden px-3 pb-28 pt-3 sm:px-5 xl:min-h-0 xl:pb-4">
+          <div className="flex items-end justify-between xl:hidden">
             <div>
               <span className="text-[0.65rem] font-extrabold tracking-[0.14em] text-mint-deep">KD CLUB · LIVE</span>
-              <h1 className="display mt-1 text-title leading-none text-ink">{activeView === "courts" ? "สนามวันนี้" : "เพื่อนในคิว"}</h1>
+              <h1 className="display sport-title mt-1 text-title leading-none text-ink">{activeView === "courts" ? "สนามวันนี้" : "เพื่อนในคิว"}</h1>
             </div>
             <span className="rounded-full bg-mint-wash px-3 py-1.5 text-[0.68rem] font-extrabold text-mint-deep">
               {activeView === "courts" ? `${activeCourts}/${courts.length} กำลังใช้` : `${assignable.length} คนกำลังรอ`}
             </span>
           </div>
 
-          {/* Two independent columns: courts on the left, roster on the rail.
+          {/* Two independent columns: roster on the left, courts on the right.
               Each scrolls in its own pane on large screens, so a long queue
               can never stretch the courts beside it. */}
-          <div className="grid flex-1 gap-4 lg:min-h-0 lg:grid-cols-12">
-            <section className={`${activeView === "courts" ? "flex" : "hidden"} flex-col gap-4 lg:col-span-8 lg:flex lg:min-h-0`}>
+          <div className="grid min-w-0 flex-1 gap-4 xl:min-h-0 xl:grid-cols-[21rem_minmax(0,1fr)]">
+            <aside className={`${activeView === "queue" ? "block" : "hidden"} order-2 xl:order-1 xl:block xl:min-h-0`}>
+              <QueuePanel
+                waiting={assignable}
+                resting={resting}
+                isAdmin={isAdmin}
+                selectedIds={selectedIds}
+                pickActive={queuePick.active}
+                pickLabel={queuePick.label}
+                onAddPlayer={handleAddPlayer}
+                onOpenRegistry={() => setShowRegistry(true)}
+                onToggleSelect={handleWaitingTap}
+                onRest={handleRest}
+                onResume={handleResume}
+                onDelete={handleDelete}
+              />
+            </aside>
+
+            <section className={`${activeView === "courts" ? "flex" : "hidden"} order-1 min-w-0 flex-col gap-3 xl:order-2 xl:flex xl:min-h-0`}>
+              <StatBand
+                totalPlayers={players.length}
+                waiting={assignable.length}
+                playing={playingCount}
+                games={totalGamesPlayed}
+                courtsActive={activeCourts}
+                totalCourts={courts.length}
+              />
+
+              <div className="dashboard-title hidden shrink-0 items-end justify-between px-2 xl:flex">
+                <div>
+                  <span className="text-[0.62rem] font-extrabold tracking-[0.18em] text-mint-deep">KD CLUB · LET&apos;S PLAY</span>
+                  <h1 className="display sport-title mt-1 text-h3 leading-none text-accent-deep">เลือกคอร์ต แล้วไปตีด้วยกัน!</h1>
+                </div>
+                <span className="rounded-full border border-mint-deep/15 bg-white/75 px-3 py-1.5 text-[0.68rem] font-extrabold text-mint-deep shadow-sm backdrop-blur-sm">
+                  พร้อมเมื่อไหร่ กดเลือกผู้เล่นได้เลย 🏸
+                </span>
+              </div>
+
               {/* Courts first, then the staged next game beneath them — the
                   member reading order: playing/starting → เกมถัดไป → queue. */}
-              <div className="scroll-pane flex flex-col gap-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1.5">
-                <div className="grid auto-rows-min gap-4 sm:grid-cols-2">
+              <div className="scroll-pane flex flex-col gap-3 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1.5">
+                {/* Courts and the staged next game share ONE grid so "เกมถัดไป"
+                    tracks the real court count instead of stretching full-width:
+                    with 2 courts it spans 2 columns (aligned under them, the 3rd
+                    column left open); with 3 it spans all three. Column count and
+                    the Next Up span are driven purely by CSS off data-courts. */}
+                <div className="court-grid grid auto-rows-min gap-3 sm:grid-cols-2" data-courts={courts.length}>
                   {courts.map((court, i) => (
                     <CourtCard
                       key={court.id}
@@ -779,52 +825,37 @@ export default function Home() {
                       index={i}
                     />
                   ))}
-                </div>
 
-                <NextUpCard
-                  isAdmin={isAdmin}
-                  teamA={nextUpTeamA}
-                  teamB={nextUpTeamB}
-                  count={nextUpCount}
-                  pairWarn={teamPairWarn}
-                  selectedId={nextUpSel}
-                  canStageFair={waiting.length >= 4}
-                  canCreate={allCourtsAssigned}
-                  picking={nextUpPicking}
-                  swapActive={nextUpSel != null}
-                  onStageFair={handleStageFair}
-                  onStartManual={handleStartManual}
-                  onCancelManual={handleCancelManual}
-                  onClear={handleClearNext}
-                  onPlayerTap={handleNextUpPlayerTap}
-                  onRemovePlayer={handleRemoveFromNext}
-                />
+                  <div className="next-up-cell" data-courts={courts.length}>
+                    <NextUpCard
+                      isAdmin={isAdmin}
+                      teamA={nextUpTeamA}
+                      teamB={nextUpTeamB}
+                      count={nextUpCount}
+                      pairWarn={teamPairWarn}
+                      selectedId={nextUpSel}
+                      canStageFair={waiting.length >= 4}
+                      canCreate={allCourtsAssigned}
+                      picking={nextUpPicking}
+                      swapActive={nextUpSel != null}
+                      onStageFair={handleStageFair}
+                      onStartManual={handleStartManual}
+                      onCancelManual={handleCancelManual}
+                      onClear={handleClearNext}
+                      onPlayerTap={handleNextUpPlayerTap}
+                      onRemovePlayer={handleRemoveFromNext}
+                    />
+                  </div>
+                </div>
               </div>
             </section>
-
-            <aside className={`${activeView === "queue" ? "block" : "hidden"} lg:col-span-4 lg:block lg:min-h-0`}>
-              <QueuePanel
-                waiting={assignable}
-                resting={resting}
-                isAdmin={isAdmin}
-                selectedIds={selectedIds}
-                pickActive={queuePick.active}
-                pickLabel={queuePick.label}
-                onAddPlayer={handleAddPlayer}
-                onOpenRegistry={() => setShowRegistry(true)}
-                onToggleSelect={handleWaitingTap}
-                onRest={handleRest}
-                onResume={handleResume}
-                onDelete={handleDelete}
-              />
-            </aside>
           </div>
         </main>
       )}
 
       {/* ── Selection bar — names, not just a count ────────────────── */}
       {isAdmin && sessionActive && selectedPlayers.length > 0 && (
-        <div className="anim-rise sticky bottom-[calc(5.2rem+env(safe-area-inset-bottom))] z-30 shrink-0 px-3 pb-3 sm:px-5 lg:bottom-0">
+        <div className="anim-rise sticky bottom-[calc(5.2rem+env(safe-area-inset-bottom))] z-30 shrink-0 px-3 pb-3 sm:px-5 xl:bottom-0">
           <div className="club-panel mx-auto flex max-w-[1700px] items-center gap-3 rounded-[22px] px-3 py-2.5 sm:px-4">
             <span className="numeral grid h-11 min-w-11 shrink-0 place-items-center rounded-[15px] bg-mint text-lede leading-none text-accent-deep shadow-[0_10px_20px_-12px_rgba(121,174,12,0.8)]">
               {selectedPlayers.length}
@@ -862,7 +893,7 @@ export default function Home() {
               <motion.button
                 whileTap={press}
                 onClick={() => setActiveView("courts")}
-                className="lime-button h-10 shrink-0 rounded-full px-4 text-caption font-extrabold lg:hidden"
+                className="lime-button h-10 shrink-0 rounded-full px-4 text-caption font-extrabold xl:hidden"
               >
                 ไปสนาม
               </motion.button>

@@ -147,14 +147,17 @@ export function NextUpCard({
   const warnB = pairWarn ? pairWarn(teamB.map((p) => p.id)) : 0;
 
   return (
-    <section className={`${E2} anim-enter shrink-0 overflow-hidden rounded-[24px] p-4`} style={staggerDelay(2)}>
+    <section className={`${E2} anim-enter shrink-0 overflow-hidden rounded-[24px] p-4 ${empty ? "lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(18rem,.72fr)] lg:items-center lg:gap-4" : ""}`} style={staggerDelay(2)}>
       {/* ── Header ─────────────────────────────────────────────────── */}
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div>
-          <span className="block text-sm font-extrabold text-ink">เกมถัดไป</span>
-          <span className="mt-0.5 block text-[0.66rem] font-medium text-ink-3">
-            {empty ? "ยังไม่ได้กำหนด" : complete ? "พร้อมส่งลงคอร์ตที่ว่าง" : "จัดเตรียมอยู่"}
-          </span>
+      <div className={`flex items-center justify-between gap-3 ${empty ? "mb-3 lg:mb-0" : "mb-3"}`}>
+        <div className="flex items-center gap-3">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-mint-wash text-2xl shadow-sm ring-1 ring-inset ring-mint/20">🏸</span>
+          <div>
+            <span className="section-heading block text-sm text-ink">เกมถัดไป</span>
+            <span className="mt-0.5 block text-[0.66rem] font-medium text-ink-3">
+              {empty ? "ยังไม่ได้กำหนด" : complete ? "พร้อมส่งลงคอร์ตที่ว่าง" : "จัดเตรียมอยู่"}
+            </span>
+          </div>
         </div>
         <span
           className={`numeral grid h-10 min-w-10 place-items-center rounded-[14px] px-2 text-lede leading-none ring-1 ring-inset ${
