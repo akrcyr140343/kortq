@@ -29,6 +29,16 @@ function CalendarGlyph() {
   );
 }
 
+/** Power glyph — closing the session for the day ("ปิดสนาม"). */
+function PowerGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden>
+      <path d="M12 3.5v7.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M7.6 6.6a7 7 0 1 0 8.8 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function Header({
   session,
   onEndSession,
@@ -98,9 +108,11 @@ export function Header({
                 <motion.button
                   whileTap={press}
                   onClick={onEndSession}
-                  className="hidden h-10 rounded-full border border-white/10 bg-white/8 px-3.5 text-caption font-bold text-white/80 transition-colors duration-200 hover:bg-white/14 hover:text-white sm:block"
+                  aria-label="ปิดสนาม"
+                  className="flex h-10 items-center gap-1.5 rounded-full border border-white/10 bg-white/8 px-3 text-caption font-bold text-white/80 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/14 hover:text-white sm:px-3.5"
                 >
-                  ปิดสนาม
+                  <PowerGlyph />
+                  <span className="hidden sm:inline">ปิดสนาม</span>
                 </motion.button>
               )}
               <motion.button

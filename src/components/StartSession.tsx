@@ -9,7 +9,6 @@ import { press, staggerDelay } from "./motion";
 function CourtChoiceArt({ active }: { active: boolean }) {
   return (
     <div className="relative h-20 w-full max-w-[13rem]" aria-hidden>
-      <span className={`absolute left-1/2 top-0 z-10 -translate-x-1/2 text-[2.7rem] drop-shadow-sm transition-transform duration-200 ${active ? "-rotate-6 scale-110" : "rotate-6 opacity-70"}`}>🏸</span>
       <svg viewBox="0 0 220 84" className="absolute inset-x-0 bottom-0 w-full overflow-visible">
         <defs>
           <linearGradient id={active ? "court-active" : "court-idle"} x1="0" y1="0" x2="1" y2="1">

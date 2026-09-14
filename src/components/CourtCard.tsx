@@ -29,7 +29,6 @@ function CourtMarks({ live }: { live: boolean }) {
 function MiniCourtScene() {
   return (
     <div aria-hidden className="relative mb-2 h-20 w-full max-w-[14rem]">
-      <span className="absolute left-1/2 top-0 z-10 -translate-x-1/2 -rotate-6 text-[2.6rem] drop-shadow-md">🏸</span>
       <svg viewBox="0 0 240 90" className="absolute inset-x-0 bottom-0 w-full overflow-visible drop-shadow-[0_8px_8px_rgba(20,119,86,.16)]">
         <defs>
           <linearGradient id="court-card-green" x1="0" y1="0" x2="1" y2="1">
