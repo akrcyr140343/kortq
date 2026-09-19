@@ -92,7 +92,7 @@ export function Header({
               whileTap={press}
               onClick={onOpenHistory}
               aria-label="ประวัติการเล่น"
-              className="flex h-10 items-center gap-1.5 rounded-full border border-white/15 bg-white/8 px-3 text-caption font-bold text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/14 sm:px-4"
+              className="relative flex h-10 items-center gap-1.5 rounded-full border border-white/15 bg-white/8 px-3 text-caption font-bold text-white transition-all duration-200 before:absolute before:-inset-y-0.5 before:inset-x-0 before:content-[''] hover:-translate-y-0.5 hover:bg-white/14 sm:px-4"
             >
               <HistoryGlyph />
               <span className="hidden sm:inline">ประวัติ</span>
@@ -109,7 +109,7 @@ export function Header({
                   whileTap={press}
                   onClick={onEndSession}
                   aria-label="ปิดสนาม"
-                  className="flex h-10 items-center gap-1.5 rounded-full border border-white/10 bg-white/8 px-3 text-caption font-bold text-white/80 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/14 hover:text-white sm:px-3.5"
+                  className="relative flex h-10 items-center gap-1.5 rounded-full border border-white/10 bg-white/8 px-3 text-caption font-bold text-white/80 transition-all duration-200 before:absolute before:-inset-y-0.5 before:inset-x-0 before:content-[''] hover:-translate-y-0.5 hover:bg-white/14 hover:text-white sm:px-3.5"
                 >
                   <PowerGlyph />
                   <span className="hidden sm:inline">ปิดสนาม</span>
@@ -118,7 +118,7 @@ export function Header({
               <motion.button
                 whileTap={press}
                 onClick={lock}
-                className="h-10 rounded-full border border-white/15 bg-white/8 px-4 text-caption font-bold text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/14"
+                className="relative h-10 rounded-full border border-white/15 bg-white/8 px-4 text-caption font-bold text-white transition-all duration-200 before:absolute before:-inset-y-0.5 before:inset-x-0 before:content-[''] hover:-translate-y-0.5 hover:bg-white/14"
               >
                 ล็อค
               </motion.button>

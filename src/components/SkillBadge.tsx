@@ -16,7 +16,7 @@ const TIER: Record<Skill, string> = {
 export function SkillBadge({ skill, className = "" }: { skill: Skill; className?: string }) {
   return (
     <span
-      className={`inline-flex h-6 shrink-0 items-center justify-center rounded-full px-2 text-[0.65rem] font-extrabold tracking-wide ring-1 ring-inset ${TIER[skill]} ${className}`}
+      className={`inline-flex h-6 shrink-0 items-center justify-center rounded-full px-2 text-eyebrow font-extrabold tracking-wide ring-1 ring-inset ${TIER[skill]} ${className}`}
     >
       {skill}
     </span>

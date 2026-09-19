@@ -34,7 +34,7 @@ function NextUpSide({
   const warn = warnCount > 0;
   return (
     <div className={`flex min-w-0 flex-1 flex-col gap-2.5 ${right ? "items-end" : "items-start"}`}>
-      <span className={`rounded-full px-2.5 py-1 text-[0.62rem] font-extrabold ${right ? "bg-sky-wash text-sky-deep" : "bg-coral-wash text-coral-deep"}`}>{label}</span>
+      <span className={`rounded-full px-2.5 py-1 text-eyebrow font-extrabold ${right ? "bg-sky-wash text-sky-deep" : "bg-coral-wash text-coral-deep"}`}>{label}</span>
       <div className="flex w-full flex-col gap-2">
         {players.map((p, i) => {
           const chosen = selectedId === p.id;
@@ -44,7 +44,7 @@ function NextUpSide({
               whileTap={isAdmin ? press : undefined}
               onClick={isAdmin ? () => onPlayerTap(p.id) : undefined}
               style={staggerDelay(i, 0.06)}
-              className={`anim-pop flex min-w-0 items-center gap-2 rounded-[13px] border px-2.5 py-2 shadow-[0_8px_18px_-16px_rgba(32,35,63,0.45)] transition-all duration-150 ${
+              className={`anim-pop flex min-h-11 min-w-0 items-center gap-2 rounded-[13px] border px-2.5 py-2 shadow-[0_8px_18px_-16px_rgba(32,35,63,0.45)] transition-all duration-150 ${
                 right ? "flex-row-reverse" : ""
               } ${
                 chosen
@@ -83,11 +83,13 @@ function NextUpSide({
                     e.stopPropagation();
                     onRemove(p.id);
                   }}
-                  className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-ink-4 transition-colors duration-200 hover:bg-alert-wash hover:text-alert"
+                  className="group -my-2 grid h-11 w-11 shrink-0 place-items-center text-ink-4"
                 >
-                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" aria-hidden>
-                    <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-                  </svg>
+                  <span className="grid h-6 w-6 place-items-center rounded-full transition-colors duration-200 group-hover:bg-alert-wash group-hover:text-alert">
+                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" aria-hidden>
+                      <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+                    </svg>
+                  </span>
                 </button>
               )}
             </motion.div>

@@ -73,7 +73,7 @@ export function AddPlayerForm({
               type="button"
               whileTap={press}
               onClick={() => setSkill(s)}
-              className={`h-9 rounded-[11px] text-xs font-extrabold transition-all duration-200 ${
+              className={`relative h-9 rounded-[11px] text-xs font-extrabold transition-all duration-200 before:absolute before:-inset-y-1 before:inset-x-0 before:content-[''] ${
                 active ? ACTIVE_TIER[s] : "text-ink-3 hover:bg-white hover:text-ink hover:shadow-sm"
               }`}
             >

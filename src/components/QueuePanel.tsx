@@ -15,11 +15,13 @@ function DeleteButton({ onClick }: { onClick: (e: React.MouseEvent) => void }) {
       onClick={onClick}
       title="ลบผู้เล่น"
       aria-label="ลบผู้เล่น"
-      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink-4 transition-colors duration-200 hover:bg-alert-wash hover:text-alert"
+      className="group relative -my-1 -mr-1 grid h-11 w-11 shrink-0 place-items-center text-ink-4 before:absolute before:inset-0 before:content-['']"
     >
-      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden>
-        <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      </svg>
+      <span className="grid h-9 w-9 place-items-center rounded-full transition-colors duration-200 group-hover:bg-alert-wash group-hover:text-alert">
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden>
+          <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      </span>
     </motion.button>
   );
 }
@@ -35,9 +37,11 @@ function TextButton({
     <motion.button
       whileTap={press}
       onClick={onClick}
-      className="h-9 shrink-0 rounded-full px-2.5 text-eyebrow font-bold text-ink-3 transition-colors duration-200 hover:bg-accent-wash hover:text-accent-deep"
+      className="group relative -my-1 grid h-11 shrink-0 place-items-center before:absolute before:inset-0 before:content-['']"
     >
-      {children}
+      <span className="flex h-9 items-center rounded-full px-2.5 text-eyebrow font-bold text-ink-3 transition-colors duration-200 group-hover:bg-accent-wash group-hover:text-accent-deep">
+        {children}
+      </span>
     </motion.button>
   );
 }

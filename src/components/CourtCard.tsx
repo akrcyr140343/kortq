@@ -68,7 +68,7 @@ function Side({
   const warn = warnCount > 0;
   return (
     <div className={`flex min-w-0 flex-1 flex-col gap-2.5 ${right ? "items-end" : "items-start"}`}>
-      <span className={`rounded-full px-2.5 py-1 text-[0.62rem] font-extrabold ${right ? "bg-sky-wash text-sky-deep" : "bg-coral-wash text-coral-deep"}`}>{label}</span>
+      <span className={`rounded-full px-2.5 py-1 text-eyebrow font-extrabold ${right ? "bg-sky-wash text-sky-deep" : "bg-coral-wash text-coral-deep"}`}>{label}</span>
       <div className="flex w-full flex-col gap-2">
         {ids.map((id, i) => {
           const p = byId.get(id);
@@ -212,7 +212,7 @@ export function CourtCard({
             </span>
             <div>
               <span className="section-heading block text-xs text-ink">คอร์ต {court.index}</span>
-              <span className="mt-1 block text-[0.65rem] font-semibold text-ink-3">
+              <span className="mt-1 block text-eyebrow font-semibold text-ink-3">
                 {started ? "กำลังสนุกกันอยู่" : assigned ? "จัดผู้เล่นแล้ว · แตะเพื่อสลับ" : "พร้อมรับเกมใหม่"}
               </span>
             </div>
@@ -221,9 +221,9 @@ export function CourtCard({
           {started && court.startedAt != null ? (
             <CourtTimer startedAt={court.startedAt} />
           ) : assigned ? (
-            <span className="mt-1 flex items-center gap-1.5 rounded-full bg-accent-wash px-3 py-1.5 text-[0.65rem] font-extrabold text-accent"><span className="h-1.5 w-1.5 rounded-full bg-accent" />รอเริ่มเกม</span>
+            <span className="mt-1 flex items-center gap-1.5 rounded-full bg-accent-wash px-3 py-1.5 text-eyebrow font-extrabold text-accent"><span className="h-1.5 w-1.5 rounded-full bg-accent" />รอเริ่มเกม</span>
           ) : (
-            <span className="mt-1 flex items-center gap-1.5 rounded-full bg-mint-wash px-3 py-1.5 text-[0.65rem] font-extrabold text-mint-deep"><span className="h-1.5 w-1.5 rounded-full bg-mint" />ว่าง</span>
+            <span className="mt-1 flex items-center gap-1.5 rounded-full bg-mint-wash px-3 py-1.5 text-eyebrow font-extrabold text-mint-deep"><span className="h-1.5 w-1.5 rounded-full bg-mint" />ว่าง</span>
           )}
         </header>
 

@@ -71,7 +71,7 @@ function Stat({
         <span className="block truncate text-[0.66rem] font-bold text-ink-3">{label}</span>
         <span className="mt-0.5 flex items-baseline gap-1">
           <span className="numeral text-title leading-none text-ink">{value}</span>
-          <span className="text-[0.62rem] font-semibold text-ink-3">{unit}</span>
+          <span className="text-eyebrow font-semibold text-ink-3">{unit}</span>
         </span>
       </span>
     </div>
@@ -161,7 +161,7 @@ function MobileTabBar({
             >
               {tab.icon}
               <span>{tab.label}</span>
-              <span className={`numeral grid h-5 min-w-5 place-items-center rounded-full px-1 text-[0.62rem] ${selected ? "bg-accent/10" : "bg-white/10"}`}>
+              <span className={`numeral grid h-5 min-w-5 place-items-center rounded-full px-1 text-eyebrow ${selected ? "bg-accent/10" : "bg-white/10"}`}>
                 {tab.count}
               </span>
             </motion.button>
@@ -744,7 +744,7 @@ export default function Home() {
         <main className="mx-auto flex w-full min-w-0 max-w-[1600px] flex-1 flex-col gap-3 overflow-x-hidden px-3 pb-28 pt-3 sm:px-5 xl:min-h-0 xl:pb-4">
           <div className="flex items-end justify-between xl:hidden">
             <div>
-              <span className="text-[0.65rem] font-extrabold tracking-[0.14em] text-mint-deep">KD CLUB · LIVE</span>
+              <span className="text-eyebrow font-extrabold tracking-[0.14em] text-mint-deep">KD CLUB · LIVE</span>
               <h1 className="display sport-title mt-1 text-title leading-none text-ink">{activeView === "courts" ? "สนามวันนี้" : "เพื่อนในคิว"}</h1>
             </div>
             <span className="rounded-full bg-mint-wash px-3 py-1.5 text-[0.68rem] font-extrabold text-mint-deep">
@@ -785,7 +785,7 @@ export default function Home() {
 
               <div className="dashboard-title hidden shrink-0 items-end justify-between px-2 xl:flex">
                 <div>
-                  <span className="text-[0.62rem] font-extrabold tracking-[0.18em] text-mint-deep">KD CLUB · LET&apos;S PLAY</span>
+                  <span className="text-eyebrow font-extrabold tracking-[0.18em] text-mint-deep">KD CLUB · LET&apos;S PLAY</span>
                   <h1 className="display sport-title mt-1 text-h3 leading-none text-accent-deep">เลือกคอร์ต แล้วไปตีด้วยกัน!</h1>
                 </div>
                 <span className="rounded-full border border-mint-deep/15 bg-white/75 px-3 py-1.5 text-[0.68rem] font-extrabold text-mint-deep shadow-sm backdrop-blur-sm">
@@ -883,7 +883,7 @@ export default function Home() {
                 whileTap={selectedPlayers.length === 4 ? press : undefined}
                 onClick={() => handleStageSelected()}
                 disabled={selectedPlayers.length !== 4}
-                className="h-10 shrink-0 rounded-full border border-mint/30 bg-white/8 px-4 text-caption font-extrabold text-mint transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/14 disabled:cursor-not-allowed disabled:border-white/10 disabled:text-white/35 disabled:hover:translate-y-0 disabled:hover:bg-white/8"
+                className="relative h-10 shrink-0 rounded-full border border-mint/30 bg-white/8 px-4 text-caption font-extrabold text-mint transition-all duration-200 before:absolute before:-inset-y-0.5 before:inset-x-0 before:content-[''] hover:-translate-y-0.5 hover:bg-white/14 disabled:cursor-not-allowed disabled:border-white/10 disabled:text-white/35 disabled:hover:translate-y-0 disabled:hover:bg-white/8"
               >
                 ตั้งเป็นเกมถัดไป
               </motion.button>
@@ -893,7 +893,7 @@ export default function Home() {
               <motion.button
                 whileTap={press}
                 onClick={() => setActiveView("courts")}
-                className="lime-button h-10 shrink-0 rounded-full px-4 text-caption font-extrabold xl:hidden"
+                className="lime-button relative h-10 shrink-0 rounded-full px-4 text-caption font-extrabold before:absolute before:-inset-y-0.5 before:inset-x-0 before:content-[''] xl:hidden"
               >
                 ไปสนาม
               </motion.button>
@@ -905,7 +905,7 @@ export default function Home() {
                 setSelectedIds(new Set());
                 setNextUpPicking(false);
               }}
-              className="h-10 shrink-0 rounded-full border border-line bg-white px-4 text-caption font-bold text-ink-2 shadow-sm transition-colors duration-200 hover:border-alert/25 hover:bg-alert-wash hover:text-alert"
+              className="relative h-10 shrink-0 rounded-full border border-line bg-white px-4 text-caption font-bold text-ink-2 shadow-sm transition-colors duration-200 before:absolute before:-inset-y-0.5 before:inset-x-0 before:content-[''] hover:border-alert/25 hover:bg-alert-wash hover:text-alert"
             >
               ล้าง
             </motion.button>

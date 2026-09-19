@@ -55,7 +55,6 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1, // keep the courtside UI stable — no pinch-zoom drift
   viewportFit: "cover",
   themeColor: "#f4f6ed",
 };
