@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { motion } from "framer-motion";
-import { press } from "./motion";
+import { motion, useIsPresent } from "framer-motion";
+import { popOut, press } from "./motion";
 import { E3 } from "./ui";
 
 /**
@@ -31,6 +31,8 @@ export function ConfirmModal({
   onCancel: () => void;
 }) {
   const [mounted, setMounted] = useState(false);
+  // While animating out, the dialog is already answered: ignore keys/taps.
+  const present = useIsPresent();
 
   // Portal target (document.body) only exists on the client.
   useEffect(() => setMounted(true), []);
@@ -40,6 +42,7 @@ export function ConfirmModal({
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKey = (e: KeyboardEvent) => {
+      if (!present) return;
       if (e.key === "Escape") (showCancel ? onCancel : onConfirm)();
       if (e.key === "Enter") onConfirm();
     };
@@ -48,20 +51,27 @@ export function ConfirmModal({
       document.body.style.overflow = prev;
       window.removeEventListener("keydown", onKey);
     };
-  }, [showCancel, onConfirm, onCancel]);
+  }, [showCancel, onConfirm, onCancel, present]);
 
   if (!mounted) return null;
 
   const danger = tone === "danger";
 
   const modal = (
-    <div
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1, transition: { duration: 0.2 } }}
+      exit={{ opacity: 0, transition: popOut }}
+      style={present ? undefined : { pointerEvents: "none" }}
       className="fixed inset-0 z-[120] overflow-y-auto bg-accent-deep/35 backdrop-blur-md"
       onClick={showCancel ? onCancel : onConfirm}
     >
       <div className="flex min-h-dvh items-center justify-center p-4">
-        <div
-          className={`${E3} anim-pop relative w-full max-w-xs overflow-hidden rounded-[28px] p-6`}
+        <motion.div
+          initial={{ opacity: 0, y: 18, scale: 0.94 }}
+          animate={{ opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 460, damping: 32 } }}
+          exit={{ opacity: 0, y: 8, scale: 0.97, transition: popOut }}
+          className={`${E3} relative w-full max-w-xs overflow-hidden rounded-[28px] p-6`}
           onClick={(e) => e.stopPropagation()}
         >
           <div
@@ -93,9 +103,9 @@ export function ConfirmModal({
               {confirmLabel}
             </motion.button>
           </div>
-        </div>
+        </motion.div>
       </div>
-    </div>
+    </motion.div>
   );
 
   return createPortal(modal, document.body);

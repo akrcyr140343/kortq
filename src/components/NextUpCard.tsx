@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 import type { Player } from "@/lib/types";
 import { SkillBadge } from "./SkillBadge";
-import { press, staggerDelay } from "./motion";
+import { press, staggerDelay, trackBusy } from "./motion";
+import { Tick } from "./Tick";
 import { E2 } from "./ui";
 
 /**
@@ -41,10 +43,13 @@ function NextUpSide({
           return (
             <motion.div
               key={p.id}
+              data-flip-id={p.id}
+              data-flip-place={`next:${right ? "b" : "a"}`}
               whileTap={isAdmin ? press : undefined}
               onClick={isAdmin ? () => onPlayerTap(p.id) : undefined}
-              style={staggerDelay(i, 0.06)}
-              className={`anim-pop flex min-h-11 min-w-0 items-center gap-2 rounded-[13px] border px-2.5 py-2 shadow-[0_8px_18px_-16px_rgba(32,35,63,0.45)] transition-all duration-150 ${
+              // Dealt like cards, alternating sides: A1, B1, A2, B2.
+              style={staggerDelay(i * 2 + (right ? 1 : 0), 0.05)}
+              className={`anim-pop relative flex min-h-11 min-w-0 items-center gap-2 rounded-[13px] border px-2.5 py-2 shadow-[0_8px_18px_-16px_rgba(32,35,63,0.45)] transition-all duration-150 ${
                 right ? "flex-row-reverse" : ""
               } ${
                 chosen
@@ -54,6 +59,8 @@ function NextUpSide({
                     : "border-white/80 bg-white/72"
               } ${isAdmin ? "cursor-pointer" : ""}`}
             >
+              {/* Picked for a swap: one ring ripples out from the chip. */}
+              {chosen && <span aria-hidden className="anim-ping pointer-events-none absolute inset-0 rounded-[13px]" />}
               <SkillBadge skill={p.skill} />
               {/* Name is the priority datum. On narrow mobile (two teams share a
                   row) it keeps full size and wraps to 2 lines before truncating,
@@ -147,6 +154,9 @@ export function NextUpCard({
   // a side holds a full pair (advisory only — never blocks promote).
   const warnA = pairWarn ? pairWarn(teamA.map((p) => p.id)) : 0;
   const warnB = pairWarn ? pairWarn(teamB.map((p) => p.id)) : 0;
+  // Fair staging reads fresh history on the server: show it working.
+  const [staging, setStaging] = useState(false);
+  const stageFair = () => trackBusy(onStageFair(), setStaging);
 
   return (
     <section className={`${E2} anim-enter shrink-0 overflow-hidden rounded-[24px] p-4 ${empty ? "lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(18rem,.72fr)] lg:items-center lg:gap-4" : ""}`} style={staggerDelay(2)}>
@@ -156,17 +166,20 @@ export function NextUpCard({
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-mint-wash text-2xl shadow-sm ring-1 ring-inset ring-mint/20">🏸</span>
           <div>
             <span className="section-heading block text-sm text-ink">เกมถัดไป</span>
-            <span className="mt-0.5 block text-[0.66rem] font-medium text-ink-3">
+            <span key={empty ? "empty" : complete ? "complete" : "filling"} className="anim-status mt-0.5 block text-[0.66rem] font-medium text-ink-3">
               {empty ? "ยังไม่ได้กำหนด" : complete ? "พร้อมส่งลงคอร์ตที่ว่าง" : "จัดเตรียมอยู่"}
             </span>
           </div>
         </div>
         <span
+          key={complete ? "complete" : "filling"}
           className={`numeral grid h-10 min-w-10 place-items-center rounded-[14px] px-2 text-lede leading-none ring-1 ring-inset ${
-            complete ? "bg-mint-wash text-mint-deep ring-mint/25" : "bg-accent-wash text-accent ring-accent/20"
+            complete ? "anim-bump bg-mint-wash text-mint-deep ring-mint/25" : "bg-accent-wash text-accent ring-accent/20"
           }`}
         >
-          {count}/4
+          <span>
+            <Tick value={count} />/4
+          </span>
         </span>
       </div>
 
@@ -174,13 +187,13 @@ export function NextUpCard({
         isAdmin ? (
           !canCreate ? (
             // Gate (rule 1): can't book a next game until every court is filled.
-            <div className="rounded-[18px] border border-dashed border-accent/20 bg-accent-wash/50 px-4 py-6 text-center">
+            <div className="anim-enter rounded-[18px] border border-dashed border-accent/20 bg-accent-wash/50 px-4 py-6 text-center">
               <p className="text-body font-extrabold text-ink-2">จัดผู้เล่นลงคอร์ตให้ครบก่อน</p>
               <p className="mt-1 text-caption text-ink-3">จึงจะตั้งเกมถัดไปได้</p>
             </div>
           ) : picking ? (
             // Manual "เลือกเอง" flow: pick 4 from the queue, confirm in the bar.
-            <div className="space-y-2.5">
+            <div className="anim-enter space-y-2.5">
               <p className="rounded-[12px] bg-accent-wash px-3 py-2 text-[0.68rem] font-semibold leading-relaxed text-accent-deep">
                 แตะเลือก 4 คนจากคิว แล้วกด “ตั้งเป็นเกมถัดไป” ด้านล่าง
               </p>
@@ -193,12 +206,12 @@ export function NextUpCard({
               </motion.button>
             </div>
           ) : (
-            <div className="space-y-2.5">
+            <div className="anim-enter space-y-2.5">
               <motion.button
                 whileTap={canStageFair ? press : undefined}
-                onClick={canStageFair ? onStageFair : undefined}
+                onClick={canStageFair ? stageFair : undefined}
                 disabled={!canStageFair}
-                className="shine-button flex h-12 w-full items-center justify-between rounded-[15px] bg-gradient-to-r from-accent to-accent-2 px-4 text-white shadow-[0_12px_24px_-14px_rgba(108,92,231,0.8)] transition-all duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:bg-none disabled:bg-line disabled:text-ink-4 disabled:shadow-none"
+                className={`${staging ? "kq-busy" : ""} shine-button flex h-12 w-full items-center justify-between rounded-[15px] bg-gradient-to-r from-accent to-accent-2 px-4 text-white shadow-[0_12px_24px_-14px_rgba(108,92,231,0.8)] transition-all duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:bg-none disabled:bg-line disabled:text-ink-4 disabled:shadow-none`}
               >
                 <span className="text-caption font-bold">จับแฟร์</span>
                 <span className="text-eyebrow opacity-70">เลือกให้ 4 คน · แบ่งทีม</span>
@@ -218,7 +231,7 @@ export function NextUpCard({
             </div>
           )
         ) : (
-          <div className="rounded-[18px] border border-dashed border-accent/20 bg-accent-wash/50 px-4 py-6 text-center">
+          <div className="anim-enter rounded-[18px] border border-dashed border-accent/20 bg-accent-wash/50 px-4 py-6 text-center">
             <p className="text-body font-extrabold text-ink-2">แอดมินยังไม่ได้กำหนดเกมถัดไป</p>
             <p className="mt-1 text-caption text-ink-3">รอประกาศชุดถัดไปได้เลย</p>
           </div>
@@ -250,14 +263,14 @@ export function NextUpCard({
           </div>
 
           {!complete && (
-            <p className="mt-3 rounded-[12px] bg-alert-wash px-3 py-2 text-[0.68rem] font-semibold text-alert">
+            <p className="anim-status mt-3 rounded-[12px] bg-alert-wash px-3 py-2 text-[0.68rem] font-semibold text-alert">
               ผู้เล่นไม่ครบ ({count}/4){isAdmin ? " · แตะคนในคิวเพื่อเพิ่ม" : ""}
             </p>
           )}
 
           {isAdmin && (
             <>
-              <p className="mt-3 rounded-[12px] bg-accent-wash px-3 py-2 text-[0.66rem] font-semibold leading-relaxed text-accent-deep">
+              <p key={swapActive ? "swap" : "idle"} className="anim-status mt-3 rounded-[12px] bg-accent-wash px-3 py-2 text-[0.66rem] font-semibold leading-relaxed text-accent-deep">
                 {swapActive
                   ? "แตะอีกคนในเกมถัดไปเพื่อสลับทีม หรือแตะคนในคิวเพื่อเปลี่ยนตัว"
                   : "แตะผู้เล่นเพื่อสลับทีม / เปลี่ยนตัว · ✕ เพื่อเอาออก"}
@@ -272,9 +285,9 @@ export function NextUpCard({
                 </motion.button>
                 <motion.button
                   whileTap={canStageFair ? press : undefined}
-                  onClick={canStageFair ? onStageFair : undefined}
+                  onClick={canStageFair ? stageFair : undefined}
                   disabled={!canStageFair}
-                  className="h-11 flex-1 rounded-[14px] border border-accent/25 bg-accent-wash text-caption font-bold text-accent-deep transition-all duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:border-line disabled:bg-canvas disabled:text-ink-4"
+                  className={`${staging ? "kq-busy" : ""} h-11 flex-1 rounded-[14px] border border-accent/25 bg-accent-wash text-caption font-bold text-accent-deep transition-all duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:border-line disabled:bg-canvas disabled:text-ink-4`}
                 >
                   จับแฟร์ใหม่
                 </motion.button>

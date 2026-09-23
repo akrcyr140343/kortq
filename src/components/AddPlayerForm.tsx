@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { SKILLS, type Skill } from "@/lib/types";
-import { press } from "./motion";
+import { glide, press } from "./motion";
 import { E2 } from "./ui";
 
 const DEFAULT_SKILL: Skill = "BG-";
@@ -14,6 +14,14 @@ const ACTIVE_TIER: Record<Skill, string> = {
   "BG-": "bg-sky text-white shadow-sm",
   BG: "bg-mint text-accent-deep shadow-sm",
   N: "bg-coral text-white shadow-sm",
+};
+
+// Label colour of the active tier; its fill rides on the sliding pill below.
+const ACTIVE_TEXT: Record<Skill, string> = {
+  NB: "text-white",
+  "BG-": "text-white",
+  BG: "text-accent-deep",
+  N: "text-white",
 };
 
 export function AddPlayerForm({
@@ -28,6 +36,7 @@ export function AddPlayerForm({
   const [name, setName] = useState("");
   const [skill, setSkill] = useState<Skill>(DEFAULT_SKILL);
   const [busy, setBusy] = useState(false);
+  const [addedCount, setAddedCount] = useState(0); // each successful add rings the button once
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -39,6 +48,7 @@ export function AddPlayerForm({
       if (added) {
         setName("");
         setSkill(DEFAULT_SKILL);
+        setAddedCount((n) => n + 1);
       }
     } finally {
       setBusy(false);
@@ -74,20 +84,30 @@ export function AddPlayerForm({
               whileTap={press}
               onClick={() => setSkill(s)}
               className={`relative h-9 rounded-[11px] text-xs font-extrabold transition-all duration-200 before:absolute before:-inset-y-1 before:inset-x-0 before:content-[''] ${
-                active ? ACTIVE_TIER[s] : "text-ink-3 hover:bg-white hover:text-ink hover:shadow-sm"
+                active ? ACTIVE_TEXT[s] : "text-ink-3 hover:bg-white hover:text-ink hover:shadow-sm"
               }`}
             >
-              {s}
+              {/* The tier colour slides to the level you tap. */}
+              {active && (
+                <motion.span
+                  layoutId="add-skill-pill"
+                  transition={glide}
+                  aria-hidden
+                  className={`absolute inset-0 rounded-[11px] ${ACTIVE_TIER[s]}`}
+                />
+              )}
+              <span className="relative">{s}</span>
             </motion.button>
           );
         })}
       </div>
 
       <motion.button
+        key={addedCount}
         type="submit"
         whileTap={press}
         disabled={busy || !name.trim()}
-        className="lime-button shine-button mt-3 h-12 w-full rounded-[16px] text-caption font-extrabold transition-all duration-200 hover:-translate-y-0.5 disabled:bg-none disabled:bg-line disabled:text-ink-4 disabled:shadow-none"
+        className={`${addedCount > 0 ? "anim-ready" : ""} ${busy ? "kq-busy" : ""} lime-button shine-button mt-3 h-12 w-full rounded-[16px] text-caption font-extrabold transition-all duration-200 hover:-translate-y-0.5 disabled:bg-none disabled:bg-line disabled:text-ink-4 disabled:shadow-none`}
       >
         {busy ? "กำลังเพิ่ม…" : "เพิ่มเข้าคิว"}
       </motion.button>

@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import { AnimatePresence } from "framer-motion";
 import { ConfirmModal } from "@/components/ConfirmModal";
 
 export interface ModalOptions {
@@ -14,6 +15,7 @@ export interface ModalOptions {
 interface ModalRequest extends ModalOptions {
   kind: "confirm" | "alert";
   resolve: (ok: boolean) => void;
+  id: number; // presence key only: lets a closing dialog animate out
 }
 
 interface ModalContextValue {
@@ -32,16 +34,17 @@ const ModalContext = createContext<ModalContextValue | null>(null);
  */
 export function ModalProvider({ children }: { children: React.ReactNode }) {
   const [req, setReq] = useState<ModalRequest | null>(null);
+  const nextId = useRef(0);
 
   const confirm = useCallback(
     (opts: ModalOptions) =>
-      new Promise<boolean>((resolve) => setReq({ ...opts, kind: "confirm", resolve })),
+      new Promise<boolean>((resolve) => setReq({ ...opts, kind: "confirm", resolve, id: ++nextId.current })),
     [],
   );
 
   const alert = useCallback(
     (opts: ModalOptions) =>
-      new Promise<void>((resolve) => setReq({ ...opts, kind: "alert", resolve: () => resolve() })),
+      new Promise<void>((resolve) => setReq({ ...opts, kind: "alert", resolve: () => resolve(), id: ++nextId.current })),
     [],
   );
 
@@ -57,18 +60,21 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
   return (
     <ModalContext.Provider value={value}>
       {children}
-      {req && (
-        <ConfirmModal
-          title={req.title}
-          message={req.message}
-          confirmLabel={req.confirmLabel}
-          cancelLabel={req.cancelLabel}
-          tone={req.tone}
-          showCancel={req.kind === "confirm"}
-          onConfirm={() => close(true)}
-          onCancel={() => close(false)}
-        />
-      )}
+      <AnimatePresence>
+        {req && (
+          <ConfirmModal
+            key={req.id}
+            title={req.title}
+            message={req.message}
+            confirmLabel={req.confirmLabel}
+            cancelLabel={req.cancelLabel}
+            tone={req.tone}
+            showCancel={req.kind === "confirm"}
+            onConfirm={() => close(true)}
+            onCancel={() => close(false)}
+          />
+        )}
+      </AnimatePresence>
     </ModalContext.Provider>
   );
 }

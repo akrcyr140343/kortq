@@ -12,7 +12,8 @@ import {
 } from "@/lib/db";
 import { useModal } from "@/context/ModalContext";
 import { SkillBadge } from "./SkillBadge";
-import { press } from "./motion";
+import { press, sheetIn, sheetOut, staggerDelay } from "./motion";
+import { Tick } from "./Tick";
 
 /** Segmented rank control — mirrors AddPlayerForm's active-chip hues. */
 const ACTIVE_TIER: Record<Skill, string> = {
@@ -161,18 +162,16 @@ export function PlayerRegistryDrawer({
         <div className="fixed inset-0 z-[90]">
           <motion.div
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.25 }}
+            animate={{ opacity: 1, transition: { duration: 0.25 } }}
+            exit={{ opacity: 0, transition: { duration: 0.2 } }}
             onClick={onClose}
             className="absolute inset-0 bg-ink/45 backdrop-blur-sm"
           />
 
           <motion.aside
             initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "spring", stiffness: 380, damping: 40 }}
+            animate={{ x: 0, transition: sheetIn }}
+            exit={{ x: "100%", transition: sheetOut }}
             className="absolute inset-y-0 right-0 flex h-full w-full flex-col bg-canvas shadow-[0_0_60px_-10px_rgba(16,35,24,0.5)] sm:max-w-md"
           >
             {/* ── Header ────────────────────────────────────────────── */}
@@ -208,7 +207,7 @@ export function PlayerRegistryDrawer({
             {/* ── Roster list ───────────────────────────────────────── */}
             <div className="scroll-pane min-h-0 flex-1 overflow-y-auto px-5 py-3">
               {shown.length === 0 ? (
-                <div className="mt-8 rounded-[18px] border border-dashed border-line-2 bg-surface-2 px-4 py-10 text-center">
+                <div className="anim-enter mt-8 rounded-[18px] border border-dashed border-line-2 bg-surface-2 px-4 py-10 text-center">
                   <p className="text-body font-extrabold text-ink-2">
                     {profiles.length === 0 ? "ยังไม่มีใครในสมาชิกก๊วน" : "ไม่พบชื่อที่ค้นหา"}
                   </p>
@@ -218,14 +217,16 @@ export function PlayerRegistryDrawer({
                 </div>
               ) : (
                 <ul className="space-y-2">
-                  {shown.map((p) => {
+                  {shown.map((p, i) => {
                     const inSession = sessionProfileIds.has(p.id);
                     const isSelected = selected.has(p.id);
                     const editing = editingId === p.id;
                     return (
                       <li
                         key={p.id}
-                        className={`rounded-[16px] border transition-all duration-200 ${
+                        // The roster pours in behind the sheet (capped, so long lists stay quick).
+                        style={staggerDelay(Math.min(i, 10), 0.025)}
+                        className={`anim-enter rounded-[16px] border transition-all duration-200 ${
                           isSelected
                             ? "border-mint-deep/25 bg-mint-wash"
                             : "border-line bg-surface-2"
@@ -243,7 +244,7 @@ export function PlayerRegistryDrawer({
                             }`}
                           >
                             {isSelected && (
-                              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" aria-hidden>
+                              <svg viewBox="0 0 24 24" className="anim-stamp h-3.5 w-3.5" fill="none" aria-hidden>
                                 <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
                               </svg>
                             )}
@@ -288,7 +289,7 @@ export function PlayerRegistryDrawer({
 
                         {/* Inline skill editor */}
                         {editing && (
-                          <div className="grid grid-cols-4 gap-1.5 border-t border-line/70 p-2">
+                          <div className="anim-enter grid grid-cols-4 gap-1.5 border-t border-line/70 p-2">
                             {SKILLS.map((s) => {
                               const active = p.skill === s;
                               return (
@@ -325,7 +326,13 @@ export function PlayerRegistryDrawer({
                   onClick={addSelected}
                   className="lime-button shine-button h-12 flex-1 rounded-[15px] text-caption font-extrabold transition-all duration-200 hover:-translate-y-0.5 disabled:bg-none disabled:bg-line disabled:text-ink-4 disabled:shadow-none"
                 >
-                  {selectableCount > 0 ? `เพิ่ม ${selectableCount} คนเข้าคิว` : "เลือกคนเพื่อเพิ่มพร้อมกัน"}
+                  {selectableCount > 0 ? (
+                    <>
+                      เพิ่ม <Tick value={selectableCount} /> คนเข้าคิว
+                    </>
+                  ) : (
+                    "เลือกคนเพื่อเพิ่มพร้อมกัน"
+                  )}
                 </motion.button>
                 {selectableCount > 0 && (
                   <motion.button

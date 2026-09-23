@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion, useIsPresent } from "framer-motion";
 import { useAdmin } from "@/context/AdminContext";
 import { useModal } from "@/context/ModalContext";
 import { useKortq } from "@/hooks/useKortq";
@@ -34,6 +34,9 @@ import {
   promoteNextUp,
 } from "@/lib/db";
 import { Header } from "@/components/Header";
+import { IntroCurtain } from "@/components/IntroCurtain";
+import { LaunchCurtain } from "@/components/LaunchCurtain";
+import { CloseCurtain } from "@/components/CloseCurtain";
 import { StartSession } from "@/components/StartSession";
 import { CourtCard } from "@/components/CourtCard";
 import { NextUpCard } from "@/components/NextUpCard";
@@ -41,7 +44,9 @@ import { QueuePanel } from "@/components/QueuePanel";
 import { PlayerRegistryDrawer } from "@/components/PlayerRegistryDrawer";
 import { MatchHistoryDrawer } from "@/components/MatchHistoryDrawer";
 import { SkillBadge } from "@/components/SkillBadge";
-import { press } from "@/components/motion";
+import { glide, popIn, popOut, press } from "@/components/motion";
+import { Tick } from "@/components/Tick";
+import { usePlayerFlights } from "@/components/flights";
 import { E2 } from "@/components/ui";
 
 /* ══ Scoreboard band — figures carry the meaning, no icons ═════════ */
@@ -50,11 +55,15 @@ function Stat({
   value,
   unit,
   tone,
+  cardRef,
+  active,
 }: {
   label: string;
   value: string | number;
   unit: string;
   tone: "sky" | "coral" | "teal" | "blue" | "green";
+  cardRef?: (el: HTMLDivElement | null) => void;
+  active?: boolean; // centred in the mobile carousel — stands out from its neighbours
 }) {
   const toneClass = {
     sky: "from-[#71c9ef] via-[#1494d5]",
@@ -65,12 +74,19 @@ function Stat({
   }[tone];
 
   return (
-    <div className="e1 stat-card group relative min-w-[7.5rem] flex-1 overflow-hidden rounded-[18px] px-4 py-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md sm:min-w-0">
+    <div
+      ref={cardRef}
+      className={`e1 stat-card group relative min-w-[7.5rem] flex-1 origin-center snap-center overflow-hidden rounded-[18px] px-4 py-3.5 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md sm:min-w-0 sm:!scale-100 sm:!opacity-100 ${
+        active ? "scale-[1.045] opacity-100 shadow-md" : "scale-[0.94] opacity-70"
+      }`}
+    >
       <span aria-hidden className={`absolute inset-x-4 top-0 h-0.5 rounded-full bg-gradient-to-r ${toneClass} to-transparent`} />
       <span className="block min-w-0">
         <span className="block truncate text-[0.66rem] font-bold text-ink-3">{label}</span>
         <span className="mt-0.5 flex items-baseline gap-1">
-          <span className="numeral text-title leading-none text-ink">{value}</span>
+          <span className="numeral text-title leading-none text-ink">
+            <Tick value={value} />
+          </span>
           <span className="text-eyebrow font-semibold text-ink-3">{unit}</span>
         </span>
       </span>
@@ -93,14 +109,64 @@ function StatBand({
   courtsActive: number;
   totalCourts: number;
 }) {
+  // Mobile: a swipeable carousel, spring-weighted by scroll-snap, where the
+  // centred card stands out from its neighbours — tracked via
+  // IntersectionObserver rather than a scroll listener, so it costs nothing
+  // between swipes and never fights the browser's own momentum scrolling.
+  const trackRef = useRef<HTMLDivElement>(null);
+  const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  useEffect(() => {
+    const track = trackRef.current;
+    if (!track) return;
+    const cards = cardRefs.current.filter((el): el is HTMLDivElement => el != null);
+    if (cards.length === 0) return;
+    const ratios = new Map<Element, number>();
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) ratios.set(e.target, e.intersectionRatio);
+        let best = 0;
+        let bestRatio = 0;
+        cards.forEach((el, i) => {
+          const r = ratios.get(el) ?? 0;
+          if (r > bestRatio) {
+            bestRatio = r;
+            best = i;
+          }
+        });
+        setActiveIndex(best);
+      },
+      { root: track, threshold: [0, 0.25, 0.5, 0.75, 0.9, 1] },
+    );
+    cards.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, []);
+
+  const stats: Array<{ label: string; value: number | string; unit: string; tone: "sky" | "coral" | "teal" | "blue" | "green" }> = [
+    { label: "ผู้เล่นทั้งหมด", value: totalPlayers, unit: "คน", tone: "sky" },
+    { label: "กำลังรอ", value: waiting, unit: "คน", tone: "coral" },
+    { label: "สนามทั้งหมด", value: totalCourts, unit: "คอร์ต", tone: "teal" },
+    { label: "กำลังเล่น", value: playing, unit: "คน", tone: "blue" },
+    { label: "เล่นแล้ว", value: games, unit: "เกม", tone: "green" },
+    { label: "คอร์ตใช้งาน", value: `${courtsActive}/${totalCourts}`, unit: "คอร์ต", tone: "teal" },
+  ];
+
   return (
-    <div className="scroll-pane anim-enter flex w-full min-w-0 shrink-0 gap-2 overflow-x-auto pb-1 sm:grid sm:grid-cols-3 sm:overflow-visible sm:pb-0 xl:grid-cols-6">
-      <Stat label="ผู้เล่นทั้งหมด" value={totalPlayers} unit="คน" tone="sky" />
-      <Stat label="กำลังรอ" value={waiting} unit="คน" tone="coral" />
-      <Stat label="สนามทั้งหมด" value={totalCourts} unit="คอร์ต" tone="teal" />
-      <Stat label="กำลังเล่น" value={playing} unit="คน" tone="blue" />
-      <Stat label="เล่นแล้ว" value={games} unit="เกม" tone="green" />
-      <Stat label="คอร์ตใช้งาน" value={`${courtsActive}/${totalCourts}`} unit="คอร์ต" tone="teal" />
+    <div
+      ref={trackRef}
+      className="scroll-pane anim-enter flex w-full min-w-0 shrink-0 snap-x snap-mandatory gap-2 overflow-x-auto px-[6vw] pb-1 sm:grid sm:grid-cols-3 sm:gap-2 sm:overflow-visible sm:px-0 sm:pb-0 xl:grid-cols-6"
+    >
+      {stats.map((s, i) => (
+        <Stat
+          key={s.label}
+          {...s}
+          active={i === activeIndex}
+          cardRef={(el) => {
+            cardRefs.current[i] = el;
+          }}
+        />
+      ))}
     </div>
   );
 }
@@ -156,19 +222,48 @@ function MobileTabBar({
               onClick={() => onChange(tab.id)}
               aria-current={selected ? "page" : undefined}
               className={`relative flex h-14 items-center justify-center gap-2 rounded-[18px] text-caption font-extrabold transition-all duration-200 ${
-                selected ? "bg-mint text-accent-deep shadow-sm" : "text-white/55 hover:bg-white/8 hover:text-white"
+                selected ? "text-accent-deep" : "text-white/55 hover:bg-white/8 hover:text-white"
               }`}
             >
-              {tab.icon}
-              <span>{tab.label}</span>
-              <span className={`numeral grid h-5 min-w-5 place-items-center rounded-full px-1 text-eyebrow ${selected ? "bg-accent/10" : "bg-white/10"}`}>
-                {tab.count}
+              {/* The lime pill slides to the tab you picked instead of blinking across. */}
+              {selected && (
+                <motion.span
+                  layoutId="tab-pill"
+                  transition={glide}
+                  aria-hidden
+                  className="absolute inset-0 rounded-[18px] bg-mint shadow-sm"
+                />
+              )}
+              <span className="relative flex">{tab.icon}</span>
+              <span className="relative">{tab.label}</span>
+              <span className={`numeral relative grid h-5 min-w-5 place-items-center rounded-full px-1 text-eyebrow ${selected ? "bg-accent/10" : "bg-white/10"}`}>
+                <Tick value={tab.count} />
               </span>
             </motion.button>
           );
         })}
       </div>
     </nav>
+  );
+}
+
+/**
+ * The pick bar rises in from the bottom edge and sinks away when the pick is
+ * cleared or sent. While it is leaving it no longer takes taps, so a stale
+ * button can never act on a selection that is already gone.
+ */
+function SelectionTray({ className, children }: { className: string; children: React.ReactNode }) {
+  const present = useIsPresent();
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0, transition: popIn }}
+      exit={{ opacity: 0, y: 14, transition: popOut }}
+      style={present ? undefined : { pointerEvents: "none" }}
+      className={className}
+    >
+      {children}
+    </motion.div>
   );
 }
 
@@ -299,15 +394,27 @@ export default function Home() {
     });
   }, []);
 
-  const handleEndSession = useCallback(async () => {
-    const ok = await modal.confirm({
-      title: "ปิดสนามวันนี้?",
-      message: "ข้อมูลคิว คอร์ต และประวัติเกมวันนี้จะถูกล้าง บันทึกวิเคราะห์การจับแฟร์ยังเก็บไว้",
-      confirmLabel: "ปิดสนาม",
-    });
-    if (!ok) return;
-    await endSession();
-  }, [modal]);
+  const handleEndSession = useCallback(
+    async (e: React.MouseEvent<HTMLButtonElement>) => {
+      // Captured before the confirm dialog opens — the button itself may no
+      // longer be under the cursor by the time the admin answers "ปิดสนาม".
+      const origin = { x: e.clientX, y: e.clientY };
+      const ok = await modal.confirm({
+        title: "ปิดสนามวันนี้?",
+        message: "ข้อมูลคิว คอร์ต และประวัติเกมวันนี้จะถูกล้าง บันทึกวิเคราะห์การจับแฟร์ยังเก็บไว้",
+        confirmLabel: "ปิดสนาม",
+      });
+      if (!ok) return;
+      setClose({ count: session?.courtCount ?? 0, origin, status: "closing" });
+      try {
+        await endSession();
+      } catch (err) {
+        setClose((cur) => (cur ? { ...cur, status: "error", error: err instanceof Error ? err.message : undefined } : cur));
+        throw err;
+      }
+    },
+    [modal, session],
+  );
 
   const handleRandom = useCallback(
     async (courtId: string) => {
@@ -706,15 +813,145 @@ export default function Home() {
           ? { active: true, label: `เลือก 4 คนเพื่อตั้งเป็นเกมถัดไป (${selectedPlayers.length}/4)` }
           : { active: false, label: null };
 
+  // Where every player stands right now. When this changes (locally or via a
+  // realtime snapshot), players glide / fly from their old spot to the new one.
+  // Selection, typing and timer ticks leave it untouched, so they animate nothing.
+  const placementSig = useMemo(
+    () =>
+      [
+        courts.map((c) => `${c.id}:${c.teamA.join(",")}/${c.teamB.join(",")}`).join("|"),
+        `n:${nextUpTeamA.map((p) => p.id).join(",")}/${nextUpTeamB.map((p) => p.id).join(",")}`,
+        `q:${assignable.map((p) => p.id).join(",")}`,
+        `r:${resting.map((p) => p.id).join(",")}`,
+      ].join("#"),
+    [courts, nextUpTeamA, nextUpTeamB, assignable, resting],
+  );
+  const shellRef = useRef<HTMLDivElement>(null);
+  usePlayerFlights(shellRef, placementSig);
+
+  // Cinematic hand-off on first paint only — a real reload later in the same
+  // tab skips straight to the app. Never gates data loading (useKortq keeps
+  // fetching underneath); it only holds back when the hall's own entrance
+  // starts playing, so the curtain lifting and the page revealing are one
+  // continuous beat instead of two unrelated animations.
+  const [revealed, setRevealed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return sessionStorage.getItem("kq-intro-seen") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const reveal = useCallback(() => {
+    try {
+      sessionStorage.setItem("kq-intro-seen", "1");
+    } catch {}
+    setRevealed(true);
+  }, []);
+
+  // "Opening the hall" — the launch curtain owns this window so it can hold
+  // the old screen in place (StartSession keeps rendering, just hidden
+  // underneath) until Firestore genuinely confirms the session is live, then
+  // hands off to the dashboard in the same beat the CourtCard/QueuePanel
+  // entrances fire. MIN_OPEN_MS is the floor for the curtain's own reveal
+  // (ring + court lines) to finish even when the write itself is instant;
+  // it never adds delay beyond a real write that's actually slower than that.
+  const [launch, setLaunch] = useState<{
+    count: number;
+    origin: { x: number; y: number } | null;
+    status: "opening" | "ready" | "error";
+    error?: string;
+  } | null>(null);
+
+  const handleLaunch = useCallback((count: number, origin: { x: number; y: number }) => {
+    setLaunch({ count, origin, status: "opening" });
+  }, []);
+  const handleLaunchSettled = useCallback((ok: boolean, message?: string) => {
+    if (ok) return; // success is read off `sessionActive` below, not the promise alone
+    setLaunch((cur) => (cur ? { ...cur, status: "error", error: message } : cur));
+  }, []);
+  const retryLaunch = useCallback(() => setLaunch(null), []);
+
+  const MIN_OPEN_MS = 1100;
+  const READY_HOLD_MS = 380;
+  useEffect(() => {
+    if (!launch || launch.status !== "opening" || !sessionActive) return;
+    const t = window.setTimeout(
+      () => setLaunch((cur) => (cur && cur.status === "opening" ? { ...cur, status: "ready" } : cur)),
+      MIN_OPEN_MS,
+    );
+    return () => window.clearTimeout(t);
+  }, [launch, sessionActive]);
+  useEffect(() => {
+    if (!launch || launch.status !== "ready") return;
+    const t = window.setTimeout(() => setLaunch(null), READY_HOLD_MS);
+    return () => window.clearTimeout(t);
+  }, [launch]);
+
+  // "Closing the hall" — the mirror hand-off. `close` keeps <main> mounted
+  // (hidden under the curtain) until it lifts, so StartSession's own entrance
+  // only starts the instant the curtain is ready to reveal it, and never
+  // shows "closed" if endSession actually failed (sessionActive stays true,
+  // so the ternary below keeps the dashboard, not StartSession, underneath).
+  const [close, setClose] = useState<{
+    count: number;
+    origin: { x: number; y: number } | null;
+    status: "closing" | "done" | "error";
+    error?: string;
+  } | null>(null);
+  const retryClose = useCallback(() => setClose(null), []);
+
+  const CLOSE_MIN_MS = 1000;
+  const CLOSE_HOLD_MS = 380;
+  useEffect(() => {
+    if (!close || close.status !== "closing" || sessionActive) return;
+    const t = window.setTimeout(
+      () => setClose((cur) => (cur && cur.status === "closing" ? { ...cur, status: "done" } : cur)),
+      CLOSE_MIN_MS,
+    );
+    return () => window.clearTimeout(t);
+  }, [close, sessionActive]);
+  useEffect(() => {
+    if (!close || close.status !== "done") return;
+    const t = window.setTimeout(() => setClose(null), CLOSE_HOLD_MS);
+    return () => window.clearTimeout(t);
+  }, [close]);
+
   return (
-    <div className="app-shell flex min-h-dvh flex-col xl:h-dvh xl:min-h-0 xl:overflow-hidden">
+    <div ref={shellRef} className="app-shell flex min-h-dvh flex-col xl:h-dvh xl:min-h-0 xl:overflow-hidden">
       <Header
         session={session}
         onEndSession={handleEndSession}
         onOpenHistory={() => setHistoryForSession(session?.createdAt ?? null)}
       />
 
-      {error ? (
+      <AnimatePresence>{!revealed && <IntroCurtain key="intro" onSkip={reveal} />}</AnimatePresence>
+      <AnimatePresence>
+        {launch && (
+          <LaunchCurtain
+            key="launch"
+            courtCount={launch.count}
+            status={launch.status}
+            errorMessage={launch.error}
+            origin={launch.origin}
+            onRetry={retryLaunch}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {close && (
+          <CloseCurtain
+            key="close"
+            courtCount={close.count}
+            status={close.status}
+            errorMessage={close.error}
+            origin={close.origin}
+            onRetry={retryClose}
+          />
+        )}
+      </AnimatePresence>
+
+      {revealed && (error ? (
         <div className="flex flex-1 items-center justify-center p-6">
           <div className={`${E2} anim-enter relative w-full max-w-sm overflow-hidden rounded-[28px] p-8`}>
             <div aria-hidden className="absolute -right-10 -top-10 h-36 w-36 rounded-full bg-alert-wash blur-2xl" />
@@ -738,16 +975,16 @@ export default function Home() {
           </div>
           <span className="text-xs font-extrabold tracking-[0.12em] text-accent">กำลังเตรียมสนาม</span>
         </div>
-      ) : !sessionActive ? (
-        <StartSession />
+      ) : launch || (!sessionActive && !close) ? (
+        <StartSession onLaunch={handleLaunch} onLaunchSettled={handleLaunchSettled} />
       ) : (
         <main className="mx-auto flex w-full min-w-0 max-w-[1600px] flex-1 flex-col gap-3 overflow-x-hidden px-3 pb-28 pt-3 sm:px-5 xl:min-h-0 xl:pb-4">
           <div className="flex items-end justify-between xl:hidden">
             <div>
               <span className="text-eyebrow font-extrabold tracking-[0.14em] text-mint-deep">KD CLUB · LIVE</span>
-              <h1 className="display sport-title mt-1 text-title leading-none text-ink">{activeView === "courts" ? "สนามวันนี้" : "เพื่อนในคิว"}</h1>
+              <h1 key={activeView} className="display sport-title anim-status mt-1 text-title leading-none text-ink">{activeView === "courts" ? "สนามวันนี้" : "เพื่อนในคิว"}</h1>
             </div>
-            <span className="rounded-full bg-mint-wash px-3 py-1.5 text-[0.68rem] font-extrabold text-mint-deep">
+            <span key={activeView} className="anim-status rounded-full bg-mint-wash px-3 py-1.5 text-[0.68rem] font-extrabold text-mint-deep">
               {activeView === "courts" ? `${activeCourts}/${courts.length} กำลังใช้` : `${assignable.length} คนกำลังรอ`}
             </span>
           </div>
@@ -756,7 +993,7 @@ export default function Home() {
               Each scrolls in its own pane on large screens, so a long queue
               can never stretch the courts beside it. */}
           <div className="grid min-w-0 flex-1 gap-4 xl:min-h-0 xl:grid-cols-[21rem_minmax(0,1fr)]">
-            <aside className={`${activeView === "queue" ? "block" : "hidden"} order-2 xl:order-1 xl:block xl:min-h-0`}>
+            <aside className={`${activeView === "queue" ? "view-from-right block" : "hidden"} order-2 xl:order-1 xl:block xl:min-h-0`}>
               <QueuePanel
                 waiting={assignable}
                 resting={resting}
@@ -773,7 +1010,7 @@ export default function Home() {
               />
             </aside>
 
-            <section className={`${activeView === "courts" ? "flex" : "hidden"} order-1 min-w-0 flex-col gap-3 xl:order-2 xl:flex xl:min-h-0`}>
+            <section className={`${activeView === "courts" ? "view-from-left flex" : "hidden"} order-1 min-w-0 flex-col gap-3 xl:order-2 xl:flex xl:min-h-0`}>
               <StatBand
                 totalPlayers={players.length}
                 waiting={assignable.length}
@@ -795,7 +1032,7 @@ export default function Home() {
 
               {/* Courts first, then the staged next game beneath them — the
                   member reading order: playing/starting → เกมถัดไป → queue. */}
-              <div className="scroll-pane flex flex-col gap-3 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1.5">
+              <div data-flip-scroll className="scroll-pane flex flex-col gap-3 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1.5">
                 {/* Courts and the staged next game share ONE grid so "เกมถัดไป"
                     tracks the real court count instead of stretching full-width:
                     with 2 courts it spans 2 columns (aligned under them, the 3rd
@@ -851,14 +1088,15 @@ export default function Home() {
             </section>
           </div>
         </main>
-      )}
+      ))}
 
       {/* ── Selection bar — names, not just a count ────────────────── */}
+      <AnimatePresence>
       {isAdmin && sessionActive && selectedPlayers.length > 0 && (
-        <div className="anim-rise sticky bottom-[calc(5.2rem+env(safe-area-inset-bottom))] z-30 shrink-0 px-3 pb-3 sm:px-5 xl:bottom-0">
+        <SelectionTray key="tray" className="sticky bottom-[calc(5.2rem+env(safe-area-inset-bottom))] z-30 shrink-0 px-3 pb-3 sm:px-5 xl:bottom-0">
           <div className="club-panel mx-auto flex max-w-[1700px] items-center gap-3 rounded-[22px] px-3 py-2.5 sm:px-4">
             <span className="numeral grid h-11 min-w-11 shrink-0 place-items-center rounded-[15px] bg-mint text-lede leading-none text-accent-deep shadow-[0_10px_20px_-12px_rgba(121,174,12,0.8)]">
-              {selectedPlayers.length}
+              <Tick value={selectedPlayers.length} />
               <span className="sr-only"> จาก 4</span>
             </span>
 
@@ -866,7 +1104,7 @@ export default function Home() {
               {selectedPlayers.map((p) => (
                 <span
                   key={p.id}
-                  className="flex shrink-0 items-center gap-1.5 rounded-full border border-white/12 bg-white/8 py-1.5 pl-3 pr-2"
+                  className="anim-pop flex shrink-0 items-center gap-1.5 rounded-full border border-white/12 bg-white/8 py-1.5 pl-3 pr-2"
                 >
                   <span className="text-caption font-bold text-white">{p.name}</span>
                   <SkillBadge skill={p.skill} />
@@ -880,10 +1118,11 @@ export default function Home() {
 
             {allCourtsAssigned && (
               <motion.button
+                key={selectedPlayers.length === 4 ? "ready" : "wait"}
                 whileTap={selectedPlayers.length === 4 ? press : undefined}
                 onClick={() => handleStageSelected()}
                 disabled={selectedPlayers.length !== 4}
-                className="relative h-10 shrink-0 rounded-full border border-mint/30 bg-white/8 px-4 text-caption font-extrabold text-mint transition-all duration-200 before:absolute before:-inset-y-0.5 before:inset-x-0 before:content-[''] hover:-translate-y-0.5 hover:bg-white/14 disabled:cursor-not-allowed disabled:border-white/10 disabled:text-white/35 disabled:hover:translate-y-0 disabled:hover:bg-white/8"
+                className={`${selectedPlayers.length === 4 ? "anim-ready" : ""} relative h-10 shrink-0 rounded-full border border-mint/30 bg-white/8 px-4 text-caption font-extrabold text-mint transition-all duration-200 before:absolute before:-inset-y-0.5 before:inset-x-0 before:content-[''] hover:-translate-y-0.5 hover:bg-white/14 disabled:cursor-not-allowed disabled:border-white/10 disabled:text-white/35 disabled:hover:translate-y-0 disabled:hover:bg-white/8`}
               >
                 ตั้งเป็นเกมถัดไป
               </motion.button>
@@ -910,8 +1149,9 @@ export default function Home() {
               ล้าง
             </motion.button>
           </div>
-        </div>
+        </SelectionTray>
       )}
+      </AnimatePresence>
 
       {sessionActive && (
         <MobileTabBar

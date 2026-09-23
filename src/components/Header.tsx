@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { useAdmin } from "@/context/AdminContext";
 import { PinModal } from "./PinModal";
 import type { Session } from "@/lib/types";
@@ -45,7 +45,7 @@ export function Header({
   onOpenHistory,
 }: {
   session: Session | null;
-  onEndSession: () => void;
+  onEndSession: (e: React.MouseEvent<HTMLButtonElement>) => void;
   onOpenHistory?: () => void;
 }) {
   const { isAdmin, lock } = useAdmin();
@@ -59,13 +59,21 @@ export function Header({
         {/* ── Brand ─────────────────────────────────────────────── */}
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex items-center gap-3">
-            <span className="relative grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-[14px] bg-white shadow-[0_10px_26px_-14px_rgba(0,0,0,0.8)] sm:h-12 sm:w-12">
+            <motion.span
+              layoutId="brand-mark"
+              transition={{ type: "spring", stiffness: 190, damping: 24 }}
+              className="relative grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-[14px] bg-white shadow-[0_10px_26px_-14px_rgba(0,0,0,0.8)] sm:h-12 sm:w-12"
+            >
               <Image src="/kd-logo.png" alt="โลโก้ KD KHONDEE-TEEBAD" fill sizes="56px" className="object-cover" priority />
-            </span>
+            </motion.span>
             <div className="min-w-0">
-              <span className="display block text-title leading-none tracking-tight text-white sm:text-[1.9rem]">
+              <motion.span
+                layoutId="brand-word"
+                transition={{ type: "spring", stiffness: 190, damping: 24 }}
+                className="display block text-title leading-none tracking-tight text-white sm:text-[1.9rem]"
+              >
                 Kort<span className="text-mint">Q</span>
-              </span>
+              </motion.span>
               <span className="mt-1 flex items-center gap-1.5 text-[0.64rem] font-bold tracking-[0.12em] text-white/55">
                 <span className="hidden sm:inline">KD · KHONDEE-TEEBAD ·</span>
                 <span className="text-mint/80">v{APP_VERSION}</span>
@@ -101,7 +109,7 @@ export function Header({
 
           {isAdmin ? (
             <>
-              <span className="hidden rounded-full bg-mint/14 px-3 py-2 text-[0.7rem] font-extrabold text-mint sm:block">
+              <span className="anim-pop hidden rounded-full bg-mint/14 px-3 py-2 text-[0.7rem] font-extrabold text-mint sm:block">
                 ♛ แอดมิน
               </span>
               {sessionActive && (
@@ -135,7 +143,7 @@ export function Header({
         </div>
       </div>
 
-      {showPin && <PinModal onClose={() => setShowPin(false)} />}
+      <AnimatePresence>{showPin && <PinModal key="pin" onClose={() => setShowPin(false)} />}</AnimatePresence>
     </header>
   );
 }

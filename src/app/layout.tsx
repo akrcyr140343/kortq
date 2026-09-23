@@ -4,6 +4,7 @@ import "./globals.css";
 import { AdminProvider } from "@/context/AdminContext";
 import { ModalProvider } from "@/context/ModalContext";
 import { FloatingBackground } from "@/components/FloatingBackground";
+import { MotionProvider } from "@/components/MotionProvider";
 
 // Numerals — Sora's geometric figures give scores, clocks and counts a sporty,
 // slightly technical character while staying legible as tabular numbers.
@@ -74,9 +75,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         {/* Ambient layer sits at z-0; all content is lifted above it. */}
         <FloatingBackground />
         <div className="relative z-10 min-h-full">
-          <AdminProvider>
-            <ModalProvider>{children}</ModalProvider>
-          </AdminProvider>
+          {/* Framer follows the OS "reduce motion" setting; CSS does the same in globals.css. */}
+          <MotionProvider>
+            <AdminProvider>
+              <ModalProvider>{children}</ModalProvider>
+            </AdminProvider>
+          </MotionProvider>
         </div>
       </body>
     </html>

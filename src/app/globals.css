@@ -712,3 +712,331 @@ button {
     animation: none !important;
   }
 }
+
+/* ═══ Motion layer — "Rally" ═══════════════════════════════════════
+   Animation only: nothing below changes how anything looks at rest.
+   Every effect is either a one-shot tied to a real state change, or a
+   loop that only runs while a request is in flight. Transform + opacity
+   (+ a box-shadow ring) only, so low-end tablets stay on the compositor.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* A figure that changed rolls in from the direction it moved. */
+.tick-up,
+.tick-down {
+  display: inline-block;
+  animation-duration: 0.34s;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  animation-fill-mode: backwards;
+}
+
+.tick-up {
+  animation-name: kq-tick-up;
+}
+
+.tick-down {
+  animation-name: kq-tick-down;
+}
+
+@keyframes kq-tick-up {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 0.55em, 0);
+  }
+}
+
+@keyframes kq-tick-down {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -0.55em, 0);
+  }
+}
+
+/* Phones: each view arrives from its own side of the tab bar with a little
+   depth (scale) behind it, so "สนาม" and "คิว" read as two distinct places
+   rather than the same content nudged sideways. */
+@media (max-width: 1279.98px) {
+  .view-from-left {
+    animation: kq-view-l 0.36s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+
+  .view-from-right {
+    animation: kq-view-r 0.36s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+}
+
+@keyframes kq-view-l {
+  from {
+    opacity: 0;
+    transform: translate3d(-30px, 0, 0) scale(0.97);
+  }
+}
+
+@keyframes kq-view-r {
+  from {
+    opacity: 0;
+    transform: translate3d(30px, 0, 0) scale(0.97);
+  }
+}
+
+/* Mirror of .anim-enter-x, for content arriving from the left. */
+.anim-enter-xl {
+  animation: kq-view-l 0.3s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+/* A status label replaced by the next one drops into place. */
+.anim-status {
+  animation: kq-status 0.32s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes kq-status {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -6px, 0) scale(0.94);
+  }
+}
+
+/* A primary action handing over to the next one (เริ่มเกม → จบเกม). */
+.anim-swap {
+  animation: kq-swap 0.3s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes kq-swap {
+  from {
+    opacity: 0.35;
+    transform: scale(0.95);
+  }
+}
+
+/* The empty court scene settles back onto a freed court. */
+.anim-scene {
+  animation: kq-scene 0.46s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes kq-scene {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.95);
+  }
+}
+
+/* Game on: the court number jumps once. */
+.anim-bump {
+  animation: kq-bump 0.46s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes kq-bump {
+  35% {
+    transform: scale(1.14);
+  }
+}
+
+/* Game on: a band of light serves across the card, under the players. */
+.serve-sweep::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(
+    105deg,
+    transparent 28%,
+    rgba(214, 255, 120, 0.34) 45%,
+    rgba(255, 255, 255, 0.5) 50%,
+    rgba(214, 255, 120, 0.34) 55%,
+    transparent 72%
+  );
+  transform: translate3d(-110%, 0, 0);
+  animation: kq-serve 0.7s cubic-bezier(0.45, 0, 0.2, 1) forwards;
+}
+
+@keyframes kq-serve {
+  to {
+    transform: translate3d(110%, 0, 0);
+  }
+}
+
+/* Court freed: the markings redraw outward from the net. */
+.marks-redraw > * {
+  animation-duration: 0.56s;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  animation-fill-mode: backwards;
+}
+
+.marks-redraw > :nth-child(1) {
+  animation-name: kq-mark-fade;
+}
+
+.marks-redraw > :nth-child(2),
+.marks-redraw > :nth-child(3) {
+  animation-name: kq-mark-x;
+  animation-delay: 0.08s;
+}
+
+.marks-redraw > :nth-child(4) {
+  animation-name: kq-mark-y;
+}
+
+@keyframes kq-mark-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes kq-mark-x {
+  from {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+}
+
+@keyframes kq-mark-y {
+  from {
+    opacity: 0;
+    transform: scaleY(0);
+  }
+}
+
+/* A picked player for a swap: one ring ripples out, then the ring stays. */
+.anim-ping {
+  animation: kq-ping 0.5s ease-out;
+}
+
+@keyframes kq-ping {
+  from {
+    outline: 2px solid rgba(11, 81, 72, 0.45);
+    outline-offset: 0;
+  }
+  to {
+    outline: 2px solid rgba(11, 81, 72, 0);
+    outline-offset: 9px;
+  }
+}
+
+/* Selected queue row: the emerald rule grows from its middle and the
+   order stamp snaps down. */
+.anim-rule {
+  animation: kq-rule 0.26s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes kq-rule {
+  from {
+    transform: scaleY(0);
+  }
+}
+
+.anim-stamp {
+  animation: kq-stamp 0.34s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+
+@keyframes kq-stamp {
+  from {
+    transform: scale(0.55) rotate(-14deg);
+  }
+}
+
+/* Something just became possible: a single soft ring, never a loop. */
+.anim-ready {
+  animation: kq-ready 0.8s ease-out;
+}
+
+@keyframes kq-ready {
+  from {
+    box-shadow: 0 0 0 0 rgba(184, 239, 47, 0.6);
+  }
+  to {
+    box-shadow: 0 0 0 12px rgba(184, 239, 47, 0);
+  }
+}
+
+/* Random: the label shuffles like a deck being cut. */
+.anim-shuffle {
+  animation: kq-shuffle 0.44s ease-in-out;
+}
+
+@keyframes kq-shuffle {
+  20% {
+    transform: translateX(-3px) rotate(-3deg);
+  }
+  45% {
+    transform: translateX(3px) rotate(2.5deg);
+  }
+  70% {
+    transform: translateX(-1.5px) rotate(-1deg);
+  }
+}
+
+/* Wrong PIN: the dots shake their head. */
+.anim-shake {
+  animation: kq-shake 0.42s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+@keyframes kq-shake {
+  15%,
+  85% {
+    transform: translateX(-2px);
+  }
+  30%,
+  70% {
+    transform: translateX(5px);
+  }
+  45%,
+  55% {
+    transform: translateX(-7px);
+  }
+}
+
+/* In flight: a shine keeps travelling across the button until the request
+   settles. The 0.14s delay means instant replies never flicker. */
+.kq-busy {
+  position: relative;
+  overflow: hidden;
+}
+
+.kq-busy::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    110deg,
+    transparent 22%,
+    rgba(184, 239, 47, 0.24) 40%,
+    rgba(255, 255, 255, 0.55) 50%,
+    rgba(184, 239, 47, 0.24) 60%,
+    transparent 78%
+  );
+  transform: translateX(-120%);
+  animation: kq-busy 1.05s cubic-bezier(0.45, 0, 0.55, 1) 0.14s infinite;
+}
+
+@keyframes kq-busy {
+  from {
+    transform: translateX(-120%);
+  }
+  to {
+    transform: translateX(120%);
+  }
+}
+
+/* Players travelling between the queue, the next game and the courts are
+   drawn as clones on a fixed layer above both scroll panes, so a pane edge
+   never clips the trip. See components/flights.ts. */
+.kq-flight-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  pointer-events: none;
+}
+
+.kq-flight {
+  position: fixed;
+  margin: 0;
+  box-sizing: border-box;
+  will-change: transform, opacity;
+}
+
+.kq-flight,
+.kq-flight * {
+  animation: none !important;
+  transition: none !important;
+}

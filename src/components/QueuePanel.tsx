@@ -5,6 +5,7 @@ import type { Player, Skill } from "@/lib/types";
 import { SkillBadge } from "./SkillBadge";
 import { AddPlayerForm } from "./AddPlayerForm";
 import { press, staggerDelay } from "./motion";
+import { Tick } from "./Tick";
 import { E2 } from "./ui";
 
 /** The one retained icon in the roster: destructive, and needs no label. */
@@ -80,6 +81,8 @@ function WaitingRow({
 
   return (
     <li
+      data-flip-id={player.id}
+      data-flip-place="queue"
       onClick={clickable ? () => onToggle(player.id) : undefined}
       className={`anim-enter-x relative flex items-center gap-2.5 overflow-hidden rounded-[16px] border py-2.5 pl-2.5 pr-1.5 transition-all duration-200 ${
         selected
@@ -88,10 +91,12 @@ function WaitingRow({
       } ${clickable ? "cursor-pointer" : ""}`}
     >
       {/* Selection marker — an emerald rule, not a glow */}
-      {selected && <span className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-mint-deep" />}
+      {selected && <span className="anim-rule absolute inset-y-2 left-0 w-[3px] rounded-full bg-mint-deep" />}
 
+      {/* Picking stamps the order badge; un-picking lets it sit back quietly. */}
       <span
-        className={`numeral grid h-8 w-8 shrink-0 place-items-center rounded-[11px] text-caption ${selected ? "bg-accent text-mint" : "bg-white text-ink-3 shadow-sm"}`}
+        key={selected ? "on" : "off"}
+        className={`numeral grid h-8 w-8 shrink-0 place-items-center rounded-[11px] text-caption ${selected ? "anim-stamp bg-accent text-mint" : "bg-white text-ink-3 shadow-sm"}`}
       >
         {order}
       </span>
@@ -135,7 +140,10 @@ function RestingRow({
   onDelete: (id: string) => void;
 }) {
   return (
-    <li className="anim-enter-x flex items-center gap-2.5 rounded-[16px] border border-dashed border-sky/25 bg-sky-wash/60 py-2.5 pl-3 pr-1.5">
+    <li
+      data-flip-id={player.id}
+      data-flip-place="rest"
+      className="anim-enter-x flex items-center gap-2.5 rounded-[16px] border border-dashed border-sky/25 bg-sky-wash/60 py-2.5 pl-3 pr-1.5">
       <span className="min-w-0 flex-1 truncate text-body font-semibold text-ink-3">
         {player.name}
       </span>
@@ -158,7 +166,9 @@ function SectionHead({ title, count }: { title: string; count: number }) {
         <span className="section-heading block text-sm text-ink">{title}</span>
         <span className="mt-0.5 block text-[0.66rem] font-medium text-ink-3">เรียงตามเวลาที่เข้าคิว</span>
       </div>
-      <span className="numeral grid h-10 min-w-10 place-items-center rounded-[14px] bg-mint-wash px-2 text-lede leading-none text-mint-deep ring-1 ring-inset ring-mint/25">{count}</span>
+      <span className="numeral grid h-10 min-w-10 place-items-center rounded-[14px] bg-mint-wash px-2 text-lede leading-none text-mint-deep ring-1 ring-inset ring-mint/25">
+        <Tick value={count} />
+      </span>
     </div>
   );
 }
@@ -202,13 +212,14 @@ export function QueuePanel({
 
       {/* The rail scrolls on its own so a long queue never stretches the
           courts column beside it. */}
-      <div className="scroll-pane flex flex-col gap-4 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1.5">
+      <div data-flip-scroll className="scroll-pane flex flex-col gap-4 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1.5">
         <section className={`${E2} shrink-0 rounded-[24px] p-4`}>
           <SectionHead title="คิวรอ" count={waiting.length} />
 
           {isAdmin && waiting.length > 0 && (
             <p
-              className={`mb-3 rounded-[12px] px-3 py-2 text-[0.68rem] font-semibold ${
+              key={pickActive ? (pickLabel ?? "").replace(/\(.*\)/, "") : "idle"}
+              className={`anim-status mb-3 rounded-[12px] px-3 py-2 text-[0.68rem] font-semibold ${
                 pickActive ? "bg-accent-wash text-accent-deep" : "bg-mint-wash text-mint-deep"
               }`}
             >
@@ -221,7 +232,7 @@ export function QueuePanel({
               iPad) freezes the timeline — which leaves players who are already
               on court still listed in the queue. Removal must be immediate. */}
           {waiting.length === 0 ? (
-            <div className="rounded-[18px] border border-dashed border-mint-deep/20 bg-gradient-to-br from-mint-wash/70 to-sky-wash/60 px-4 py-8 text-center">
+            <div className="anim-enter rounded-[18px] border border-dashed border-mint-deep/20 bg-gradient-to-br from-mint-wash/70 to-sky-wash/60 px-4 py-8 text-center">
               <p className="mt-3 text-body font-extrabold text-ink-2">คิวยังโล่งอยู่</p>
               <p className="mt-1 text-caption text-ink-3">เพิ่มเพื่อนคนแรกได้เลย!</p>
             </div>

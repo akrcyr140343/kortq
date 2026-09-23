@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { motion } from "framer-motion";
+import { motion, useIsPresent } from "framer-motion";
 import { useAdmin } from "@/context/AdminContext";
-import { press as tapPress } from "./motion";
+import { popOut, press as tapPress } from "./motion";
 import { E3 } from "./ui";
 
 const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "clear", "0", "back"] as const;
@@ -13,6 +13,8 @@ export function PinModal({ onClose }: { onClose: () => void }) {
   const { unlock } = useAdmin();
   const [pin, setPin] = useState("");
   const [error, setError] = useState(false);
+  const [misses, setMisses] = useState(0); // drives the head-shake only
+  const present = useIsPresent();
   const [mounted, setMounted] = useState(false);
 
   // Portal target (document.body) only exists on the client.
@@ -42,6 +44,7 @@ export function PinModal({ onClose }: { onClose: () => void }) {
           onClose();
         } else {
           setError(true);
+          setMisses((m) => m + 1);
           setPin("");
         }
       }, 120);
@@ -58,13 +61,20 @@ export function PinModal({ onClose }: { onClose: () => void }) {
   const modal = (
     // Outer element scrolls; inner min-h-dvh flex centers the card when there's
     // room and lets it scroll into view (top reachable) on short/landscape screens.
-    <div
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1, transition: { duration: 0.2 } }}
+      exit={{ opacity: 0, transition: popOut }}
+      style={present ? undefined : { pointerEvents: "none" }}
       className="fixed inset-0 z-[100] overflow-y-auto bg-accent-deep/35 backdrop-blur-md"
       onClick={onClose}
     >
       <div className="flex min-h-dvh items-center justify-center p-4">
-        <div
-          className={`${E3} anim-pop relative w-full max-w-xs overflow-hidden rounded-[28px] p-6`}
+        <motion.div
+          initial={{ opacity: 0, y: 18, scale: 0.94 }}
+          animate={{ opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 460, damping: 32 } }}
+          exit={{ opacity: 0, y: 8, scale: 0.97, transition: popOut }}
+          className={`${E3} relative w-full max-w-xs overflow-hidden rounded-[28px] p-6`}
           onClick={(e) => e.stopPropagation()}
         >
           <div aria-hidden className="absolute -right-12 -top-12 h-36 w-36 rounded-full bg-mint-wash blur-2xl" />
@@ -80,12 +90,13 @@ export function PinModal({ onClose }: { onClose: () => void }) {
             )}
           </p>
 
-          <div className="relative my-6 flex justify-center gap-3">
+          {/* Wrong PIN: the dots shake their head. Each digit lands with a snap. */}
+          <div key={misses} className={`relative my-6 flex justify-center gap-3 ${misses > 0 ? "anim-shake" : ""}`}>
             {[0, 1, 2, 3].map((i) => (
               <span
-                key={i}
+                key={`${i}-${i < pin.length ? "on" : "off"}`}
                 className={`h-3 w-3 rounded-full transition-all duration-200 ${
-                  i < pin.length ? "scale-110 bg-mint-deep shadow-[0_0_0_4px_rgba(184,242,61,0.18)]" : "bg-line-2"
+                  i < pin.length ? "anim-stamp scale-110 bg-mint-deep shadow-[0_0_0_4px_rgba(184,242,61,0.18)]" : "bg-line-2"
                 }`}
               />
             ))}
@@ -116,9 +127,9 @@ export function PinModal({ onClose }: { onClose: () => void }) {
           >
             ไว้ก่อน
           </button>
-        </div>
+        </motion.div>
       </div>
-    </div>
+    </motion.div>
   );
 
   return createPortal(modal, document.body);

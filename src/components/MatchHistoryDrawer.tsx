@@ -13,7 +13,7 @@ import {
   type NamedIdentity,
   type RelationStat,
 } from "@/lib/matchHistory";
-import { press } from "./motion";
+import { glide, press, sheetIn, sheetOut, staggerDelay } from "./motion";
 
 type Mode = "player" | "timeline";
 
@@ -38,13 +38,13 @@ function TeamChips({ team, tone }: { team: NamedIdentity[]; tone: "a" | "b" }) {
 }
 
 /** A "คู่กับ / เจอกับ" row: name on the left, count chip on the right. */
-function RelationRow({ stat, tone }: { stat: RelationStat; tone: "mint" | "sun" }) {
+function RelationRow({ stat, tone, index }: { stat: RelationStat; tone: "mint" | "sun"; index: number }) {
   const chip =
     tone === "mint"
       ? "bg-mint-wash text-mint-deep"
       : "bg-sun-wash text-coral-deep";
   return (
-    <li className="flex items-center gap-2 rounded-[13px] border border-line bg-surface-2 py-2 pl-3 pr-2">
+    <li className="anim-enter flex items-center gap-2 rounded-[13px] border border-line bg-surface-2 py-2 pl-3 pr-2" style={staggerDelay(Math.min(index, 8), 0.03)}>
       <span className="min-w-0 flex-1 truncate text-body font-bold text-ink">{stat.name}</span>
       <span className={`numeral grid h-7 min-w-9 shrink-0 place-items-center rounded-full px-2 text-caption font-extrabold ${chip}`}>
         {stat.count}
@@ -149,18 +149,16 @@ export function MatchHistoryDrawer({
         <div className="fixed inset-0 z-[90]">
           <motion.div
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.25 }}
+            animate={{ opacity: 1, transition: { duration: 0.25 } }}
+            exit={{ opacity: 0, transition: { duration: 0.2 } }}
             onClick={handleClose}
             className="absolute inset-0 bg-ink/45 backdrop-blur-sm"
           />
 
           <motion.aside
             initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "spring", stiffness: 380, damping: 40 }}
+            animate={{ x: 0, transition: sheetIn }}
+            exit={{ x: "100%", transition: sheetOut }}
             className="absolute inset-y-0 right-0 flex h-full w-full flex-col bg-canvas shadow-[0_0_60px_-10px_rgba(16,35,24,0.5)] sm:max-w-md"
           >
             {/* ── Header ────────────────────────────────────────────── */}
@@ -199,11 +197,20 @@ export function MatchHistoryDrawer({
                       type="button"
                       onClick={() => setMode(m)}
                       aria-pressed={active}
-                      className={`h-10 rounded-[11px] text-caption font-extrabold transition-all duration-200 ${
-                        active ? "bg-mint text-accent-deep shadow-sm" : "text-white/60 hover:text-white"
+                      className={`relative h-10 rounded-[11px] text-caption font-extrabold transition-all duration-200 ${
+                        active ? "text-accent-deep" : "text-white/60 hover:text-white"
                       }`}
                     >
-                      {m === "player" ? "รายคน" : "ไทม์ไลน์"}
+                      {/* The lime pill slides to the chosen mode. */}
+                      {active && (
+                        <motion.span
+                          layoutId="history-mode-pill"
+                          transition={glide}
+                          aria-hidden
+                          className="absolute inset-0 rounded-[11px] bg-mint shadow-sm"
+                        />
+                      )}
+                      <span className="relative">{m === "player" ? "รายคน" : "ไทม์ไลน์"}</span>
                     </button>
                   );
                 })}
@@ -215,7 +222,8 @@ export function MatchHistoryDrawer({
                 is 0 on desktop so the padding stays the design's pb-4 there. */}
             <div className="scroll-pane min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
               {mode === "player" ? (
-                <div className="space-y-4">
+                // Modes slide in from the side their tab sits on.
+                <div key="player" className="anim-enter-xl space-y-4">
                   {/* Player picker */}
                   <div>
                     <input
@@ -228,14 +236,15 @@ export function MatchHistoryDrawer({
                       <p className="mt-3 px-1 text-caption text-ink-3">ไม่พบผู้เล่นที่ค้นหา</p>
                     ) : (
                       <div className="mt-2 flex flex-wrap gap-1.5">
-                        {shown.map((o) => {
+                        {shown.map((o, i) => {
                           const active = selectedIdentity === o.identity;
                           return (
                             <button
                               key={o.identity}
                               type="button"
                               onClick={() => setSelectedIdentity(o.identity)}
-                              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-caption font-bold transition-all duration-200 ${
+                              style={staggerDelay(Math.min(i, 12), 0.02)}
+                              className={`anim-enter inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-caption font-bold transition-all duration-200 ${
                                 active
                                   ? "border-mint-deep bg-mint-deep text-white shadow-sm"
                                   : "border-line bg-white text-ink-2 hover:border-mint-deep/40 hover:text-ink"
@@ -260,7 +269,7 @@ export function MatchHistoryDrawer({
                   {!summary ? (
                     <EmptyHint title="เลือกผู้เล่นเพื่อดูสถิติ" sub="แตะชื่อด้านบน" />
                   ) : summary.gamesPlayed === 0 ? (
-                    <div className="space-y-3">
+                    <div key={selectedIdentity} className="anim-enter space-y-3">
                       <div className="e2 rounded-[18px] bg-white px-4 py-3.5">
                         <span className="block truncate text-body font-extrabold text-ink">{summary.name}</span>
                         <span className="mt-0.5 block text-caption text-ink-3">ในเซสชันนี้</span>
@@ -268,7 +277,7 @@ export function MatchHistoryDrawer({
                       <EmptyHint title="ยังไม่มีประวัติการเล่น" sub="ผู้เล่นคนนี้ยังไม่ได้ลงเล่นเกมที่จบแล้วในเซสชันนี้" />
                     </div>
                   ) : (
-                    <div className="space-y-4">
+                    <div key={selectedIdentity} className="anim-enter space-y-4">
                       {/* Games played */}
                       <div className="e2 flex items-center justify-between rounded-[18px] bg-white px-4 py-3.5">
                         <div className="min-w-0">
@@ -290,8 +299,8 @@ export function MatchHistoryDrawer({
                           <p className="px-1 text-caption text-ink-3">—</p>
                         ) : (
                           <ul className="space-y-1.5">
-                            {summary.partners.map((s) => (
-                              <RelationRow key={s.identity} stat={s} tone="mint" />
+                            {summary.partners.map((s, i) => (
+                              <RelationRow key={s.identity} stat={s} tone="mint" index={i} />
                             ))}
                           </ul>
                         )}
@@ -306,8 +315,8 @@ export function MatchHistoryDrawer({
                           <p className="px-1 text-caption text-ink-3">—</p>
                         ) : (
                           <ul className="space-y-1.5">
-                            {summary.opponents.map((s) => (
-                              <RelationRow key={s.identity} stat={s} tone="sun" />
+                            {summary.opponents.map((s, i) => (
+                              <RelationRow key={s.identity} stat={s} tone="sun" index={i + 1} />
                             ))}
                           </ul>
                         )}
@@ -317,13 +326,13 @@ export function MatchHistoryDrawer({
                 </div>
               ) : (
                 /* ── Timeline ─────────────────────────────────────── */
-                <div>
+                <div key="timeline" className="anim-enter-x">
                   {timeline.length === 0 ? (
                     <EmptyHint title="ยังไม่มีประวัติการเล่น" sub="เกมที่จบแล้วจะแสดงที่นี่ตามลำดับ" />
                   ) : (
                     <ul className="space-y-2.5">
-                      {timeline.map((g) => (
-                        <li key={g.id} className="e2 rounded-[18px] bg-white p-3.5">
+                      {timeline.map((g, i) => (
+                        <li key={g.id} className="anim-enter e2 rounded-[18px] bg-white p-3.5" style={staggerDelay(Math.min(i, 8), 0.04)}>
                           <div className="mb-2.5 flex items-center justify-between">
                             <span className="text-[0.64rem] font-extrabold tracking-[0.12em] text-ink-3">
                               เกมที่ <span className="numeral text-ink">{g.index}</span>

@@ -5,19 +5,19 @@ import { motion } from "framer-motion";
 import type { Court, Player } from "@/lib/types";
 import { SkillBadge } from "./SkillBadge";
 import { CourtTimer } from "./CourtTimer";
-import { lift, press, staggerDelay } from "./motion";
+import { lift, press, staggerDelay, trackBusy } from "./motion";
 import { E2, LIVE } from "./ui";
 
 /**
  * Court markings — boundary, service lines and the net. Static and decorative:
  * the card becomes the court, so no icon is needed to say what it is.
  */
-function CourtMarks({ live }: { live: boolean }) {
+function CourtMarks({ live, redraw = false }: { live: boolean; redraw?: boolean }) {
   const edge = live ? "border-mint/35" : "border-accent/10";
   const rule = live ? "bg-mint/25" : "bg-accent/8";
   const net = live ? "bg-accent/25" : "bg-accent/14";
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+    <div aria-hidden className={`pointer-events-none absolute inset-0 overflow-hidden ${redraw ? "marks-redraw" : ""}`}>
       <div className={`absolute inset-5 rounded-[18px] border ${edge}`} />
       <div className={`absolute inset-x-5 top-[29%] h-px ${rule}`} />
       <div className={`absolute inset-x-5 bottom-[29%] h-px ${rule}`} />
@@ -28,7 +28,7 @@ function CourtMarks({ live }: { live: boolean }) {
 
 function MiniCourtScene() {
   return (
-    <div aria-hidden className="relative mb-2 h-20 w-full max-w-[14rem]">
+    <div aria-hidden className="anim-scene relative mb-2 h-20 w-full max-w-[14rem]">
       <svg viewBox="0 0 240 90" className="absolute inset-x-0 bottom-0 w-full overflow-visible drop-shadow-[0_8px_8px_rgba(20,119,86,.16)]">
         <defs>
           <linearGradient id="court-card-green" x1="0" y1="0" x2="1" y2="1">
@@ -46,6 +46,7 @@ function MiniCourtScene() {
 
 /** One side of the net. Player names are the loudest type in the card. */
 function Side({
+  courtId,
   ids,
   byId,
   label,
@@ -55,6 +56,7 @@ function Side({
   warnCount,
   onPlayerTap,
 }: {
+  courtId: string;
   ids: string[];
   byId: Map<string, Player>;
   label: string;
@@ -80,6 +82,8 @@ function Side({
           return (
             <motion.div
               key={id}
+              data-flip-id={id}
+              data-flip-place={`court:${courtId}:${right ? "b" : "a"}`}
               whileTap={selectable ? press : undefined}
               onClick={
                 selectable && onPlayerTap
@@ -89,8 +93,9 @@ function Side({
                     }
                   : undefined
               }
-              style={staggerDelay(i, 0.06)}
-              className={`anim-pop flex min-w-0 items-center gap-2 rounded-[13px] border px-2.5 py-2 shadow-[0_8px_18px_-16px_rgba(32,35,63,0.45)] backdrop-blur-sm transition-all duration-150 ${
+              // Dealt like cards, alternating sides: A1, B1, A2, B2.
+              style={staggerDelay(i * 2 + (right ? 1 : 0), 0.05)}
+              className={`anim-pop relative flex min-w-0 items-center gap-2 rounded-[13px] border px-2.5 py-2 shadow-[0_8px_18px_-16px_rgba(32,35,63,0.45)] backdrop-blur-sm transition-all duration-150 ${
                 right ? "flex-row-reverse" : ""
               } ${
                 chosen
@@ -100,6 +105,8 @@ function Side({
                     : "border-white/80 bg-white/72"
               } ${selectable ? "cursor-pointer" : ""}`}
             >
+              {/* Picked for a swap: one ring ripples out from the chip. */}
+              {chosen && <span aria-hidden className="anim-ping pointer-events-none absolute inset-0 rounded-[13px]" />}
               <SkillBadge skill={p.skill} />
               <span className={`flex min-w-0 flex-1 flex-col gap-0.5 ${right ? "items-end" : "items-start"}`}>
                 <span className={`line-clamp-2 text-body font-extrabold leading-tight text-ink [overflow-wrap:anywhere] ${right ? "text-right" : ""}`}>{p.name}</span>
@@ -191,6 +198,26 @@ export function CourtCard({
     return () => clearTimeout(t);
   }, [court.startedAt]);
 
+  // One-shot choreography for each real state change of THIS court (local tap
+  // or a realtime update from another device). Mount and unrelated re-renders
+  // play nothing:
+  //   → live   a band of light serves across the card, the number jumps
+  //   → open   the markings redraw from the net and the empty scene settles in
+  const phase = started ? "live" : occupied ? "set" : "open";
+  const [fx, setFx] = useState<"live" | "open" | null>(null);
+  const lastPhase = useRef(phase);
+  useEffect(() => {
+    const prev = lastPhase.current;
+    lastPhase.current = phase;
+    if (prev === phase || phase === "set") return;
+    setFx(phase);
+    const t = setTimeout(() => setFx(null), 720);
+    return () => clearTimeout(t);
+  }, [phase]);
+
+  // Start is a round-trip: show it travelling instead of a dead button.
+  const [starting, setStarting] = useState(false);
+
   return (
     <motion.article
       whileHover={lift}
@@ -198,32 +225,34 @@ export function CourtCard({
       onClick={canDrop ? () => onAssignSelected(court.id) : undefined}
       className={`court-grain anim-enter relative flex h-[24.5rem] flex-col overflow-hidden rounded-[26px] transition-all duration-200 sm:h-[25rem] ${
         occupied ? LIVE : E2
-      } ${canDrop ? "tap-ready cursor-pointer" : ""} ${flash ? "flash-live" : ""} ${className}`}
+      } ${canDrop ? "tap-ready cursor-pointer" : ""} ${flash ? "flash-live" : ""} ${fx === "live" ? "serve-sweep" : ""} ${className}`}
     >
-      <CourtMarks live={occupied} />
+      <CourtMarks live={occupied} redraw={fx === "open"} />
 
       <div aria-hidden className={`absolute -right-14 -top-14 h-40 w-40 rounded-full blur-3xl ${occupied ? "bg-mint-wash" : "bg-accent-wash"}`} />
       <div className="relative flex flex-1 flex-col p-4 xl:p-5">
         {/* ── Identity left, clock right ───────────────────────────── */}
         <header className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
-            <span className={`grid h-12 w-12 place-items-center rounded-[17px] ${occupied ? "bg-mint-wash text-mint-deep" : "bg-accent-wash text-accent"}`}>
+            <span className={`grid h-12 w-12 place-items-center rounded-[17px] ${fx === "live" ? "anim-bump" : ""} ${occupied ? "bg-mint-wash text-mint-deep" : "bg-accent-wash text-accent"}`}>
               <span className="numeral text-title leading-none">{number}</span>
             </span>
             <div>
               <span className="section-heading block text-xs text-ink">คอร์ต {court.index}</span>
-              <span className="mt-1 block text-eyebrow font-semibold text-ink-3">
+              <span key={phase} className="anim-status mt-1 block text-eyebrow font-semibold text-ink-3">
                 {started ? "กำลังสนุกกันอยู่" : assigned ? "จัดผู้เล่นแล้ว · แตะเพื่อสลับ" : "พร้อมรับเกมใหม่"}
               </span>
             </div>
           </div>
 
           {started && court.startedAt != null ? (
-            <CourtTimer startedAt={court.startedAt} />
+            <div className="anim-status">
+              <CourtTimer startedAt={court.startedAt} />
+            </div>
           ) : assigned ? (
-            <span className="mt-1 flex items-center gap-1.5 rounded-full bg-accent-wash px-3 py-1.5 text-eyebrow font-extrabold text-accent"><span className="h-1.5 w-1.5 rounded-full bg-accent" />รอเริ่มเกม</span>
+            <span className="anim-status mt-1 flex items-center gap-1.5 rounded-full bg-accent-wash px-3 py-1.5 text-eyebrow font-extrabold text-accent"><span className="h-1.5 w-1.5 rounded-full bg-accent" />รอเริ่มเกม</span>
           ) : (
-            <span className="mt-1 flex items-center gap-1.5 rounded-full bg-mint-wash px-3 py-1.5 text-eyebrow font-extrabold text-mint-deep"><span className="h-1.5 w-1.5 rounded-full bg-mint" />ว่าง</span>
+            <span className="anim-status mt-1 flex items-center gap-1.5 rounded-full bg-mint-wash px-3 py-1.5 text-eyebrow font-extrabold text-mint-deep"><span className="h-1.5 w-1.5 rounded-full bg-mint" />ว่าง</span>
           )}
         </header>
 
@@ -232,6 +261,7 @@ export function CourtCard({
           <>
             <div className="mt-5 flex items-start gap-3">
               <Side
+                courtId={court.id}
                 ids={court.teamA}
                 byId={byId}
                 label="ทีม A"
@@ -243,6 +273,7 @@ export function CourtCard({
               />
               <div className="w-px self-stretch bg-gradient-to-b from-transparent via-line-2 to-transparent" />
               <Side
+                courtId={court.id}
                 ids={court.teamB}
                 byId={byId}
                 label="ทีม B"
@@ -255,7 +286,7 @@ export function CourtCard({
             </div>
 
             {isAdmin && assigned && (
-              <p className="mt-3 rounded-[12px] bg-accent-wash px-3 py-2 text-[0.66rem] font-semibold leading-relaxed text-accent-deep">
+              <p key={swapSelectedId ? "swap" : "idle"} className="anim-status mt-3 rounded-[12px] bg-accent-wash px-3 py-2 text-[0.66rem] font-semibold leading-relaxed text-accent-deep">
                 {swapSelectedId
                   ? "แตะอีกคนบนคอร์ตนี้หรือคอร์ตอื่นเพื่อสลับ หรือแตะคนในคิวเพื่อเปลี่ยนตัว"
                   : "แตะผู้เล่นเพื่อสลับทีม / เปลี่ยนตัวก่อนเริ่มเกม"}
@@ -276,15 +307,15 @@ export function CourtCard({
                     whileTap={finishing ? undefined : press}
                     onClick={() => onFinish(court.id)}
                     disabled={finishing}
-                    className="lime-button shine-button h-12 flex-[2] rounded-[15px] text-caption font-extrabold transition-all duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+                    className={`${finishing ? "kq-busy" : ""} anim-swap lime-button shine-button h-12 flex-[2] rounded-[15px] text-caption font-extrabold transition-all duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0`}
                   >
                     {finishing ? "กำลังจบเกม…" : "จบเกม + กลับคิว"}
                   </motion.button>
                 ) : (
                   <motion.button
                     whileTap={press}
-                    onClick={() => onStart(court.id)}
-                    className="start-button flex h-12 flex-[2] items-center justify-center whitespace-nowrap rounded-[15px] px-3 text-caption font-extrabold transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0"
+                    onClick={() => trackBusy(onStart(court.id), setStarting)}
+                    className={`${starting ? "kq-busy" : ""} anim-swap start-button flex h-12 flex-[2] items-center justify-center whitespace-nowrap rounded-[15px] px-3 text-caption font-extrabold transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0`}
                   >
                     เริ่มเกม
                   </motion.button>
@@ -297,18 +328,18 @@ export function CourtCard({
             {/* Faded center mark — signals this is a playable slot, not a gap */}
             <div className="flex flex-1 flex-col items-center justify-center">
               <MiniCourtScene />
-              <span className="flex items-center gap-2 rounded-full bg-accent px-4 py-2 text-[0.68rem] font-extrabold tracking-[0.14em] text-mint shadow-[0_12px_24px_-16px_rgba(29,51,34,0.75)]">
+              <span className="anim-status flex items-center gap-2 rounded-full bg-accent px-4 py-2 text-[0.68rem] font-extrabold tracking-[0.14em] text-mint shadow-[0_12px_24px_-16px_rgba(29,51,34,0.75)]" style={staggerDelay(2)}>
                 <span className="h-2 w-2 rounded-full bg-mint" /> READY
               </span>
-              <span className="mt-3 text-sm font-extrabold text-ink-2">คอร์ตพร้อมแล้ว</span>
-              <span className="mt-1 text-[0.68rem] font-medium text-ink-3">เลือกผู้เล่นหรือให้ระบบจัดคู่</span>
+              <span className="anim-enter mt-3 text-sm font-extrabold text-ink-2" style={staggerDelay(3)}>คอร์ตพร้อมแล้ว</span>
+              <span className="anim-enter mt-1 text-[0.68rem] font-medium text-ink-3" style={staggerDelay(4)}>เลือกผู้เล่นหรือให้ระบบจัดคู่</span>
             </div>
 
             {isAdmin ? (
               nextUpCount === 4 ? (
                 // Priority: a full Next Up is staged — this court can only take
                 // it. Fair / Random / Manual are hidden until it's promoted.
-                <div className="space-y-2.5">
+                <div className="anim-enter space-y-2.5" style={staggerDelay(3)}>
                   <ActionButton
                     onClick={() => onPromote(court.id)}
                     label="ส่งเกมถัดไปลง"
@@ -322,14 +353,14 @@ export function CourtCard({
               ) : nextUpCount >= 1 ? (
                 // Priority: an incomplete next game is booked. The queue can't
                 // jump ahead of it — admin must fill it to 4 or clear it first.
-                <div className="rounded-[15px] border border-dashed border-accent/25 bg-accent-wash/50 px-4 py-4 text-center">
+                <div className="anim-enter rounded-[15px] border border-dashed border-accent/25 bg-accent-wash/50 px-4 py-4 text-center" style={staggerDelay(3)}>
                   <p className="text-caption font-extrabold text-accent-deep">เกมถัดไปจองคิวไว้แล้ว</p>
                   <p className="mt-1 text-[0.68rem] leading-relaxed text-ink-3">
                     เติมเกมถัดไปให้ครบ 4 คน หรือล้างก่อน ถึงจะจัดคอร์ตนี้ได้
                   </p>
                 </div>
               ) : (
-                <div className="space-y-2.5">
+                <div className="anim-enter space-y-2.5" style={staggerDelay(3)}>
                   {selectedCount >= 2 ? (
                     <ActionButton
                       onClick={() => onAssignSelected(court.id)}
@@ -352,6 +383,7 @@ export function CourtCard({
                         label="สุ่มดวงกันหน่อย"
                         hint="สุ่มจากทั้งคิว"
                         variant="soft"
+                        shuffle
                       />
                     </>
                   )}
@@ -379,13 +411,19 @@ function ActionButton({
   label,
   hint,
   variant,
+  shuffle = false,
 }: {
-  onClick: () => void;
+  onClick: () => unknown;
   disabled?: boolean;
   label: string;
   hint: string;
   variant: "primary" | "soft" | "smart";
+  shuffle?: boolean; // random draw: the label cuts like a deck on tap
 }) {
+  // Fair / random / send are round-trips (Fair also reads fresh history):
+  // a travelling shine says "working on it" without blocking anything.
+  const [busy, setBusy] = useState(false);
+  const [cuts, setCuts] = useState(0);
   const styles = {
     primary:
       "lime-button shine-button font-extrabold hover:-translate-y-0.5 disabled:bg-none disabled:bg-line disabled:text-ink-4 disabled:shadow-none",
@@ -399,12 +437,13 @@ function ActionButton({
       whileTap={disabled ? undefined : press}
       onClick={(e) => {
         e.stopPropagation();
-        onClick();
+        if (shuffle) setCuts((n) => n + 1);
+        trackBusy(onClick(), setBusy);
       }}
       disabled={disabled}
-      className={`flex h-12 w-full items-center justify-between rounded-[15px] px-4 transition-all duration-200 disabled:cursor-not-allowed ${styles}`}
+      className={`${busy ? "kq-busy" : ""} flex h-12 w-full items-center justify-between rounded-[15px] px-4 transition-all duration-200 disabled:cursor-not-allowed ${styles}`}
     >
-      <span className="text-caption font-bold">{label}</span>
+      <span key={cuts} className={`text-caption font-bold ${cuts > 0 ? "anim-shuffle" : ""}`}>{label}</span>
       <span className="text-eyebrow opacity-70">{hint}</span>
     </motion.button>
   );

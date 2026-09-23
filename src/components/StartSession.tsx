@@ -6,9 +6,9 @@ import { useAdmin } from "@/context/AdminContext";
 import { startSession } from "@/lib/db";
 import { press, staggerDelay } from "./motion";
 
-function CourtChoiceArt({ active }: { active: boolean }) {
+export function CourtChoiceArt({ active }: { active: boolean }) {
   return (
-    <div className="relative h-20 w-full max-w-[13rem]" aria-hidden>
+    <div className={`relative h-20 w-full max-w-[13rem] ${active ? "anim-scene" : ""}`} aria-hidden>
       <svg viewBox="0 0 220 84" className="absolute inset-x-0 bottom-0 w-full overflow-visible">
         <defs>
           <linearGradient id={active ? "court-active" : "court-idle"} x1="0" y1="0" x2="1" y2="1">
@@ -24,15 +24,30 @@ function CourtChoiceArt({ active }: { active: boolean }) {
   );
 }
 
-export function StartSession() {
+export function StartSession({
+  onLaunch,
+  onLaunchSettled,
+}: {
+  // Fired the instant "เปิดสนามเลย!" is pressed — before the write even starts —
+  // so the launch curtain (owned by the page, so it can outlive this component
+  // once the session flips active and swaps StartSession out) can begin right
+  // on the tap. The DB call and its guard below are unchanged.
+  onLaunch?: (courtCount: number, origin: { x: number; y: number }) => void;
+  onLaunchSettled?: (ok: boolean, message?: string) => void;
+} = {}) {
   const { isAdmin } = useAdmin();
   const [courtCount, setCourtCount] = useState(2);
   const [busy, setBusy] = useState(false);
 
-  async function handleStart() {
+  async function handleStart(e: React.MouseEvent<HTMLButtonElement>) {
+    onLaunch?.(courtCount, { x: e.clientX, y: e.clientY });
     setBusy(true);
     try {
       await startSession(courtCount);
+      onLaunchSettled?.(true);
+    } catch (err) {
+      onLaunchSettled?.(false, err instanceof Error ? err.message : undefined);
+      throw err;
     } finally {
       setBusy(false);
     }
@@ -69,10 +84,14 @@ export function StartSession() {
                         : "border-white/80 bg-white/76 shadow-[0_18px_44px_-30px_rgba(16,76,59,.42)] hover:-translate-y-0.5 hover:border-[#9ec9b2] hover:bg-white/90"
                     }`}
                   >
-                    <span className={`absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-full border-2 text-sm font-black ${active ? "border-[#63bf53] bg-[#65c51f] text-white" : "border-[#9bbdb1] text-transparent"}`}>
+                    {/* Choosing a count stamps the tick and lifts its court art into place. */}
+                    <span
+                      key={active ? "on" : "off"}
+                      className={`absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-full border-2 text-sm font-black ${active ? "anim-stamp border-[#63bf53] bg-[#65c51f] text-white" : "border-[#9bbdb1] text-transparent"}`}
+                    >
                       ✓
                     </span>
-                    <CourtChoiceArt active={active} />
+                    <CourtChoiceArt key={active ? "on" : "off"} active={active} />
                     <span className={`numeral mt-3 text-[3rem] leading-none ${active ? "text-accent-deep" : "text-[#234c4b]"}`}>{String(n).padStart(2, "0")}</span>
                     <span className="mt-1 text-sm font-bold text-ink-3">คอร์ต</span>
                   </motion.button>
@@ -85,7 +104,7 @@ export function StartSession() {
               onClick={handleStart}
               disabled={busy}
               style={staggerDelay(5)}
-              className="play-button shine-button anim-enter relative mt-5 flex h-16 w-full items-center justify-center gap-4 rounded-full px-6 text-lede font-extrabold text-white transition-all duration-200 hover:-translate-y-0.5 disabled:bg-none disabled:bg-line disabled:text-ink-4 disabled:shadow-none"
+              className={`${busy ? "kq-busy" : ""} play-button shine-button anim-enter relative mt-5 flex h-16 w-full items-center justify-center gap-4 rounded-full px-6 text-lede font-extrabold text-white transition-all duration-200 hover:-translate-y-0.5 disabled:bg-none disabled:bg-line disabled:text-ink-4 disabled:shadow-none`}
             >
               <span aria-hidden className="text-3xl drop-shadow-sm">🏸</span>
               <span>{busy ? "กำลังเปิดสนาม…" : "เปิดสนามเลย!"}</span>
