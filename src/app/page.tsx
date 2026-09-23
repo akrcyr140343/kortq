@@ -74,22 +74,26 @@ function Stat({
   }[tone];
 
   return (
-    <div
-      ref={cardRef}
-      className={`e1 stat-card group relative min-w-[7.5rem] flex-1 origin-center snap-center overflow-hidden rounded-[18px] px-4 py-3.5 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md sm:min-w-0 sm:!scale-100 sm:!opacity-100 ${
-        active ? "scale-[1.045] opacity-100 shadow-md" : "scale-[0.94] opacity-70"
-      }`}
-    >
-      <span aria-hidden className={`absolute inset-x-4 top-0 h-0.5 rounded-full bg-gradient-to-r ${toneClass} to-transparent`} />
-      <span className="block min-w-0">
-        <span className="block truncate text-[0.66rem] font-bold text-ink-3">{label}</span>
-        <span className="mt-0.5 flex items-baseline gap-1">
-          <span className="numeral text-title leading-none text-ink">
-            <Tick value={value} />
+    // The outer box is the IntersectionObserver target — it never transforms,
+    // so its measured rect stays constant and can't feed back into `active`.
+    // Everything that actually scales/fades lives on the inner box instead.
+    <div ref={cardRef} className="min-w-[7.5rem] flex-1 snap-center sm:min-w-0">
+      <div
+        className={`e1 stat-card group relative h-full origin-center overflow-hidden rounded-[18px] px-4 py-3.5 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md sm:!scale-100 sm:!opacity-100 ${
+          active ? "scale-[1.045] opacity-100 shadow-md" : "scale-[0.94] opacity-70"
+        }`}
+      >
+        <span aria-hidden className={`absolute inset-x-4 top-0 h-0.5 rounded-full bg-gradient-to-r ${toneClass} to-transparent`} />
+        <span className="block min-w-0">
+          <span className="block truncate text-[0.66rem] font-bold text-ink-3">{label}</span>
+          <span className="mt-0.5 flex items-baseline gap-1">
+            <span className="numeral text-title leading-none text-ink">
+              <Tick value={value} />
+            </span>
+            <span className="text-eyebrow font-semibold text-ink-3">{unit}</span>
           </span>
-          <span className="text-eyebrow font-semibold text-ink-3">{unit}</span>
         </span>
-      </span>
+      </div>
     </div>
   );
 }
