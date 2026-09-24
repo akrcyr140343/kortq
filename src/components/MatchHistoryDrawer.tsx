@@ -135,7 +135,7 @@ export function MatchHistoryDrawer({
   );
 
   const totalGames = matches.length;
-  const courtCount = courts.length;
+  const courtCount = session?.courtCount ?? courts.length;
 
   // Portal target only exists on the client. This drawer is rendered only after
   // the client-side session subscription resolves (parent gates it behind an

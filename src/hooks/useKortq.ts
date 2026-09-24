@@ -6,21 +6,29 @@ import type { Court, Match, Player, Session } from "@/lib/types";
 
 const CONNECT_TIMEOUT_MS = 10_000;
 
+/** A queued game (Q1–Q3) with its ids resolved to live players. */
+export interface ResolvedQueuedGame {
+  id: string;
+  number: number; // 1-based Q number = position in line
+  teamA: Player[];
+  teamB: Player[];
+  count: number; // valid players (0–4)
+}
+
 export interface KortqState {
   loading: boolean;
   error: string | null;
   session: Session | null;
   players: Player[];
-  courts: Court[];
+  courts: Court[]; // raw docs of the `courts` subcollection
+  games: Court[]; // running games only, oldest first (เกม #n order)
   matches: Match[]; // finished games this session (for fair matchmaking)
   fairHistoryReady: boolean;
   fairHistoryError: string | null;
   waiting: Player[]; // status "waiting", ordered by queue position
   resting: Player[]; // status "resting"
-  assignable: Player[]; // waiting MINUS anyone staged in Next Up (the real pool)
-  nextUpTeamA: Player[]; // staged next game, team A (resolved, deleted ids dropped)
-  nextUpTeamB: Player[]; // staged next game, team B
-  nextUpCount: number; // valid staged players (0–4)
+  assignable: Player[]; // waiting MINUS anyone held in a Q (the real pool)
+  queue: ResolvedQueuedGame[]; // Q1, Q2, Q3 in order
   playersById: Map<string, Player>;
 }
 
@@ -90,18 +98,24 @@ export function useKortq(): KortqState {
     const resting = players.filter((p) => p.status === "resting");
     const playersById = new Map(players.map((p) => [p.id, p]));
 
-    // Resolve the staged next game, dropping any id that no longer exists (a
+    // Resolve each queued game, dropping any id that no longer exists (a
     // deleted player mid-flight) so the UI and pool math self-heal.
     const resolve = (ids: string[] | undefined) =>
       (ids ?? []).map((id) => playersById.get(id)).filter((p): p is Player => p != null);
-    const nextUpTeamA = resolve(session?.nextUp?.teamA);
-    const nextUpTeamB = resolve(session?.nextUp?.teamB);
-    const nextUpCount = nextUpTeamA.length + nextUpTeamB.length;
-    const stagedIds = new Set([...nextUpTeamA, ...nextUpTeamB].map((p) => p.id));
+    const queue: ResolvedQueuedGame[] = (session?.active ? session.gameQueue ?? [] : []).map((q, i) => {
+      const teamA = resolve(q.teamA);
+      const teamB = resolve(q.teamB);
+      return { id: q.id, number: i + 1, teamA, teamB, count: teamA.length + teamB.length };
+    });
+    const stagedIds = new Set(queue.flatMap((q) => [...q.teamA, ...q.teamB].map((p) => p.id)));
 
-    // The real pool every assignment path draws from: waiting minus anyone
-    // already earmarked for the next game. Next Up has priority over the queue.
+    // The real pool every arranging path draws from: waiting minus anyone
+    // already earmarked in a Q. A player can only ever be in one Q.
     const assignable = waiting.filter((p) => !stagedIds.has(p.id));
+
+    // Running games: docs that actually hold players (legacy empty court-N docs
+    // from an old session are ignored), in the order they were sent.
+    const games = courts.filter((c) => c.teamA.length + c.teamB.length > 0);
 
     return {
       loading,
@@ -109,15 +123,14 @@ export function useKortq(): KortqState {
       session,
       players,
       courts,
+      games,
       matches,
       fairHistoryReady,
       fairHistoryError,
       waiting,
       resting,
       assignable,
-      nextUpTeamA,
-      nextUpTeamB,
-      nextUpCount,
+      queue,
       playersById,
     };
   }, [loading, error, session, players, courts, matches, fairHistoryReady, fairHistoryError]);

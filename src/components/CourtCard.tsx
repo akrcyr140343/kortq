@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import type { Court, Player } from "@/lib/types";
 import { SkillBadge } from "./SkillBadge";
@@ -83,7 +83,7 @@ function Side({
             <motion.div
               key={id}
               data-flip-id={id}
-              data-flip-place={`court:${courtId}:${right ? "b" : "a"}`}
+              data-flip-place={`game:${courtId}:${right ? "b" : "a"}`}
               whileTap={selectable ? press : undefined}
               onClick={
                 selectable && onPlayerTap
@@ -128,275 +128,99 @@ function Side({
   );
 }
 
+/**
+ * A game currently being played ("กำลังเล่น"). Not a court number: each game
+ * has its own identity (เกม #n) and its own finish / cancel, so games can end
+ * in any order. The court styling and choreography are unchanged.
+ */
 export function CourtCard({
   court,
   byId,
   isAdmin,
-  waitingCount,
-  selectedCount,
-  swapSelectedId,
-  nextUpCount,
-  pairWarn,
   finishing = false,
-  onFair,
-  onRandom,
-  onAssignSelected,
-  onPromote,
-  onStart,
-  onPlayerTap,
   onFinish,
-  onRemove,
+  onCancel,
   index = 0,
   className = "",
 }: {
-  court: Court;
+  court: Court; // a running game doc
   byId: Map<string, Player>;
   isAdmin: boolean;
-  waitingCount: number;
-  selectedCount: number;
-  swapSelectedId: string | null; // player selected for swapping on THIS court
-  nextUpCount: number; // staged Next Up size (0 = none, 1–3 = locked, 4 = ready)
-  pairWarn?: (ids: string[]) => number; // finished games this team's pair already played together
-  finishing?: boolean; // a finish request for THIS court is in flight (UI guard)
+  finishing?: boolean; // a finish request for THIS game is in flight (UI guard)
   index?: number;
-  onFair: (courtId: string) => void;
-  onRandom: (courtId: string) => void;
-  onAssignSelected: (courtId: string) => void;
-  onPromote: (courtId: string) => void;
-  onStart: (courtId: string) => void;
-  onPlayerTap: (courtId: string, playerId: string) => void;
-  onFinish: (courtId: string) => void;
-  onRemove: (courtId: string) => void;
+  onFinish: (gameId: string) => void;
+  onCancel: (gameId: string) => void;
   className?: string;
 }) {
-  const occupied = court.teamA.length + court.teamB.length > 0;
-  const started = court.startedAt != null; // game clock running
-  const assigned = occupied && !started; // players placed, game not started yet
-  const notEnough = waitingCount < 4;
   const number = String(court.index).padStart(2, "0");
-  // Next Up priority states (kept inline — see the empty-court body below):
-  //   nextUpCount === 4        → this court can promote the staged game
-  //   1 ≤ nextUpCount ≤ 3      → booked but incomplete: court is locked
-  //   nextUpCount === 0        → normal assignment
-  // While any next game is staged, an empty court can't take a manual drop.
-  const canDrop = isAdmin && !occupied && selectedCount >= 2 && nextUpCount === 0;
 
-  // Repeat-teammate warning only while the game hasn't started (assigned). Once
-  // it starts, teams are locked in and the warning is no longer actionable.
-  const warnA = assigned && pairWarn ? pairWarn(court.teamA) : 0;
-  const warnB = assigned && pairWarn ? pairWarn(court.teamB) : 0;
-
-  // A fresh `startedAt` means players just landed here — wash the card once.
-  const [flash, setFlash] = useState(false);
-  const lastStart = useRef(court.startedAt);
+  // A game that was sent a moment ago (on this or another device) arrives with
+  // one wash + a band of light serving across it; an old game mounted by a
+  // reload or a tab switch arrives quietly.
+  const [fx, setFx] = useState<"live" | null>(() =>
+    court.startedAt != null && Date.now() - court.startedAt < 4000 ? "live" : null,
+  );
   useEffect(() => {
-    const changed = lastStart.current !== court.startedAt;
-    lastStart.current = court.startedAt;
-    if (!changed || court.startedAt == null) return;
-    setFlash(true);
-    const t = setTimeout(() => setFlash(false), 340);
-    return () => clearTimeout(t);
-  }, [court.startedAt]);
-
-  // One-shot choreography for each real state change of THIS court (local tap
-  // or a realtime update from another device). Mount and unrelated re-renders
-  // play nothing:
-  //   → live   a band of light serves across the card, the number jumps
-  //   → open   the markings redraw from the net and the empty scene settles in
-  const phase = started ? "live" : occupied ? "set" : "open";
-  const [fx, setFx] = useState<"live" | "open" | null>(null);
-  const lastPhase = useRef(phase);
-  useEffect(() => {
-    const prev = lastPhase.current;
-    lastPhase.current = phase;
-    if (prev === phase || phase === "set") return;
-    setFx(phase);
+    if (!fx) return;
     const t = setTimeout(() => setFx(null), 720);
     return () => clearTimeout(t);
-  }, [phase]);
-
-  // Start is a round-trip: show it travelling instead of a dead button.
-  const [starting, setStarting] = useState(false);
+  }, [fx]);
 
   return (
     <motion.article
       whileHover={lift}
       style={staggerDelay(index + 1)}
-      onClick={canDrop ? () => onAssignSelected(court.id) : undefined}
-      className={`court-grain anim-enter relative flex h-[24.5rem] flex-col overflow-hidden rounded-[26px] transition-all duration-200 sm:h-[25rem] ${
-        occupied ? LIVE : E2
-      } ${canDrop ? "tap-ready cursor-pointer" : ""} ${flash ? "flash-live" : ""} ${fx === "live" ? "serve-sweep" : ""} ${className}`}
+      className={`court-grain anim-enter relative flex flex-col overflow-hidden rounded-[26px] transition-all duration-200 ${LIVE} ${
+        fx === "live" ? "flash-live serve-sweep" : ""
+      } ${className}`}
     >
-      <CourtMarks live={occupied} redraw={fx === "open"} />
+      <CourtMarks live />
 
-      <div aria-hidden className={`absolute -right-14 -top-14 h-40 w-40 rounded-full blur-3xl ${occupied ? "bg-mint-wash" : "bg-accent-wash"}`} />
+      <div aria-hidden className="absolute -right-14 -top-14 h-40 w-40 rounded-full bg-mint-wash blur-3xl" />
       <div className="relative flex flex-1 flex-col p-4 xl:p-5">
         {/* ── Identity left, clock right ───────────────────────────── */}
         <header className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
-            <span className={`grid h-12 w-12 place-items-center rounded-[17px] ${fx === "live" ? "anim-bump" : ""} ${occupied ? "bg-mint-wash text-mint-deep" : "bg-accent-wash text-accent"}`}>
+            <span className={`grid h-12 w-12 place-items-center rounded-[17px] bg-mint-wash text-mint-deep ${fx === "live" ? "anim-bump" : ""}`}>
               <span className="numeral text-title leading-none">{number}</span>
             </span>
             <div>
-              <span className="section-heading block text-xs text-ink">คอร์ต {court.index}</span>
-              <span key={phase} className="anim-status mt-1 block text-eyebrow font-semibold text-ink-3">
-                {started ? "กำลังสนุกกันอยู่" : assigned ? "จัดผู้เล่นแล้ว · แตะเพื่อสลับ" : "พร้อมรับเกมใหม่"}
-              </span>
+              <span className="section-heading block text-xs text-ink">เกม #{court.index}</span>
+              <span className="mt-1 block text-eyebrow font-semibold text-ink-3">กำลังสนุกกันอยู่</span>
             </div>
           </div>
 
-          {started && court.startedAt != null ? (
+          {court.startedAt != null && (
             <div className="anim-status">
               <CourtTimer startedAt={court.startedAt} />
             </div>
-          ) : assigned ? (
-            <span className="anim-status mt-1 flex items-center gap-1.5 rounded-full bg-accent-wash px-3 py-1.5 text-eyebrow font-extrabold text-accent"><span className="h-1.5 w-1.5 rounded-full bg-accent" />รอเริ่มเกม</span>
-          ) : (
-            <span className="anim-status mt-1 flex items-center gap-1.5 rounded-full bg-mint-wash px-3 py-1.5 text-eyebrow font-extrabold text-mint-deep"><span className="h-1.5 w-1.5 rounded-full bg-mint" />ว่าง</span>
           )}
         </header>
 
-        {/* ── Body ─────────────────────────────────────────────────── */}
-        {occupied ? (
-          <>
-            <div className="mt-5 flex items-start gap-3">
-              <Side
-                courtId={court.id}
-                ids={court.teamA}
-                byId={byId}
-                label="ทีม A"
-                align="left"
-                selectable={isAdmin && assigned}
-                selectedId={swapSelectedId}
-                warnCount={warnA}
-                onPlayerTap={(id) => onPlayerTap(court.id, id)}
-              />
-              <div className="w-px self-stretch bg-gradient-to-b from-transparent via-line-2 to-transparent" />
-              <Side
-                courtId={court.id}
-                ids={court.teamB}
-                byId={byId}
-                label="ทีม B"
-                align="right"
-                selectable={isAdmin && assigned}
-                selectedId={swapSelectedId}
-                warnCount={warnB}
-                onPlayerTap={(id) => onPlayerTap(court.id, id)}
-              />
-            </div>
+        {/* ── Teams ────────────────────────────────────────────────── */}
+        <div className="mt-5 flex items-start gap-3">
+          <Side courtId={court.id} ids={court.teamA} byId={byId} label="ทีม A" align="left" selectable={false} selectedId={null} warnCount={0} />
+          <div className="w-px self-stretch bg-gradient-to-b from-transparent via-line-2 to-transparent" />
+          <Side courtId={court.id} ids={court.teamB} byId={byId} label="ทีม B" align="right" selectable={false} selectedId={null} warnCount={0} />
+        </div>
 
-            {isAdmin && assigned && (
-              <p key={swapSelectedId ? "swap" : "idle"} className="anim-status mt-3 rounded-[12px] bg-accent-wash px-3 py-2 text-[0.66rem] font-semibold leading-relaxed text-accent-deep">
-                {swapSelectedId
-                  ? "แตะอีกคนบนคอร์ตนี้หรือคอร์ตอื่นเพื่อสลับ หรือแตะคนในคิวเพื่อเปลี่ยนตัว"
-                  : "แตะผู้เล่นเพื่อสลับทีม / เปลี่ยนตัวก่อนเริ่มเกม"}
-              </p>
-            )}
-
-            {isAdmin && (
-              <div className="mt-auto flex gap-2 pt-3">
-                <motion.button
-                  whileTap={press}
-                  onClick={() => onRemove(court.id)}
-                  className="h-12 flex-1 rounded-[15px] border border-line bg-white/80 text-caption font-bold text-ink-3 transition-all duration-200 hover:border-alert/30 hover:bg-alert-wash hover:text-alert"
-                >
-                  ยกเลิก
-                </motion.button>
-                {started ? (
-                  <motion.button
-                    whileTap={finishing ? undefined : press}
-                    onClick={() => onFinish(court.id)}
-                    disabled={finishing}
-                    className={`${finishing ? "kq-busy" : ""} anim-swap lime-button shine-button h-12 flex-[2] rounded-[15px] text-caption font-extrabold transition-all duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0`}
-                  >
-                    {finishing ? "กำลังจบเกม…" : "จบเกม + กลับคิว"}
-                  </motion.button>
-                ) : (
-                  <motion.button
-                    whileTap={press}
-                    onClick={() => trackBusy(onStart(court.id), setStarting)}
-                    className={`${starting ? "kq-busy" : ""} anim-swap start-button flex h-12 flex-[2] items-center justify-center whitespace-nowrap rounded-[15px] px-3 text-caption font-extrabold transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0`}
-                  >
-                    เริ่มเกม
-                  </motion.button>
-                )}
-              </div>
-            )}
-          </>
-        ) : (
-          <div className="mt-4 flex flex-1 flex-col">
-            {/* Faded center mark — signals this is a playable slot, not a gap */}
-            <div className="flex flex-1 flex-col items-center justify-center">
-              <MiniCourtScene />
-              <span className="anim-status flex items-center gap-2 rounded-full bg-accent px-4 py-2 text-[0.68rem] font-extrabold tracking-[0.14em] text-mint shadow-[0_12px_24px_-16px_rgba(29,51,34,0.75)]" style={staggerDelay(2)}>
-                <span className="h-2 w-2 rounded-full bg-mint" /> READY
-              </span>
-              <span className="anim-enter mt-3 text-sm font-extrabold text-ink-2" style={staggerDelay(3)}>คอร์ตพร้อมแล้ว</span>
-              <span className="anim-enter mt-1 text-[0.68rem] font-medium text-ink-3" style={staggerDelay(4)}>เลือกผู้เล่นหรือให้ระบบจัดคู่</span>
-            </div>
-
-            {isAdmin ? (
-              nextUpCount === 4 ? (
-                // Priority: a full Next Up is staged — this court can only take
-                // it. Fair / Random / Manual are hidden until it's promoted.
-                <div className="anim-enter space-y-2.5" style={staggerDelay(3)}>
-                  <ActionButton
-                    onClick={() => onPromote(court.id)}
-                    label="ส่งเกมถัดไปลง"
-                    hint="4 คนที่ตั้งไว้"
-                    variant="primary"
-                  />
-                  <p className="px-1 pt-0.5 text-[0.68rem] leading-relaxed text-ink-4">
-                    มีเกมถัดไปรออยู่ — ส่งลงก่อนถึงจะจับคู่ชุดใหม่ได้
-                  </p>
-                </div>
-              ) : nextUpCount >= 1 ? (
-                // Priority: an incomplete next game is booked. The queue can't
-                // jump ahead of it — admin must fill it to 4 or clear it first.
-                <div className="anim-enter rounded-[15px] border border-dashed border-accent/25 bg-accent-wash/50 px-4 py-4 text-center" style={staggerDelay(3)}>
-                  <p className="text-caption font-extrabold text-accent-deep">เกมถัดไปจองคิวไว้แล้ว</p>
-                  <p className="mt-1 text-[0.68rem] leading-relaxed text-ink-3">
-                    เติมเกมถัดไปให้ครบ 4 คน หรือล้างก่อน ถึงจะจัดคอร์ตนี้ได้
-                  </p>
-                </div>
-              ) : (
-                <div className="anim-enter space-y-2.5" style={staggerDelay(3)}>
-                  {selectedCount >= 2 ? (
-                    <ActionButton
-                      onClick={() => onAssignSelected(court.id)}
-                      label="ส่งลงคอร์ตนี้"
-                      hint={`${selectedCount} คนที่เลือก`}
-                      variant="primary"
-                    />
-                  ) : (
-                    <>
-                      <ActionButton
-                        onClick={() => onFair(court.id)}
-                        disabled={notEnough}
-                        label="จับแฟร์"
-                        hint="ยุติธรรม · ไม่ซ้ำคู่"
-                        variant="smart"
-                      />
-                      <ActionButton
-                        onClick={() => onRandom(court.id)}
-                        disabled={notEnough}
-                        label="สุ่มดวงกันหน่อย"
-                        hint="สุ่มจากทั้งคิว"
-                        variant="soft"
-                        shuffle
-                      />
-                    </>
-                  )}
-                  {notEnough && selectedCount < 2 && (
-                      <p className="px-1 pt-0.5 text-[0.68rem] leading-relaxed text-ink-4">
-                      ขอครบ 4 คนในคิวก่อนนะ แล้วจะจัดให้ทันที
-                    </p>
-                  )}
-                </div>
-              )
-            ) : (
-              <p className="pb-4 text-body text-ink-3"></p>
-            )}
+        {isAdmin && (
+          <div className="mt-auto flex gap-2 pt-4">
+            <motion.button
+              whileTap={press}
+              onClick={() => onCancel(court.id)}
+              className="h-12 flex-1 rounded-[15px] border border-line bg-white/80 text-caption font-bold text-ink-3 transition-all duration-200 hover:border-alert/30 hover:bg-alert-wash hover:text-alert"
+            >
+              ยกเลิก
+            </motion.button>
+            <motion.button
+              whileTap={finishing ? undefined : press}
+              onClick={() => onFinish(court.id)}
+              disabled={finishing}
+              className={`${finishing ? "kq-busy" : ""} lime-button shine-button h-12 flex-[2] rounded-[15px] text-caption font-extrabold transition-all duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0`}
+            >
+              {finishing ? "กำลังจบเกม…" : "จบเกม + กลับคิว"}
+            </motion.button>
           </div>
         )}
       </div>
@@ -404,8 +228,30 @@ export function CourtCard({
   );
 }
 
+/**
+ * A free playing slot (the court count allows another game). Pure status — it
+ * is not a numbered court and takes no taps; Q1 is sent from the queue card.
+ */
+export function FreeSlotCard({ index = 0 }: { index?: number }) {
+  return (
+    <div
+      style={staggerDelay(index + 1)}
+      className={`court-grain anim-enter relative flex flex-col items-center justify-center overflow-hidden rounded-[26px] px-4 py-6 text-center ${E2}`}
+    >
+      <CourtMarks live={false} />
+      <div className="relative flex flex-col items-center">
+        <MiniCourtScene />
+        <span className="anim-status flex items-center gap-2 rounded-full bg-accent px-4 py-2 text-[0.68rem] font-extrabold tracking-[0.14em] text-mint shadow-[0_12px_24px_-16px_rgba(29,51,34,0.75)]">
+          <span className="h-2 w-2 rounded-full bg-mint" /> ว่าง
+        </span>
+        <span className="mt-2 text-[0.68rem] font-medium text-ink-3">เรียก Q1 ลงสนามได้เลย</span>
+      </div>
+    </div>
+  );
+}
+
 /** Text-first action button: bold label, muted hint, no iconography. */
-function ActionButton({
+export function ActionButton({
   onClick,
   disabled = false,
   label,

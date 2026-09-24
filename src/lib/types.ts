@@ -11,7 +11,7 @@ export interface Player {
   skill: Skill;
   score: number; // derived from skill: NB=1, BG-=2, BG=3, N=4 (used for matchmaking only)
   status: PlayerStatus;
-  courtId: string | null; // set while status === "playing"
+  courtId: string | null; // the running game's doc id while status === "playing" (field name kept for schema stability)
   gamesPlayed: number; // number of games finished this session
   createdAt: number; // ms — first time added
   queuedAt: number; // ms — last time entered the waiting queue (used for FIFO fairness)
@@ -49,30 +49,46 @@ export function normalizeNameKey(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+/**
+ * A game currently being played ("กำลังเล่น"). Stored in the `courts`
+ * subcollection (name kept for schema stability) but NOT tied to a physical
+ * court: the doc is created when Q1 is sent and deleted when the game finishes
+ * or is cancelled. `index` is the running game number of the session (เกม #n).
+ */
 export interface Court {
   id: string;
-  index: number; // 1-based court number
+  index: number; // running game number within the session (1, 2, 3, …)
   teamA: string[]; // player ids
   teamB: string[]; // player ids
-  startedAt: number | null; // ms when the current game started (drives the court timer)
+  startedAt: number | null; // ms when the game was sent to play (drives the timer)
 }
 
-/**
- * The single staged "next game" (เกมถัดไป). Admin sets it in advance so members
- * can see who plays next before a court frees up. Holds player ids already split
- * into the two teams the admin arranged; promotion drops these exact teams onto
- * a court without re-balancing. Cleared on promote and on session start/end.
- */
+/** Two teams of player ids — the shape shared by a queued game and Fair logs. */
 export interface NextUp {
   teamA: string[]; // player ids
   teamB: string[]; // player ids
 }
 
+/**
+ * One game waiting in line (Q1, Q2, Q3). Position in `Session.gameQueue` IS the
+ * Q number — it's a place in line, not a court. May hold 1–4 players while it's
+ * being arranged; only a full 2v2 Q1 can be sent to play. `id` is stable so a
+ * stale action from another device can tell the Q it meant has moved on.
+ */
+export interface QueuedGame extends NextUp {
+  id: string;
+}
+
+/** Max games that can wait in line at once (Q1–Q3). */
+export const MAX_QUEUED_GAMES = 3;
+
 export interface Session {
   active: boolean;
-  courtCount: number; // 2 or 3
+  courtCount: number; // 2 or 3 — only a cap on how many games may be playing at once
   createdAt: number;
-  nextUp?: NextUp; // staged "next game" (เกมถัดไป); absent/empty = not set
+  gameQueue?: QueuedGame[]; // Q1, Q2, Q3 in order; absent/empty = nothing arranged
+  gameSeq?: number; // last game number handed out (เกม #n)
+  nextUp?: NextUp; // legacy single "next game" — no longer written or read
   fairRevision?: number; // incremented atomically by every app mutation of Fair inputs
   fairPlayerIdentities?: Record<string, string>; // Player ID -> stable identity, retained after removal
 }
@@ -85,7 +101,7 @@ export interface Session {
  */
 export interface Match {
   id: string;
-  courtId: string;
+  courtId: string; // id of the game doc it was played as (legacy sessions: "court-N")
   teamA: string[]; // player ids on team A when the game finished
   teamB: string[]; // player ids on team B when the game finished
   players: string[]; // all ids in the game (teamA + teamB)

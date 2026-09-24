@@ -223,7 +223,7 @@ export function QueuePanel({
                 pickActive ? "bg-accent-wash text-accent-deep" : "bg-mint-wash text-mint-deep"
               }`}
             >
-              ● {pickActive ? pickLabel : "แตะชื่อเพื่อเลือกลงคอร์ตได้ 2–4 คน"}
+              ● {pickActive ? pickLabel : "แตะชื่อเพื่อเลือก 1–4 คน แล้วจัดเป็นคิวเกม"}
             </p>
           )}
 

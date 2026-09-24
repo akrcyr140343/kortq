@@ -6,40 +6,34 @@ import { useAdmin } from "@/context/AdminContext";
 import { useModal } from "@/context/ModalContext";
 import { useKortq } from "@/hooks/useKortq";
 import { useProfiles } from "@/hooks/useProfiles";
-import { normalizeNameKey, type Skill } from "@/lib/types";
+import { MAX_QUEUED_GAMES, normalizeNameKey, type Skill } from "@/lib/types";
 import { stablePlayerIdentity } from "@/lib/fairmatch";
 import { buildTeammatePairCounts, teammatePairKey } from "@/lib/matchHistory";
 import {
   addPlayer,
   addPlayerFromProfile,
-  assignToCourt,
-  fairAssign,
-  randomAssign,
   deletePlayer,
   endSession,
   finishGame,
-  removeFromCourt,
+  cancelGame,
   setPlayerResting,
-  startGame,
-  swapCourtPlayers,
-  swapAcrossCourts,
-  substituteCourtPlayer,
-  setNextUpFair,
-  setNextUpManual,
-  swapNextUpPlayers,
-  substituteNextUpPlayer,
-  removeFromNextUp,
-  addToNextUp,
-  clearNextUp,
-  promoteNextUp,
+  createQueuedGame,
+  randomQueuedGame,
+  fairQueuedGame,
+  swapInQueuedGame,
+  substituteInQueuedGame,
+  removeFromQueuedGame,
+  addToQueuedGame,
+  deleteQueuedGame,
+  sendFirstQueuedGame,
 } from "@/lib/db";
 import { Header } from "@/components/Header";
 import { IntroCurtain } from "@/components/IntroCurtain";
 import { LaunchCurtain } from "@/components/LaunchCurtain";
 import { CloseCurtain } from "@/components/CloseCurtain";
 import { StartSession } from "@/components/StartSession";
-import { CourtCard } from "@/components/CourtCard";
-import { NextUpCard } from "@/components/NextUpCard";
+import { CourtCard, FreeSlotCard } from "@/components/CourtCard";
+import { NewQueuedGameCard, QueuedGameCard } from "@/components/NextUpCard";
 import { QueuePanel } from "@/components/QueuePanel";
 import { PlayerRegistryDrawer } from "@/components/PlayerRegistryDrawer";
 import { MatchHistoryDrawer } from "@/components/MatchHistoryDrawer";
@@ -177,6 +171,25 @@ function StatBand({
 
 type AppView = "courts" | "queue";
 
+/** Column heading on the games view (คิวเกม / กำลังเล่น) with a live count. */
+function SectionTitle({ eyebrow, title, count, of }: { eyebrow: string; title: string; count: number; of: number }) {
+  return (
+    <div className="flex items-end justify-between gap-3 px-1">
+      <div>
+        <span className="text-eyebrow font-extrabold tracking-[0.18em] text-mint-deep">{eyebrow}</span>
+        <h2 className="display mt-1 text-title leading-none text-ink">{title}</h2>
+      </div>
+      <span className="numeral rounded-full bg-mint-wash px-3 py-1.5 text-caption text-mint-deep ring-1 ring-inset ring-mint/25">
+        <Tick value={count} />/{of}
+      </span>
+    </div>
+  );
+}
+
+/** Surface a failed background write the way the rest of the page does. */
+const alertError = (fallback: string) => (e: unknown) =>
+  window.alert(e instanceof Error ? e.message : fallback);
+
 function MobileTabBar({
   active,
   onChange,
@@ -191,7 +204,7 @@ function MobileTabBar({
   const tabs: Array<{ id: AppView; label: string; count: number; icon: React.ReactNode }> = [
     {
       id: "courts",
-      label: "สนาม",
+      label: "เกม",
       count: courtCount,
       icon: (
         <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" aria-hidden>
@@ -278,15 +291,13 @@ export default function Home() {
     error,
     session,
     courts,
+    games,
     matches,
     fairHistoryReady,
     fairHistoryError,
-    waiting,
     resting,
     assignable,
-    nextUpTeamA,
-    nextUpTeamB,
-    nextUpCount,
+    queue,
     players,
     playersById,
   } = useKortq();
@@ -299,27 +310,34 @@ export default function Home() {
   // without an effect: a stale-session open can never leak into the next session.
   const [historyForSession, setHistoryForSession] = useState<number | null>(null);
   const [activeView, setActiveView] = useState<AppView>("courts");
-  // A player picked on a not-yet-started court, waiting for a second tap to
-  // swap with (another court player, or a waiting player). Null = idle.
-  const [swapSel, setSwapSel] = useState<{ courtId: string; playerId: string } | null>(null);
-  // A player picked inside the staged Next Up, awaiting a second tap to swap
-  // (another Next Up player) or substitute (a queue player). Null = idle.
-  const [nextUpSel, setNextUpSel] = useState<string | null>(null);
-  // Manual "เลือกเอง" mode: admin is picking 4 from the queue to stage as the
-  // next game (reuses the normal selection + the bottom bar to confirm).
-  const [nextUpPicking, setNextUpPicking] = useState(false);
+  // A player picked inside a queued game, awaiting a second tap to swap (another
+  // player of the SAME Q) or substitute (a waiting player). Null = idle.
+  const [qSelRaw, setQSel] = useState<{ queueId: string; playerId: string } | null>(null);
+  // "เติมผู้เล่น" mode: taps in the waiting list add players to this Q.
+  const [fillRaw, setFillQId] = useState<string | null>(null);
   // One in-flight Fair action per device, including the reroll confirmation.
   const fairInFlight = useRef(false);
+  // One in-flight "เรียกลงสนาม" per device (the transaction guards across devices).
+  const sendingRef = useRef(false);
 
   const sessionActive = session?.active ?? false;
   // Derived open-state: true only while THIS session (by createdAt) is the one
   // history was opened for. Ends the drawer on session end / new session with no
   // setState-in-effect.
   const showHistory = session != null && historyForSession === session.createdAt;
-  // Rule 1: a next game can only be booked once every open court already has
-  // players (each court either playing or waiting-to-start).
-  const allCourtsAssigned =
-    courts.length > 0 && courts.every((c) => c.teamA.length + c.teamB.length > 0);
+  const sessionCreatedAt = session?.createdAt ?? 0;
+  const courtCount = session?.courtCount ?? 0;
+  const queueFull = queue.length >= MAX_QUEUED_GAMES;
+  const slotsFree = Math.max(0, courtCount - games.length);
+  // Selections are derived, not cleaned up by effects: a pick that points at a
+  // Q/player that is gone (sent, deleted, removed on another device) or a Q
+  // that is already full simply reads as "nothing selected".
+  const qSel =
+    qSelRaw && isAdmin && sessionActive &&
+    queue.some((q) => q.id === qSelRaw.queueId && [...q.teamA, ...q.teamB].some((p) => p.id === qSelRaw.playerId))
+      ? qSelRaw
+      : null;
+  const fillQ = fillRaw && isAdmin && sessionActive ? (queue.find((q) => q.id === fillRaw && q.count < 4) ?? null) : null;
 
   // Permanent roster — only subscribed during an admin session (admin-only).
   const profiles = useProfiles(isAdmin && sessionActive);
@@ -350,44 +368,8 @@ export default function Home() {
   useEffect(() => {
     if (!isAdmin || !sessionActive) {
       setSelectedIds(new Set());
-      setNextUpPicking(false);
     }
   }, [isAdmin, sessionActive]);
-
-  // Leave manual-pick mode if the create-gate closes (a court freed up) or a
-  // next game already got staged — the mode no longer makes sense.
-  useEffect(() => {
-    if (nextUpPicking && (!allCourtsAssigned || nextUpCount > 0)) setNextUpPicking(false);
-  }, [nextUpPicking, allCourtsAssigned, nextUpCount]);
-
-  // Drop the Next Up selection when it no longer points at a staged player
-  // (removed, substituted, promoted, or session/admin ended).
-  useEffect(() => {
-    if (!nextUpSel) return;
-    if (!isAdmin || !sessionActive) {
-      setNextUpSel(null);
-      return;
-    }
-    const ids = new Set([...(session?.nextUp?.teamA ?? []), ...(session?.nextUp?.teamB ?? [])]);
-    if (!ids.has(nextUpSel)) setNextUpSel(null);
-  }, [nextUpSel, isAdmin, sessionActive, session]);
-
-  // Drop the swap selection whenever it no longer points at a swappable
-  // player: session/admin ended, the game already started, or the player left
-  // that court (e.g. substituted out on another device).
-  useEffect(() => {
-    if (!swapSel) return;
-    if (!isAdmin || !sessionActive) {
-      setSwapSel(null);
-      return;
-    }
-    const court = courts.find((c) => c.id === swapSel.courtId);
-    const stillSwappable =
-      court != null &&
-      court.startedAt == null &&
-      [...court.teamA, ...court.teamB].includes(swapSel.playerId);
-    if (!stillSwappable) setSwapSel(null);
-  }, [swapSel, isAdmin, sessionActive, courts]);
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -420,261 +402,190 @@ export default function Home() {
     [modal, session],
   );
 
-  const handleRandom = useCallback(
-    async (courtId: string) => {
-      try {
-        await randomAssign(courtId, assignable);
-      } catch (e) {
-        window.alert(e instanceof Error ? e.message : "สุ่มผู้เล่นไม่สำเร็จ");
-      }
+  // ── Arranging a queued game (Q1–Q3) ─────────────────────────────
+  // Raw ids as stored on the session, so the transaction can tell whether the
+  // Q the admin is looking at is still the one on the server.
+  const rawTeams = useCallback(
+    (queueId: string) => {
+      const q = session?.gameQueue?.find((x) => x.id === queueId);
+      return q ? { teamA: q.teamA, teamB: q.teamB } : undefined;
     },
-    [assignable],
+    [session],
   );
 
-  const handleFair = useCallback(
-    async (courtId: string) => {
+  // Fair into a new Q (queueId null) or re-roll an existing one. Computed now,
+  // when the Q is arranged — never re-computed automatically at send time.
+  const handleFairQ = useCallback(
+    async (queueId: string | null) => {
       if (fairInFlight.current) return;
       fairInFlight.current = true;
       try {
         if (!session?.active) throw new Error("ยังไม่ได้เปิดสนาม");
         if (!fairHistoryReady) throw new Error(fairHistoryError ?? "กำลังโหลดประวัติ กรุณารอก่อนจับแฟร์");
-        await fairAssign(courtId, session.createdAt);
+        const q = queueId ? queue.find((x) => x.id === queueId) : undefined;
+        if (queueId && !q) return;
+        if (q && q.count > 0) {
+          const ok = await modal.confirm({
+            title: `จับแฟร์คิวที่ ${q.number} ใหม่?`,
+            message: "คนในคิวนี้จะถูกปล่อยให้ระบบเลือกใหม่ อาจได้ชุดเดิมหากยังเหมาะสมที่สุด",
+            confirmLabel: "จับแฟร์ใหม่",
+          });
+          if (!ok) return;
+        }
+        await fairQueuedGame(queueId, session.createdAt, queueId ? rawTeams(queueId) : undefined);
+        setQSel(null);
       } catch (e) {
         window.alert(e instanceof Error ? e.message : "จับแฟร์ไม่สำเร็จ");
       } finally {
         fairInFlight.current = false;
       }
     },
-    [session, fairHistoryReady, fairHistoryError],
+    [session, fairHistoryReady, fairHistoryError, queue, modal, rawTeams],
   );
 
-  const handleAssignSelected = useCallback(
-    async (courtId: string) => {
-      const chosen = assignable.filter((p) => selectedIds.has(p.id));
-      if (chosen.length < 2) return;
-      await assignToCourt(courtId, chosen);
-      setSelectedIds(new Set());
-    },
-    [assignable, selectedIds],
-  );
-
-  const handleStart = useCallback(
-    async (courtId: string) => {
-      setSwapSel(null);
-      const court = courts.find((c) => c.id === courtId);
-      if (!court) return;
+  // Random 4 into a new Q, or re-draw an existing one (its players go back in the draw).
+  const handleRandomQ = useCallback(
+    async (queueId: string | null) => {
       try {
-        // Pass the exact teams the admin sees; the DB transaction re-validates so
-        // a stale start can't begin a different assignment now on this court.
-        await startGame(courtId, court.teamA, court.teamB);
-      } catch (e) {
-        window.alert(e instanceof Error ? e.message : "เริ่มเกมไม่สำเร็จ");
-      }
-    },
-    [courts],
-  );
-
-  // Tap a player on a not-yet-started court: first tap selects, a second tap on
-  // another player of the SAME court swaps their teams; tapping the same player
-  // again clears the selection. Tapping a queue player while one is selected is
-  // handled by handleWaitingTap (substitution).
-  const handleCourtPlayerTap = useCallback(
-    (courtId: string, playerId: string) => {
-      setNextUpSel(null); // court and Next Up picks are mutually exclusive
-      if (!swapSel) {
-        setSwapSel({ courtId, playerId });
-        return;
-      }
-      if (swapSel.playerId === playerId) {
-        setSwapSel(null); // tapping the same player clears the selection
-        return;
-      }
-      if (swapSel.courtId === courtId) {
-        const court = courts.find((c) => c.id === courtId);
-        if (court) {
-          void swapCourtPlayers(courtId, court.teamA, court.teamB, swapSel.playerId, playerId).catch(
-            (e) => window.alert(e instanceof Error ? e.message : "สลับผู้เล่นไม่สำเร็จ"),
-          );
+        if (!session?.active) throw new Error("ยังไม่ได้เปิดสนาม");
+        const q = queueId ? queue.find((x) => x.id === queueId) : undefined;
+        if (queueId && !q) return;
+        if (q && q.count > 0) {
+          const ok = await modal.confirm({
+            title: `สุ่มคิวที่ ${q.number} ใหม่?`,
+            message: "คนในคิวนี้จะถูกปล่อยกลับไปสุ่มรวมกับคนที่ว่าง",
+            confirmLabel: "สุ่มใหม่",
+          });
+          if (!ok) return;
         }
-        setSwapSel(null);
-        return;
+        await randomQueuedGame(queueId, session.createdAt);
+        setQSel(null);
+      } catch (e) {
+        window.alert(e instanceof Error ? e.message : "สุ่มผู้เล่นไม่สำเร็จ");
       }
-      // Different court → swap the two players across courts. Both courts are
-      // pre-game by construction (taps are only enabled on not-yet-started
-      // courts); the DB transaction re-validates state for multi-device safety.
-      void swapAcrossCourts(swapSel.courtId, courtId, swapSel.playerId, playerId).catch(
-        (e) => window.alert(e instanceof Error ? e.message : "สลับผู้เล่นข้ามคอร์ตไม่สำเร็จ"),
-      );
-      setSwapSel(null);
     },
-    [swapSel, courts],
+    [session, queue, modal],
   );
 
-  // A tap in the waiting queue is dispatched by whatever pick is in progress,
-  // in priority order: (1) finish a court substitution, (2) finish a Next Up
-  // substitution, (3) fill an incomplete Next Up, else (4) normal 2–4 selection.
+  // Hand-picked 1–4 players from the waiting list → a new Q at the back of the line.
+  const handleCreateFromSelected = useCallback(async () => {
+    const free = new Set(assignable.map((p) => p.id));
+    const chosen = [...selectedIds].filter((id) => free.has(id));
+    if (!session?.active || chosen.length < 1 || chosen.length > 4) return;
+    try {
+      await createQueuedGame(chosen, session.createdAt);
+      setSelectedIds(new Set());
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "จัดคิวไม่สำเร็จ");
+    }
+  }, [assignable, selectedIds, session]);
+
+  // "เลือกเอง": go pick names in the waiting list; the selection bar then
+  // offers "จัดเป็นคิวที่ n".
+  const handlePickManually = useCallback(() => {
+    setQSel(null);
+    setFillQId(null);
+    setActiveView("queue");
+  }, []);
+
+  // Tap a player inside a Q: first tap selects, a second tap on another player
+  // of the SAME Q swaps them across teams; tapping the same player clears it.
+  // (No cross-Q swaps in this version — a tap in another Q just moves the pick.)
+  const handleQueuedPlayerTap = useCallback(
+    (queueId: string, playerId: string) => {
+      setFillQId(null);
+      if (!qSel || qSel.queueId !== queueId) {
+        setQSel({ queueId, playerId });
+        return;
+      }
+      if (qSel.playerId === playerId) {
+        setQSel(null);
+        return;
+      }
+      void swapInQueuedGame(queueId, qSel.playerId, playerId, sessionCreatedAt).catch(alertError("สลับผู้เล่นไม่สำเร็จ"));
+      setQSel(null);
+    },
+    [qSel, sessionCreatedAt],
+  );
+
+  const handleRemoveFromQ = useCallback(
+    (queueId: string, id: string) => {
+      void removeFromQueuedGame(queueId, id, sessionCreatedAt).catch(alertError("เอาผู้เล่นออกไม่สำเร็จ"));
+      if (qSel?.playerId === id) setQSel(null);
+    },
+    [qSel, sessionCreatedAt],
+  );
+
+  const handleToggleFill = useCallback(
+    (queueId: string) => {
+      setQSel(null);
+      setSelectedIds(new Set());
+      if (fillQ?.id === queueId) {
+        setFillQId(null);
+        return;
+      }
+      setFillQId(queueId);
+      setActiveView("queue");
+    },
+    [fillQ],
+  );
+
+  const handleDeleteQ = useCallback(
+    async (queueId: string) => {
+      const q = queue.find((x) => x.id === queueId);
+      if (!q) return;
+      const ok = await modal.confirm({
+        title: `ลบคิวที่ ${q.number}?`,
+        message: "ผู้เล่นในคิวนี้จะกลับไปอยู่ในคิวรอตามตำแหน่งเดิม คิวถัดไปจะเลื่อนขึ้นมาแทน",
+        confirmLabel: "ลบคิว",
+        tone: "danger",
+      });
+      if (!ok) return;
+      try {
+        await deleteQueuedGame(queueId, sessionCreatedAt);
+        setQSel(null);
+      } catch (e) {
+        window.alert(e instanceof Error ? e.message : "ลบคิวไม่สำเร็จ");
+      }
+    },
+    [queue, modal, sessionCreatedAt],
+  );
+
+  // "เรียกลงสนาม": only Q1, and the transaction re-checks everything (Q1 still
+  // this game, full 2v2, a free slot, players still free) before starting it.
+  const handleSendQ1 = useCallback(async () => {
+    const first = queue[0];
+    if (!first || !session?.active || sendingRef.current) return;
+    sendingRef.current = true;
+    try {
+      await sendFirstQueuedGame(first.id, session.createdAt);
+      setQSel(null);
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "เรียกลงสนามไม่สำเร็จ");
+    } finally {
+      sendingRef.current = false;
+    }
+  }, [queue, session]);
+
+  // A tap in the waiting list is dispatched by whatever pick is in progress,
+  // in priority order: (1) finish a Q substitution, (2) fill the Q in
+  // "เติมผู้เล่น" mode, else (3) normal 1–4 selection for a new Q.
   const handleWaitingTap = useCallback(
     (id: string) => {
-      if (swapSel) {
-        const court = courts.find((c) => c.id === swapSel.courtId);
-        if (court) {
-          void substituteCourtPlayer(
-            swapSel.courtId,
-            court.teamA,
-            court.teamB,
-            swapSel.playerId,
-            id,
-          ).catch((e) => window.alert(e instanceof Error ? e.message : "เปลี่ยนตัวไม่สำเร็จ"));
-        }
-        setSwapSel(null);
-        return;
-      }
-      if (nextUpSel) {
-        void substituteNextUpPlayer(
-          session?.nextUp?.teamA ?? [],
-          session?.nextUp?.teamB ?? [],
-          nextUpSel,
-          id,
-        ).catch((e) => window.alert(e instanceof Error ? e.message : "เปลี่ยนตัวไม่สำเร็จ"));
-        setNextUpSel(null);
-        return;
-      }
-      if (nextUpCount > 0 && nextUpCount < 4) {
-        void addToNextUp(session?.nextUp?.teamA ?? [], session?.nextUp?.teamB ?? [], id).catch(
-          (e) => window.alert(e instanceof Error ? e.message : "เพิ่มผู้เล่นไม่สำเร็จ"),
+      if (qSel) {
+        void substituteInQueuedGame(qSel.queueId, qSel.playerId, id, sessionCreatedAt).catch(
+          alertError("เปลี่ยนตัวไม่สำเร็จ"),
         );
+        setQSel(null);
+        return;
+      }
+      if (fillQ) {
+        void addToQueuedGame(fillQ.id, id, sessionCreatedAt).catch(alertError("เพิ่มผู้เล่นไม่สำเร็จ"));
         return;
       }
       toggleSelect(id);
     },
-    [swapSel, nextUpSel, nextUpCount, session, courts, toggleSelect],
-  );
-
-  // ── Next Up handlers ─────────────────────────────────────────────
-  const handleNextUpPlayerTap = useCallback(
-    (playerId: string) => {
-      setSwapSel(null); // court and Next Up picks are mutually exclusive
-      if (!nextUpSel) {
-        setNextUpSel(playerId);
-        return;
-      }
-      if (nextUpSel === playerId) {
-        setNextUpSel(null);
-        return;
-      }
-      void swapNextUpPlayers(
-        session?.nextUp?.teamA ?? [],
-        session?.nextUp?.teamB ?? [],
-        nextUpSel,
-        playerId,
-      ).catch((e) => window.alert(e instanceof Error ? e.message : "สลับผู้เล่นไม่สำเร็จ"));
-      setNextUpSel(null);
-    },
-    [nextUpSel, session],
-  );
-
-  const handleRemoveFromNext = useCallback(
-    (id: string) => {
-      void removeFromNextUp(session?.nextUp?.teamA ?? [], session?.nextUp?.teamB ?? [], id).catch(
-        (e) => window.alert(e instanceof Error ? e.message : "เอาผู้เล่นออกไม่สำเร็จ"),
-      );
-      setNextUpSel((prev) => (prev === id ? null : prev));
-    },
-    [session],
-  );
-
-  // Enter manual-pick mode: choose 4 from the queue, confirm in the bottom bar.
-  const handleStartManual = useCallback(() => {
-    setSwapSel(null);
-    setNextUpSel(null);
-    setSelectedIds(new Set());
-    setNextUpPicking(true);
-    setActiveView("queue");
-  }, []);
-
-  const handleCancelManual = useCallback(() => {
-    setNextUpPicking(false);
-    setSelectedIds(new Set());
-  }, []);
-
-  const handleStageFair = useCallback(async () => {
-    if (fairInFlight.current) return;
-    fairInFlight.current = true;
-    try {
-      if (!session?.active) throw new Error("ยังไม่ได้เปิดสนาม");
-      if (!fairHistoryReady) throw new Error(fairHistoryError ?? "กำลังโหลดประวัติ กรุณารอก่อนจับแฟร์");
-      // Creating (0 -> set) requires filled courts; reroll is an edit.
-      if (nextUpCount === 0 && !allCourtsAssigned) {
-        window.alert("จัดผู้เล่นลงคอร์ตให้ครบก่อน จึงจะตั้งเกมถัดไปได้");
-        return;
-      }
-      if (nextUpCount > 0) {
-        const ok = await modal.confirm({
-          title: "มีเกมถัดไปอยู่แล้ว",
-          message: "คำนวณเกมถัดไปใหม่? อาจได้ผู้เล่นชุดเดิมหากยังเหมาะสมที่สุด",
-          confirmLabel: "แทนที่",
-        });
-        if (!ok) return;
-      }
-      // Re-roll draws from the whole queue (staged players are released back).
-      // The DB loads current queue/history AFTER confirmation; only the expected
-      // reservation/session identity is captured here, to reject stale replacements.
-      await setNextUpFair(session.createdAt, session.nextUp ?? { teamA: [], teamB: [] });
-      setNextUpSel(null);
-      setNextUpPicking(false);
-      setSelectedIds(new Set());
-    } catch (e) {
-      window.alert(e instanceof Error ? e.message : "จับแฟร์ไม่สำเร็จ");
-    } finally {
-      fairInFlight.current = false;
-    }
-  }, [nextUpCount, allCourtsAssigned, session, fairHistoryReady, fairHistoryError, modal]);
-
-  const handleStageSelected = useCallback(async () => {
-    if (!allCourtsAssigned) return;
-    const chosen = assignable.filter((p) => selectedIds.has(p.id));
-    if (chosen.length !== 4) return;
-    if (nextUpCount > 0) {
-      const ok = await modal.confirm({
-        title: "มีเกมถัดไปอยู่แล้ว",
-        message: "แทนที่ด้วยชุดใหม่?",
-        confirmLabel: "แทนที่",
-      });
-      if (!ok) return;
-    }
-    try {
-      await setNextUpManual(chosen);
-      setSelectedIds(new Set());
-      setNextUpSel(null);
-      setNextUpPicking(false);
-    } catch (e) {
-      window.alert(e instanceof Error ? e.message : "ตั้งเกมถัดไปไม่สำเร็จ");
-    }
-  }, [allCourtsAssigned, assignable, selectedIds, nextUpCount, modal]);
-
-  const handleClearNext = useCallback(() => {
-    if (!window.confirm("ล้างเกมถัดไป?")) return;
-    void clearNextUp().catch((e) => window.alert(e instanceof Error ? e.message : "ล้างไม่สำเร็จ"));
-    setNextUpSel(null);
-  }, []);
-
-  const handlePromote = useCallback(
-    async (courtId: string) => {
-      if (nextUpCount !== 4) return;
-      try {
-        // Pass the ids the admin currently sees; the DB transaction re-validates
-        // court/nextUp state to block a double-promote across devices.
-        await promoteNextUp(
-          courtId,
-          nextUpTeamA.map((p) => p.id),
-          nextUpTeamB.map((p) => p.id),
-        );
-        setNextUpSel(null);
-      } catch (e) {
-        window.alert(e instanceof Error ? e.message : "ส่งเกมถัดไปไม่สำเร็จ");
-      }
-    },
-    [nextUpCount, nextUpTeamA, nextUpTeamB],
+    [qSel, fillQ, sessionCreatedAt, toggleSelect],
   );
 
   // In-flight finishes, keyed by courtId. The ref is the reliable re-entrancy
@@ -710,7 +621,7 @@ export default function Home() {
         // Cancel the assignment the admin sees; the DB transaction re-validates
         // (stale cancel can't wipe a new assignment) and tolerantly resets only
         // the players still on this court.
-        await removeFromCourt(courtId, court.teamA, court.teamB, court.startedAt);
+        await cancelGame(courtId, court.teamA, court.teamB, court.startedAt);
       } catch (e) {
         window.alert(e instanceof Error ? e.message : "ยกเลิกไม่สำเร็จ");
       }
@@ -778,7 +689,7 @@ export default function Home() {
   const totalGamesPlayed = Math.floor(
     players.reduce((sum, p) => sum + (p.gamesPlayed ?? 0), 0) / 4,
   );
-  const activeCourts = courts.filter((c) => c.teamA.length + c.teamB.length > 0).length;
+  const activeCourts = games.length;
 
   const selectedPlayers = useMemo(
     () => assignable.filter((p) => selectedIds.has(p.id)),
@@ -807,15 +718,12 @@ export default function Home() {
   );
 
   // What a tap in the queue currently means, for the queue banner + row taps.
-  const queuePick = swapSel
-    ? { active: true, label: "แตะเพื่อนในคิวเพื่อเปลี่ยนตัวลงคอร์ต" }
-    : nextUpSel
-      ? { active: true, label: "แตะเพื่อนในคิวเพื่อเปลี่ยนตัวในเกมถัดไป" }
-      : nextUpCount > 0 && nextUpCount < 4
-        ? { active: true, label: `เติมเกมถัดไป — แตะเพื่อเพิ่ม (${nextUpCount}/4)` }
-        : nextUpPicking
-          ? { active: true, label: `เลือก 4 คนเพื่อตั้งเป็นเกมถัดไป (${selectedPlayers.length}/4)` }
-          : { active: false, label: null };
+  const qSelNumber = qSel ? queue.find((q) => q.id === qSel.queueId)?.number : undefined;
+  const queuePick = qSel
+    ? { active: true, label: `แตะเพื่อนในคิวรอเพื่อเปลี่ยนตัวเข้าคิวที่ ${qSelNumber}` }
+    : fillQ
+      ? { active: true, label: `เติมคิวที่ ${fillQ.number} — แตะเพื่อเพิ่ม (${fillQ.count}/4)` }
+      : { active: false, label: null };
 
   // Where every player stands right now. When this changes (locally or via a
   // realtime snapshot), players glide / fly from their old spot to the new one.
@@ -823,12 +731,14 @@ export default function Home() {
   const placementSig = useMemo(
     () =>
       [
-        courts.map((c) => `${c.id}:${c.teamA.join(",")}/${c.teamB.join(",")}`).join("|"),
-        `n:${nextUpTeamA.map((p) => p.id).join(",")}/${nextUpTeamB.map((p) => p.id).join(",")}`,
+        games.map((c) => `${c.id}:${c.teamA.join(",")}/${c.teamB.join(",")}`).join("|"),
+        queue
+          .map((q) => `${q.id}:${q.teamA.map((p) => p.id).join(",")}/${q.teamB.map((p) => p.id).join(",")}`)
+          .join("|"),
         `q:${assignable.map((p) => p.id).join(",")}`,
         `r:${resting.map((p) => p.id).join(",")}`,
       ].join("#"),
-    [courts, nextUpTeamA, nextUpTeamB, assignable, resting],
+    [games, queue, assignable, resting],
   );
   const shellRef = useRef<HTMLDivElement>(null);
   usePlayerFlights(shellRef, placementSig);
@@ -989,7 +899,7 @@ export default function Home() {
               <h1 key={activeView} className="display sport-title anim-status mt-1 text-title leading-none text-ink">{activeView === "courts" ? "สนามวันนี้" : "เพื่อนในคิว"}</h1>
             </div>
             <span key={activeView} className="anim-status rounded-full bg-mint-wash px-3 py-1.5 text-[0.68rem] font-extrabold text-mint-deep">
-              {activeView === "courts" ? `${activeCourts}/${courts.length} กำลังใช้` : `${assignable.length} คนกำลังรอ`}
+              {activeView === "courts" ? `${activeCourts}/${courtCount} กำลังเล่น` : `${assignable.length} คนกำลังรอ`}
             </span>
           </div>
 
@@ -1021,71 +931,96 @@ export default function Home() {
                 playing={playingCount}
                 games={totalGamesPlayed}
                 courtsActive={activeCourts}
-                totalCourts={courts.length}
+                totalCourts={courtCount}
               />
 
               <div className="dashboard-title hidden shrink-0 items-end justify-between px-2 xl:flex">
                 <div>
                   <span className="text-eyebrow font-extrabold tracking-[0.18em] text-mint-deep">KD CLUB · LET&apos;S PLAY</span>
-                  <h1 className="display sport-title mt-1 text-h3 leading-none text-accent-deep">เลือกคอร์ต แล้วไปตีด้วยกัน!</h1>
+                  <h1 className="display sport-title mt-1 text-h3 leading-none text-accent-deep">จัดคิวไว้ แล้วไปตีด้วยกัน!</h1>
                 </div>
                 <span className="rounded-full border border-mint-deep/15 bg-white/75 px-3 py-1.5 text-[0.68rem] font-extrabold text-mint-deep shadow-sm backdrop-blur-sm">
-                  พร้อมเมื่อไหร่ กดเลือกผู้เล่นได้เลย 🏸
+                  สนามว่างเมื่อไหร่ เรียกคิวที่ 1 ลงได้เลย 🏸
                 </span>
               </div>
 
-              {/* Courts first, then the staged next game beneath them — the
-                  member reading order: playing/starting → เกมถัดไป → queue. */}
+              {/* The line (Q1–Q3) and the games being played, side by side from
+                  lg up. Q1 leads: whoever holds the tablet can call it straight
+                  onto court with one tap. */}
               <div data-flip-scroll className="scroll-pane flex flex-col gap-3 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1.5">
-                {/* Courts and the staged next game share ONE grid so "เกมถัดไป"
-                    tracks the real court count instead of stretching full-width:
-                    with 2 courts it spans 2 columns (aligned under them, the 3rd
-                    column left open); with 3 it spans all three. Column count and
-                    the Next Up span are driven purely by CSS off data-courts. */}
-                <div className="court-grid grid auto-rows-min gap-3 sm:grid-cols-2" data-courts={courts.length}>
-                  {courts.map((court, i) => (
-                    <CourtCard
-                      key={court.id}
-                      court={court}
-                      byId={playersById}
-                      isAdmin={isAdmin}
-                      waitingCount={assignable.length}
-                      selectedCount={selectedIds.size}
-                      swapSelectedId={swapSel?.courtId === court.id ? swapSel.playerId : null}
-                      nextUpCount={nextUpCount}
-                      pairWarn={teamPairWarn}
-                      finishing={finishingIds.has(court.id)}
-                      onFair={handleFair}
-                      onRandom={handleRandom}
-                      onAssignSelected={handleAssignSelected}
-                      onPromote={handlePromote}
-                      onStart={handleStart}
-                      onPlayerTap={handleCourtPlayerTap}
-                      onFinish={handleFinish}
-                      onRemove={handleRemove}
-                      index={i}
-                    />
-                  ))}
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:items-start">
+                  <div className="flex min-w-0 flex-col gap-3">
+                    <SectionTitle eyebrow="GAME QUEUE" title="คิวเกม" count={queue.length} of={MAX_QUEUED_GAMES} />
+                    {queue.map((q, i) => {
+                      const first = q.number === 1;
+                      const fullTeams = q.teamA.length === 2 && q.teamB.length === 2;
+                      return (
+                        <QueuedGameCard
+                          key={q.id}
+                          q={q}
+                          isAdmin={isAdmin}
+                          pairWarn={teamPairWarn}
+                          selectedId={qSel?.queueId === q.id ? qSel.playerId : null}
+                          filling={fillQ?.id === q.id}
+                          canSend={first && fullTeams && slotsFree > 0}
+                          sendBlockedReason={
+                            !first
+                              ? null
+                              : !fullTeams
+                                ? "ต้องมีผู้เล่นครบ 4 คนก่อนเรียกลงสนาม"
+                                : slotsFree === 0
+                                  ? `สนามเต็ม ${games.length}/${courtCount} — จบเกมก่อนแล้วค่อยเรียก`
+                                  : null
+                          }
+                          canDraw={assignable.length + q.count >= 4}
+                          onSend={handleSendQ1}
+                          onFair={() => handleFairQ(q.id)}
+                          onRandom={() => handleRandomQ(q.id)}
+                          onToggleFill={() => handleToggleFill(q.id)}
+                          onDelete={() => handleDeleteQ(q.id)}
+                          onPlayerTap={(pid) => handleQueuedPlayerTap(q.id, pid)}
+                          onRemovePlayer={(pid) => handleRemoveFromQ(q.id, pid)}
+                          index={i}
+                        />
+                      );
+                    })}
+                    {isAdmin && !queueFull && (
+                      <NewQueuedGameCard
+                        number={queue.length + 1}
+                        canDraw={assignable.length >= 4}
+                        selectedCount={selectedIds.size}
+                        onFair={() => handleFairQ(null)}
+                        onRandom={() => handleRandomQ(null)}
+                        onPickManually={handlePickManually}
+                        onCreateFromSelected={handleCreateFromSelected}
+                        index={queue.length}
+                      />
+                    )}
+                    {!isAdmin && queue.length === 0 && (
+                      <div className={`${E2} rounded-[24px] px-4 py-6 text-center`}>
+                        <p className="text-body font-extrabold text-ink-2">ยังไม่มีคิวเกม</p>
+                        <p className="mt-1 text-caption text-ink-3">รอแอดมินจัดคิวถัดไปได้เลย</p>
+                      </div>
+                    )}
+                  </div>
 
-                  <div className="next-up-cell" data-courts={courts.length}>
-                    <NextUpCard
-                      isAdmin={isAdmin}
-                      teamA={nextUpTeamA}
-                      teamB={nextUpTeamB}
-                      count={nextUpCount}
-                      pairWarn={teamPairWarn}
-                      selectedId={nextUpSel}
-                      canStageFair={waiting.length >= 4}
-                      canCreate={allCourtsAssigned}
-                      picking={nextUpPicking}
-                      swapActive={nextUpSel != null}
-                      onStageFair={handleStageFair}
-                      onStartManual={handleStartManual}
-                      onCancelManual={handleCancelManual}
-                      onClear={handleClearNext}
-                      onPlayerTap={handleNextUpPlayerTap}
-                      onRemovePlayer={handleRemoveFromNext}
-                    />
+                  <div className="flex min-w-0 flex-col gap-3">
+                    <SectionTitle eyebrow="NOW PLAYING" title="กำลังเล่น" count={games.length} of={courtCount} />
+                    {games.map((game, i) => (
+                      <CourtCard
+                        key={game.id}
+                        court={game}
+                        byId={playersById}
+                        isAdmin={isAdmin}
+                        finishing={finishingIds.has(game.id)}
+                        onFinish={handleFinish}
+                        onCancel={handleRemove}
+                        index={i}
+                      />
+                    ))}
+                    {Array.from({ length: slotsFree }, (_, i) => (
+                      <FreeSlotCard key={`free-${i}`} index={games.length + i} />
+                    ))}
                   </div>
                 </div>
               </div>
@@ -1117,37 +1052,33 @@ export default function Home() {
             </div>
 
             <span className="hidden shrink-0 text-caption text-white/55 xl:block">
-              เลือกแล้ว {selectedPlayers.length}/4 · แตะคอร์ตว่างเพื่อส่งลงสนาม
+              เลือกแล้ว {selectedPlayers.length}/4 · จัดเป็นคิวเกมได้เลย
             </span>
 
-            {allCourtsAssigned && (
+            {!queueFull && (
               <motion.button
                 key={selectedPlayers.length === 4 ? "ready" : "wait"}
-                whileTap={selectedPlayers.length === 4 ? press : undefined}
-                onClick={() => handleStageSelected()}
-                disabled={selectedPlayers.length !== 4}
+                whileTap={press}
+                onClick={() => handleCreateFromSelected()}
                 className={`${selectedPlayers.length === 4 ? "anim-ready" : ""} relative h-10 shrink-0 rounded-full border border-mint/30 bg-white/8 px-4 text-caption font-extrabold text-mint transition-all duration-200 before:absolute before:-inset-y-0.5 before:inset-x-0 before:content-[''] hover:-translate-y-0.5 hover:bg-white/14 disabled:cursor-not-allowed disabled:border-white/10 disabled:text-white/35 disabled:hover:translate-y-0 disabled:hover:bg-white/8`}
               >
-                ตั้งเป็นเกมถัดไป
+                จัดเป็นคิวที่ {queue.length + 1}
               </motion.button>
             )}
 
-            {!nextUpPicking && (
-              <motion.button
-                whileTap={press}
-                onClick={() => setActiveView("courts")}
-                className="lime-button relative h-10 shrink-0 rounded-full px-4 text-caption font-extrabold before:absolute before:-inset-y-0.5 before:inset-x-0 before:content-[''] xl:hidden"
-              >
-                ไปสนาม
-              </motion.button>
-            )}
+            {queueFull && <span className="shrink-0 text-caption font-bold text-white/55">คิวเกมเต็ม {MAX_QUEUED_GAMES} คิว</span>}
 
             <motion.button
               whileTap={press}
-              onClick={() => {
-                setSelectedIds(new Set());
-                setNextUpPicking(false);
-              }}
+              onClick={() => setActiveView("courts")}
+              className="lime-button relative h-10 shrink-0 rounded-full px-4 text-caption font-extrabold before:absolute before:-inset-y-0.5 before:inset-x-0 before:content-[''] xl:hidden"
+            >
+              ไปดูคิวเกม
+            </motion.button>
+
+            <motion.button
+              whileTap={press}
+              onClick={() => setSelectedIds(new Set())}
               className="relative h-10 shrink-0 rounded-full border border-line bg-white px-4 text-caption font-bold text-ink-2 shadow-sm transition-colors duration-200 before:absolute before:-inset-y-0.5 before:inset-x-0 before:content-[''] hover:border-alert/25 hover:bg-alert-wash hover:text-alert"
             >
               ล้าง
@@ -1162,7 +1093,7 @@ export default function Home() {
           active={activeView}
           onChange={setActiveView}
           waitingCount={assignable.length}
-          courtCount={courts.length}
+          courtCount={queue.length}
         />
       )}
 
