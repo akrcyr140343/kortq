@@ -21,6 +21,7 @@ import {
   randomQueuedGame,
   fairQueuedGame,
   swapInQueuedGame,
+  swapAcrossQueuedGames,
   substituteInQueuedGame,
   removeFromQueuedGame,
   addToQueuedGame,
@@ -489,12 +490,12 @@ export default function Home() {
   }, []);
 
   // Tap a player inside a Q: first tap selects, a second tap on another player
-  // of the SAME Q swaps them across teams; tapping the same player clears it.
-  // (No cross-Q swaps in this version — a tap in another Q just moves the pick.)
+  // of the same Q swaps them across teams, a player of another Q swaps them across
+  // Qs; tapping the same player clears it.
   const handleQueuedPlayerTap = useCallback(
     (queueId: string, playerId: string) => {
       setFillQId(null);
-      if (!qSel || qSel.queueId !== queueId) {
+      if (!qSel) {
         setQSel({ queueId, playerId });
         return;
       }
@@ -502,7 +503,11 @@ export default function Home() {
         setQSel(null);
         return;
       }
-      void swapInQueuedGame(queueId, qSel.playerId, playerId, sessionCreatedAt).catch(alertError("สลับผู้เล่นไม่สำเร็จ"));
+      const swap =
+        qSel.queueId === queueId
+          ? swapInQueuedGame(queueId, qSel.playerId, playerId, sessionCreatedAt)
+          : swapAcrossQueuedGames(qSel.queueId, qSel.playerId, queueId, playerId, sessionCreatedAt);
+      void swap.catch(alertError("สลับผู้เล่นไม่สำเร็จ"));
       setQSel(null);
     },
     [qSel, sessionCreatedAt],

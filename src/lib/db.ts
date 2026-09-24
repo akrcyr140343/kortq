@@ -522,6 +522,36 @@ export async function swapInQueuedGame(
 }
 
 /**
+ * Swap two players that sit in DIFFERENT Qs, each taking the other's exact slot.
+ * Only queued players are eligible (running players live in no Q); both Qs and
+ * both players are re-validated inside the transaction, so a concurrent edit
+ * from another device makes it fail instead of duplicating anyone.
+ */
+export async function swapAcrossQueuedGames(
+  queueIdA: string,
+  idA: string,
+  queueIdB: string,
+  idB: string,
+  sessionCreatedAt: number,
+): Promise<void> {
+  if (queueIdA === queueIdB) return swapInQueuedGame(queueIdA, idA, idB, sessionCreatedAt);
+  if (idA === idB) return;
+  await runTransaction(db, async (tx) => {
+    const s = await readActiveSession(tx, sessionCreatedAt);
+    const queue = readQueue(s);
+    const qa = findQueued(queue, queueIdA);
+    const qb = findQueued(queue, queueIdB);
+    if (!queuedIds(qa).includes(idA) || !queuedIds(qb).includes(idB)) throw new Error(QUEUE_STALE);
+    const put = (list: string[], from: string, to: string) => list.map((id) => (id === from ? to : id));
+    qa.teamA = put(qa.teamA, idA, idB);
+    qa.teamB = put(qa.teamB, idA, idB);
+    qb.teamA = put(qb.teamA, idB, idA);
+    qb.teamB = put(qb.teamB, idB, idA);
+    tx.update(sessionRef, { gameQueue: queue, fairRevision: increment(1) });
+  });
+}
+
+/**
  * Replace a queued player with a free waiting player, in the exact slot. The
  * outgoing player goes to the BACK of the waiting queue (queuedAt refreshed),
  * as the old Next Up substitute did.
