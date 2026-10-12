@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { ShuttleBuddy } from "@/components/art";
 
 /**
  * Route-level error boundary. Replaces the white-screen crash with a readable
@@ -14,29 +15,23 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
-    // eslint-disable-next-line no-console
     console.error("[KortQ] Render error:", error);
   }, [error]);
 
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center bg-canvas p-6">
-      <div className="e3 w-full max-w-sm rounded-xl p-8">
-        <span className="eyebrow text-alert">เกิดข้อผิดพลาด</span>
-        <h2 className="display mt-3 text-h2 leading-none text-ink">ขอโทษที ไปต่อไม่ได้</h2>
-        <p className="mt-3 break-words text-body text-ink-2">
-          {error?.message || "แอปสะดุดนิดหน่อย ลองใหม่อีกทีนะ"}
-        </p>
-        <div className="mt-6 space-y-2">
-          <button
-            onClick={reset}
-            className="h-12 w-full rounded-sm bg-accent text-caption font-bold text-white transition-colors duration-200 hover:bg-accent-deep"
-          >
+    <div className="flex min-h-dvh flex-col items-center justify-center p-6">
+      <div className="card anim-rise w-full max-w-sm rounded-[30px] p-7 text-center">
+        <span className="anim-bob mx-auto block w-fit" style={{ ["--bob-y" as string]: "-6px", ["--bob-d" as string]: "3s" }}>
+          <ShuttleBuddy className="h-16 w-16" mood="wow" />
+        </span>
+        <span className="mt-4 block font-display text-caption font-semibold text-tomato-deep">เกิดข้อผิดพลาด</span>
+        <h2 className="mt-2 font-display text-h3 font-semibold leading-tight text-ink">ขอโทษที ไปต่อไม่ได้</h2>
+        <p className="mt-2 break-words text-body text-ink-2">{error?.message || "แอปสะดุดนิดหน่อย ลองใหม่อีกทีนะ"}</p>
+        <div className="mt-6 space-y-2.5">
+          <button type="button" onClick={reset} className="btn btn-sun h-12 w-full rounded-2xl">
             ลองใหม่
           </button>
-          <button
-            onClick={() => window.location.reload()}
-            className="h-12 w-full rounded-sm border border-line-2 bg-surface-2 text-caption font-bold text-ink-2 transition-colors duration-200 hover:border-ink-4 hover:bg-white"
-          >
+          <button type="button" onClick={() => window.location.reload()} className="btn h-12 w-full rounded-2xl">
             โหลดหน้าใหม่
           </button>
         </div>

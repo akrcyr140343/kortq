@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, useIsPresent } from "framer-motion";
 import { useAdmin } from "@/context/AdminContext";
-import { popOut, press as tapPress } from "./motion";
-import { E3 } from "./ui";
+import { IconLock } from "./icons";
+import { bouncy, popOut } from "./motion";
 
 const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "clear", "0", "back"] as const;
 
@@ -15,10 +15,6 @@ export function PinModal({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState(false);
   const [misses, setMisses] = useState(0); // drives the head-shake only
   const present = useIsPresent();
-  const [mounted, setMounted] = useState(false);
-
-  // Portal target (document.body) only exists on the client.
-  useEffect(() => setMounted(true), []);
 
   // Lock background scroll while the modal is open.
   useEffect(() => {
@@ -51,7 +47,9 @@ export function PinModal({ onClose }: { onClose: () => void }) {
     }
   }
 
-  if (!mounted) return null;
+  // Portal target (document.body) only exists on the client; this modal only
+  // ever mounts after a tap, so it never renders during SSR/hydration.
+  if (typeof document === "undefined") return null;
 
   // Rendered through a portal to <body> so the fixed overlay is positioned
   // against the viewport, NOT the header. The header uses `backdrop-blur`, and
@@ -66,65 +64,72 @@ export function PinModal({ onClose }: { onClose: () => void }) {
       animate={{ opacity: 1, transition: { duration: 0.2 } }}
       exit={{ opacity: 0, transition: popOut }}
       style={present ? undefined : { pointerEvents: "none" }}
-      className="fixed inset-0 z-[100] overflow-y-auto bg-accent-deep/35 backdrop-blur-md"
+      className="fixed inset-0 z-[100] overflow-y-auto bg-ink/35 backdrop-blur-[3px]"
       onClick={onClose}
     >
       <div className="flex min-h-dvh items-center justify-center p-4">
         <motion.div
-          initial={{ opacity: 0, y: 18, scale: 0.94 }}
-          animate={{ opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 460, damping: 32 } }}
-          exit={{ opacity: 0, y: 8, scale: 0.97, transition: popOut }}
-          className={`${E3} relative w-full max-w-xs overflow-hidden rounded-[28px] p-6`}
+          role="dialog"
+          aria-modal="true"
+          aria-label="ใส่ PIN แอดมิน"
+          initial={{ opacity: 0, y: 26, scale: 0.9 }}
+          animate={{ opacity: 1, y: 0, scale: 1, transition: bouncy }}
+          exit={{ opacity: 0, y: 10, scale: 0.96, transition: popOut }}
+          className="card relative w-full max-w-[20rem] rounded-[30px] p-6"
           onClick={(e) => e.stopPropagation()}
         >
-          <div aria-hidden className="absolute -right-12 -top-12 h-36 w-36 rounded-full bg-mint-wash blur-2xl" />
-          <span className="relative grid h-12 w-12 place-items-center rounded-[16px] bg-accent text-xl text-mint">KD</span>
-          <span className="relative mt-4 block text-xs font-extrabold tracking-[0.14em] text-mint-deep">โหมดแอดมิน</span>
-          <h2 className="display relative mt-2 text-title leading-none text-ink">ใส่ PIN 4 หลัก</h2>
+          {/* The lock wiggles "no" on a wrong PIN. */}
+          <span
+            key={`lock-${misses}`}
+            className={`sticker grid h-14 w-14 place-items-center rounded-2xl bg-sun text-ink ${misses > 0 ? "anim-wiggle" : "anim-stamp"}`}
+            style={{ boxShadow: "0 4px 0 var(--sun-ledge)" }}
+          >
+            <IconLock className="h-7 w-7" />
+          </span>
+          <span className="eyebrow mt-5 block text-sun-deep">ADMIN MODE</span>
+          <h2 className="mt-1.5 font-display text-title font-semibold text-ink">ใส่ PIN 4 หลัก</h2>
 
-          <p className="relative mt-2 text-caption">
+          <p className="mt-1 min-h-5 text-caption" aria-live="polite">
             {error ? (
-              <span className="font-semibold text-alert">PIN ไม่ถูกนะ ลองใหม่อีกที</span>
+              <span key={misses} className="anim-status inline-block font-semibold text-tomato-deep">
+                PIN ไม่ถูกนะ ลองใหม่อีกที
+              </span>
             ) : (
               <span className="text-ink-3">ปลดล็อคเพื่อจัดคิวและจับคู่</span>
             )}
           </p>
 
           {/* Wrong PIN: the dots shake their head. Each digit lands with a snap. */}
-          <div key={misses} className={`relative my-6 flex justify-center gap-3 ${misses > 0 ? "anim-shake" : ""}`}>
+          <div key={misses} className={`my-6 flex justify-center gap-3.5 ${misses > 0 ? "anim-shake" : ""}`} aria-hidden>
             {[0, 1, 2, 3].map((i) => (
               <span
                 key={`${i}-${i < pin.length ? "on" : "off"}`}
-                className={`h-3 w-3 rounded-full transition-all duration-200 ${
-                  i < pin.length ? "anim-stamp scale-110 bg-mint-deep shadow-[0_0_0_4px_rgba(184,242,61,0.18)]" : "bg-line-2"
+                className={`h-4 w-4 rounded-full transition-colors duration-150 ${
+                  i < pin.length ? "anim-stamp bg-ink shadow-[0_0_0_4px_var(--sun-wash)]" : "bg-sand ring-2 ring-inset ring-line-2"
                 }`}
               />
             ))}
           </div>
 
-          <div className="relative grid grid-cols-3 gap-2.5">
+          <div className="grid grid-cols-3 gap-2.5">
             {KEYS.map((key) => {
-              const label = key === "clear" ? "ล้าง" : key === "back" ? "⌫" : key;
               const isText = key === "clear" || key === "back";
+              const label = key === "clear" ? "ล้าง" : key === "back" ? "⌫" : key;
               return (
-                <motion.button
+                <button
                   key={key}
-                  whileTap={tapPress}
+                  type="button"
                   onClick={() => press(key)}
-                  className={`h-14 rounded-[16px] border border-line bg-surface-2 transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/30 hover:bg-accent-wash ${
-                    isText ? "text-caption font-bold text-ink-3" : "numeral text-h3 text-ink"
-                  }`}
+                  aria-label={key === "back" ? "ลบตัวเลขล่าสุด" : key === "clear" ? "ล้าง PIN" : key}
+                  className={`btn h-14 rounded-2xl px-0 ${isText ? "text-caption text-ink-3" : "font-num text-[1.5rem] font-bold text-ink"}`}
                 >
                   {label}
-                </motion.button>
+                </button>
               );
             })}
           </div>
 
-          <button
-            onClick={onClose}
-            className="relative mt-4 h-11 w-full rounded-[14px] text-caption font-semibold text-ink-3 transition-colors duration-200 hover:bg-canvas hover:text-ink"
-          >
+          <button type="button" onClick={onClose} className="btn btn-ghost mt-3 h-11 w-full text-caption text-ink-3">
             ไว้ก่อน
           </button>
         </motion.div>

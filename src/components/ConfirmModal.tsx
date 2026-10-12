@@ -1,15 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId } from "react";
 import { createPortal } from "react-dom";
 import { motion, useIsPresent } from "framer-motion";
-import { popOut, press } from "./motion";
-import { E3 } from "./ui";
+import { ShuttleBuddy } from "./art";
+import { bouncy, popOut } from "./motion";
 
 /**
  * The app's single confirm/alert dialog — replaces raw window.confirm/alert.
  * Portalled to <body> and elevated above every drawer/modal (z-[120]) so it can
- * be raised from inside the roster drawer. Reuses the PinModal overlay pattern.
+ * be raised from inside the roster sheet.
  */
 export function ConfirmModal({
   title,
@@ -30,12 +30,10 @@ export function ConfirmModal({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
-  const [mounted, setMounted] = useState(false);
   // While animating out, the dialog is already answered: ignore keys/taps.
   const present = useIsPresent();
-
-  // Portal target (document.body) only exists on the client.
-  useEffect(() => setMounted(true), []);
+  const titleId = useId();
+  const messageId = useId();
 
   // Lock background scroll; Esc dismisses, Enter confirms.
   useEffect(() => {
@@ -53,7 +51,8 @@ export function ConfirmModal({
     };
   }, [showCancel, onConfirm, onCancel, present]);
 
-  if (!mounted) return null;
+  // Portal target only exists on the client; dialogs only open on request.
+  if (typeof document === "undefined") return null;
 
   const danger = tone === "danger";
 
@@ -63,45 +62,55 @@ export function ConfirmModal({
       animate={{ opacity: 1, transition: { duration: 0.2 } }}
       exit={{ opacity: 0, transition: popOut }}
       style={present ? undefined : { pointerEvents: "none" }}
-      className="fixed inset-0 z-[120] overflow-y-auto bg-accent-deep/35 backdrop-blur-md"
+      className="fixed inset-0 z-[120] overflow-y-auto bg-ink/35 backdrop-blur-[3px]"
       onClick={showCancel ? onCancel : onConfirm}
     >
-      <div className="flex min-h-dvh items-center justify-center p-4">
+      <div className="flex min-h-dvh items-end justify-center p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:items-center">
         <motion.div
-          initial={{ opacity: 0, y: 18, scale: 0.94 }}
-          animate={{ opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 460, damping: 32 } }}
-          exit={{ opacity: 0, y: 8, scale: 0.97, transition: popOut }}
-          className={`${E3} relative w-full max-w-xs overflow-hidden rounded-[28px] p-6`}
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          aria-describedby={message ? messageId : undefined}
+          initial={{ opacity: 0, y: 34, scale: 0.92 }}
+          animate={{ opacity: 1, y: 0, scale: 1, transition: bouncy }}
+          exit={{ opacity: 0, y: 14, scale: 0.96, transition: popOut }}
+          className="card relative w-full max-w-[22rem] rounded-[30px] p-6"
           onClick={(e) => e.stopPropagation()}
         >
-          <div
+          <span
             aria-hidden
-            className={`absolute -right-12 -top-12 h-36 w-36 rounded-full blur-2xl ${danger ? "bg-alert-wash" : "bg-mint-wash"}`}
-          />
-          <h2 className="display relative text-title leading-tight text-ink">{title}</h2>
-          {message && <p className="relative mt-2 text-body leading-relaxed text-ink-2">{message}</p>}
-
-          <div className="relative mt-6 flex gap-2.5">
-            {showCancel && (
-              <motion.button
-                whileTap={press}
-                onClick={onCancel}
-                className="h-12 flex-1 rounded-[15px] border border-line bg-white text-caption font-bold text-ink-2 shadow-sm transition-colors duration-200 hover:bg-canvas"
-              >
-                {cancelLabel}
-              </motion.button>
+            className={`sticker anim-stamp grid h-14 w-14 place-items-center rounded-2xl ${
+              danger ? "bg-tomato-wash text-tomato-deep ring-2 ring-inset ring-tomato/20" : "bg-sun-wash ring-2 ring-inset ring-sun/40"
+            }`}
+          >
+            {danger ? (
+              <span className="font-num text-[1.75rem] font-bold leading-none">!</span>
+            ) : (
+              <ShuttleBuddy className="h-10 w-10" mood="wow" />
             )}
-            <motion.button
-              whileTap={press}
+          </span>
+          <h2 id={titleId} className="mt-4 font-display text-title font-semibold leading-snug text-ink">
+            {title}
+          </h2>
+          {message && (
+            <p id={messageId} className="mt-2 text-body leading-relaxed text-ink-2">
+              {message}
+            </p>
+          )}
+
+          <div className="mt-6 flex gap-2.5">
+            {showCancel && (
+              <button type="button" onClick={onCancel} className="btn h-12 flex-1 rounded-2xl">
+                {cancelLabel}
+              </button>
+            )}
+            <button
+              type="button"
               onClick={onConfirm}
-              className={`h-12 flex-1 rounded-[15px] text-caption font-extrabold transition-all duration-200 hover:-translate-y-0.5 ${
-                danger
-                  ? "bg-alert text-white shadow-[0_12px_24px_-14px_rgba(237,70,101,0.8)]"
-                  : "lime-button shine-button"
-              }`}
+              className={`btn h-12 flex-1 rounded-2xl ${danger ? "btn-danger" : "btn-sun"}`}
             >
               {confirmLabel}
-            </motion.button>
+            </button>
           </div>
         </motion.div>
       </div>

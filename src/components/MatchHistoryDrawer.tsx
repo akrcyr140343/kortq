@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
-import { AnimatePresence, motion } from "framer-motion";
+import { useCallback, useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import type { Court, Match, Player, Session } from "@/lib/types";
 import { useProfiles } from "@/hooks/useProfiles";
 import {
@@ -13,23 +12,25 @@ import {
   type NamedIdentity,
   type RelationStat,
 } from "@/lib/matchHistory";
-import { glide, press, sheetIn, sheetOut, staggerDelay } from "./motion";
+import { ShuttleBuddy } from "./art";
+import { Avatar, seedOfIdentity } from "./Avatar";
+import { IconHistory, IconSearch } from "./icons";
+import { glide, staggerDelay } from "./motion";
+import { Sheet } from "./Sheet";
 
 type Mode = "player" | "timeline";
 
-/** Team pills — sky for Team A, coral for Team B, matching the app's hue map. */
+/** Team pills — sky for Team A, pink for Team B, matching the court cards. */
 function TeamChips({ team, tone }: { team: NamedIdentity[]; tone: "a" | "b" }) {
-  const cls =
-    tone === "a"
-      ? "bg-sky-wash text-sky-deep ring-sky/25"
-      : "bg-coral-wash text-coral-deep ring-coral/25";
+  const cls = tone === "a" ? "bg-sky-wash text-sky-deep" : "bg-pink-wash text-pink-deep";
   return (
     <div className="flex flex-wrap gap-1.5">
       {team.map((p) => (
         <span
           key={p.identity}
-          className={`inline-flex max-w-full items-center rounded-full px-2.5 py-1 text-caption font-bold ring-1 ring-inset ${cls}`}
+          className={`inline-flex max-w-full items-center gap-1.5 rounded-full py-1 pl-1 pr-2.5 font-display text-caption font-medium ${cls}`}
         >
+          <Avatar name={p.name} seed={seedOfIdentity(p.identity)} size="xs" />
           <span className="truncate">{p.name}</span>
         </span>
       ))}
@@ -37,16 +38,17 @@ function TeamChips({ team, tone }: { team: NamedIdentity[]; tone: "a" | "b" }) {
   );
 }
 
-/** A "คู่กับ / เจอกับ" row: name on the left, count chip on the right. */
-function RelationRow({ stat, tone, index }: { stat: RelationStat; tone: "mint" | "sun"; index: number }) {
-  const chip =
-    tone === "mint"
-      ? "bg-mint-wash text-mint-deep"
-      : "bg-sun-wash text-coral-deep";
+/** A "คู่กับ / เจอกับ" row: avatar + name on the left, count bubble on the right. */
+function RelationRow({ stat, tone, index }: { stat: RelationStat; tone: "partner" | "rival"; index: number }) {
+  const chip = tone === "partner" ? "bg-teal-wash text-teal-deep" : "bg-pink-wash text-pink-deep";
   return (
-    <li className="anim-enter flex items-center gap-2 rounded-[13px] border border-line bg-surface-2 py-2 pl-3 pr-2" style={staggerDelay(Math.min(index, 8), 0.03)}>
-      <span className="min-w-0 flex-1 truncate text-body font-bold text-ink">{stat.name}</span>
-      <span className={`numeral grid h-7 min-w-9 shrink-0 place-items-center rounded-full px-2 text-caption font-extrabold ${chip}`}>
+    <li
+      className="anim-enter-x flex items-center gap-2.5 rounded-2xl border-2 border-line bg-paper py-1.5 pl-1.5 pr-2"
+      style={staggerDelay(Math.min(index, 8), 0.03)}
+    >
+      <Avatar name={stat.name} seed={seedOfIdentity(stat.identity)} size="sm" />
+      <span className="min-w-0 flex-1 truncate font-display text-body text-ink">{stat.name}</span>
+      <span className={`num grid h-7 min-w-9 shrink-0 place-items-center rounded-full px-2 text-caption ${chip}`}>
         {stat.count}
         <span className="sr-only"> ครั้ง</span>
       </span>
@@ -56,8 +58,11 @@ function RelationRow({ stat, tone, index }: { stat: RelationStat; tone: "mint" |
 
 function EmptyHint({ title, sub }: { title: string; sub?: string }) {
   return (
-    <div className="rounded-[18px] border border-dashed border-line-2 bg-surface-2 px-4 py-10 text-center">
-      <p className="text-body font-extrabold text-ink-2">{title}</p>
+    <div className="anim-rise flex flex-col items-center rounded-[22px] border-2 border-dashed border-line-2 bg-sand/60 px-4 py-9 text-center">
+      <span className="anim-bob" style={{ ["--bob-y" as string]: "-6px", ["--bob-d" as string]: "3.2s" }}>
+        <ShuttleBuddy className="h-12 w-12" mood="sleepy" />
+      </span>
+      <p className="mt-3 font-display text-body font-semibold text-ink-2">{title}</p>
       {sub && <p className="mt-1 text-caption text-ink-3">{sub}</p>}
     </div>
   );
@@ -98,19 +103,6 @@ export function MatchHistoryDrawer({
     onClose();
   }, [onClose]);
 
-  // Lock background scroll + Esc to close while open.
-  useEffect(() => {
-    if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && handleClose();
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = prev;
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [open, handleClose]);
-
   const names = useMemo(() => buildNameByIdentity(players, profiles), [players, profiles]);
   const options = useMemo(
     () => buildPlayerOptions(players, matches, playersById, session, names),
@@ -137,229 +129,192 @@ export function MatchHistoryDrawer({
   const totalGames = matches.length;
   const courtCount = session?.courtCount ?? courts.length;
 
-  // Portal target only exists on the client. This drawer is rendered only after
-  // the client-side session subscription resolves (parent gates it behind an
-  // active session), so it never renders during SSR/hydration — no mounted flag,
-  // no hydration mismatch.
-  if (typeof document === "undefined") return null;
-
-  const drawer = (
-    <AnimatePresence>
-      {open && (
-        <div className="fixed inset-0 z-[90]">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1, transition: { duration: 0.25 } }}
-            exit={{ opacity: 0, transition: { duration: 0.2 } }}
-            onClick={handleClose}
-            className="absolute inset-0 bg-ink/45 backdrop-blur-sm"
-          />
-
-          <motion.aside
-            initial={{ x: "100%" }}
-            animate={{ x: 0, transition: sheetIn }}
-            exit={{ x: "100%", transition: sheetOut }}
-            className="absolute inset-y-0 right-0 flex h-full w-full flex-col bg-canvas shadow-[0_0_60px_-10px_rgba(16,35,24,0.5)] sm:max-w-md"
+  // Mode switch — the sun pill slides to the chosen view.
+  const toolbar = (
+    <div className="grid grid-cols-2 gap-1 rounded-2xl bg-sand p-1" role="group" aria-label="มุมมอง">
+      {(["player", "timeline"] as const).map((m) => {
+        const active = mode === m;
+        return (
+          <button
+            key={m}
+            type="button"
+            onClick={() => setMode(m)}
+            aria-pressed={active}
+            className={`relative h-10 rounded-xl font-display text-caption font-medium transition-colors duration-200 ${
+              active ? "text-ink" : "text-ink-3 hover:text-ink"
+            }`}
           >
-            {/* ── Header ────────────────────────────────────────────── */}
-            {/* Full-screen overlay sits under the iOS status bar / Dynamic Island
-                (viewport-fit=cover + black-translucent), so add the top inset to
-                the design's pt-5. env() is 0 on desktop → layout unchanged there. */}
-            <div className="club-panel relative shrink-0 overflow-hidden px-5 pb-4 pt-[calc(env(safe-area-inset-top)+1.25rem)]">
-              <div aria-hidden className="absolute -right-8 -top-10 h-32 w-32 rounded-full bg-mint/20 blur-2xl" />
-              <div className="relative flex items-start justify-between gap-3">
-                <div>
-                  <span className="text-[0.64rem] font-extrabold tracking-[0.16em] text-mint">ประวัติเซสชันนี้</span>
-                  <h2 className="display mt-1.5 text-h3 leading-none text-white">ประวัติการเล่น</h2>
-                  <span className="mt-2 block text-[0.66rem] font-bold text-white/55">
-                    เล่นจบแล้ว {totalGames} เกม · {courtCount} คอร์ต
-                  </span>
-                </div>
-                <motion.button
-                  whileTap={press}
-                  onClick={handleClose}
-                  aria-label="ปิด"
-                  className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/15 bg-white/8 text-white transition-colors duration-200 hover:bg-white/16"
-                >
-                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden>
-                    <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                  </svg>
-                </motion.button>
-              </div>
+            {active && (
+              <motion.span
+                layoutId="history-mode-pill"
+                transition={glide}
+                aria-hidden
+                className="absolute inset-0 rounded-xl bg-sun shadow-[0_2px_0_var(--sun-ledge)]"
+              />
+            )}
+            <span className="relative">{m === "player" ? "รายคน" : "ไทม์ไลน์"}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
 
-              {/* Mode switch */}
-              <div className="relative mt-4 grid grid-cols-2 gap-1 rounded-[14px] bg-white/8 p-1">
-                {(["player", "timeline"] as const).map((m) => {
-                  const active = mode === m;
-                  return (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => setMode(m)}
-                      aria-pressed={active}
-                      className={`relative h-10 rounded-[11px] text-caption font-extrabold transition-all duration-200 ${
-                        active ? "text-accent-deep" : "text-white/60 hover:text-white"
-                      }`}
-                    >
-                      {/* The lime pill slides to the chosen mode. */}
-                      {active && (
-                        <motion.span
-                          layoutId="history-mode-pill"
-                          transition={glide}
-                          aria-hidden
-                          className="absolute inset-0 rounded-[11px] bg-mint shadow-sm"
-                        />
-                      )}
-                      <span className="relative">{m === "player" ? "รายคน" : "ไทม์ไลน์"}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* ── Body ──────────────────────────────────────────────── */}
-            {/* Bottom inset keeps the last row clear of the Home Indicator; env()
-                is 0 on desktop so the padding stays the design's pb-4 there. */}
-            <div className="scroll-pane min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
-              {mode === "player" ? (
-                // Modes slide in from the side their tab sits on.
-                <div key="player" className="anim-enter-xl space-y-4">
-                  {/* Player picker */}
-                  <div>
-                    <input
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      placeholder="ค้นหาผู้เล่น…"
-                      className="h-11 w-full rounded-[14px] border border-line bg-white px-4 text-caption font-semibold text-ink outline-none transition-all duration-200 placeholder:font-normal placeholder:text-ink-4 focus:border-mint-deep/40"
-                    />
-                    {shown.length === 0 ? (
-                      <p className="mt-3 px-1 text-caption text-ink-3">ไม่พบผู้เล่นที่ค้นหา</p>
-                    ) : (
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {shown.map((o, i) => {
-                          const active = selectedIdentity === o.identity;
-                          return (
-                            <button
-                              key={o.identity}
-                              type="button"
-                              onClick={() => setSelectedIdentity(o.identity)}
-                              style={staggerDelay(Math.min(i, 12), 0.02)}
-                              className={`anim-enter inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-caption font-bold transition-all duration-200 ${
-                                active
-                                  ? "border-mint-deep bg-mint-deep text-white shadow-sm"
-                                  : "border-line bg-white text-ink-2 hover:border-mint-deep/40 hover:text-ink"
-                              } ${!o.inSession ? "italic" : ""}`}
-                            >
-                              <span className="max-w-[9rem] truncate">{o.name}</span>
-                              <span
-                                className={`numeral rounded-full px-1.5 text-[0.6rem] font-extrabold ${
-                                  active ? "bg-white/20 text-white" : "bg-canvas text-ink-3"
-                                }`}
-                              >
-                                {o.gamesPlayed}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Selected player summary */}
-                  {!summary ? (
-                    <EmptyHint title="เลือกผู้เล่นเพื่อดูสถิติ" sub="แตะชื่อด้านบน" />
-                  ) : summary.gamesPlayed === 0 ? (
-                    <div key={selectedIdentity} className="anim-enter space-y-3">
-                      <div className="e2 rounded-[18px] bg-white px-4 py-3.5">
-                        <span className="block truncate text-body font-extrabold text-ink">{summary.name}</span>
-                        <span className="mt-0.5 block text-caption text-ink-3">ในเซสชันนี้</span>
-                      </div>
-                      <EmptyHint title="ยังไม่มีประวัติการเล่น" sub="ผู้เล่นคนนี้ยังไม่ได้ลงเล่นเกมที่จบแล้วในเซสชันนี้" />
-                    </div>
-                  ) : (
-                    <div key={selectedIdentity} className="anim-enter space-y-4">
-                      {/* Games played */}
-                      <div className="e2 flex items-center justify-between rounded-[18px] bg-white px-4 py-3.5">
-                        <div className="min-w-0">
-                          <span className="block truncate text-body font-extrabold text-ink">{summary.name}</span>
-                          <span className="mt-0.5 block text-caption text-ink-3">เล่นในเซสชันนี้</span>
-                        </div>
-                        <div className="text-right">
-                          <span className="numeral block text-h2 leading-none text-ink">{summary.gamesPlayed}</span>
-                          <span className="text-[0.62rem] font-bold text-ink-3">เกม</span>
-                        </div>
-                      </div>
-
-                      {/* Partners */}
-                      <section>
-                        <h3 className="mb-1.5 px-1 text-[0.64rem] font-extrabold tracking-[0.14em] text-mint-deep">
-                          เคยคู่กับ ({summary.partners.length})
-                        </h3>
-                        {summary.partners.length === 0 ? (
-                          <p className="px-1 text-caption text-ink-3">—</p>
-                        ) : (
-                          <ul className="space-y-1.5">
-                            {summary.partners.map((s, i) => (
-                              <RelationRow key={s.identity} stat={s} tone="mint" index={i} />
-                            ))}
-                          </ul>
-                        )}
-                      </section>
-
-                      {/* Opponents */}
-                      <section>
-                        <h3 className="mb-1.5 px-1 text-[0.64rem] font-extrabold tracking-[0.14em] text-coral-deep">
-                          เคยเจอกับ ({summary.opponents.length})
-                        </h3>
-                        {summary.opponents.length === 0 ? (
-                          <p className="px-1 text-caption text-ink-3">—</p>
-                        ) : (
-                          <ul className="space-y-1.5">
-                            {summary.opponents.map((s, i) => (
-                              <RelationRow key={s.identity} stat={s} tone="sun" index={i + 1} />
-                            ))}
-                          </ul>
-                        )}
-                      </section>
-                    </div>
-                  )}
-                </div>
+  return (
+    <Sheet
+      open={open}
+      onClose={handleClose}
+      label="ประวัติการเล่น"
+      eyebrow="SESSION HISTORY"
+      title="ประวัติการเล่น"
+      subtitle={`เล่นจบแล้ว ${totalGames} เกม · ${courtCount} คอร์ต`}
+      icon={
+        <span aria-hidden className="sticker grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-sky-wash text-sky-deep ring-2 ring-inset ring-sky/25">
+          <IconHistory className="h-6 w-6" />
+        </span>
+      }
+      toolbar={toolbar}
+    >
+      <div className="px-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] pt-4">
+        {mode === "player" ? (
+          // Modes slide in from the side their tab sits on.
+          <div key="player" className="anim-view-l space-y-4">
+            {/* Player picker */}
+            <div>
+              <label className="relative block">
+                <span className="sr-only">ค้นหาผู้เล่น</span>
+                <IconSearch className="pointer-events-none absolute left-3.5 top-1/2 h-[1.125rem] w-[1.125rem] -translate-y-1/2 text-ink-4" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="ค้นหาผู้เล่น…"
+                  className="h-11 w-full rounded-2xl border-2 border-line bg-paper pl-10 pr-4 font-display text-body text-ink outline-none transition-[border-color,box-shadow] duration-200 placeholder:font-sans placeholder:text-ink-4 focus:border-sky focus:shadow-[0_0_0_4px_rgba(61,157,255,0.16)]"
+                />
+              </label>
+              {shown.length === 0 ? (
+                <p className="mt-3 px-1 text-caption text-ink-3">ไม่พบผู้เล่นที่ค้นหา</p>
               ) : (
-                /* ── Timeline ─────────────────────────────────────── */
-                <div key="timeline" className="anim-enter-x">
-                  {timeline.length === 0 ? (
-                    <EmptyHint title="ยังไม่มีประวัติการเล่น" sub="เกมที่จบแล้วจะแสดงที่นี่ตามลำดับ" />
-                  ) : (
-                    <ul className="space-y-2.5">
-                      {timeline.map((g, i) => (
-                        <li key={g.id} className="anim-enter e2 rounded-[18px] bg-white p-3.5" style={staggerDelay(Math.min(i, 8), 0.04)}>
-                          <div className="mb-2.5 flex items-center justify-between">
-                            <span className="text-[0.64rem] font-extrabold tracking-[0.12em] text-ink-3">
-                              เกมที่ <span className="numeral text-ink">{g.index}</span>
-                            </span>
-                            <span className="numeral text-[0.64rem] font-bold text-ink-4">
-                              {new Date(g.finishedAt).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}
-                            </span>
-                          </div>
-                          <TeamChips team={g.teamA} tone="a" />
-                          <div className="my-1.5 flex items-center gap-2">
-                            <span className="h-px flex-1 bg-line" />
-                            <span className="text-[0.6rem] font-extrabold tracking-[0.12em] text-ink-4">VS</span>
-                            <span className="h-px flex-1 bg-line" />
-                          </div>
-                          <TeamChips team={g.teamB} tone="b" />
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                <div className="mt-2.5 flex flex-wrap gap-1.5">
+                  {shown.map((o, i) => {
+                    const active = selectedIdentity === o.identity;
+                    return (
+                      <button
+                        key={o.identity}
+                        type="button"
+                        onClick={() => setSelectedIdentity(o.identity)}
+                        aria-pressed={active}
+                        style={staggerDelay(Math.min(i, 12), 0.02)}
+                        className={`anim-pop inline-flex items-center gap-1.5 rounded-full border-2 py-1 pl-1 pr-1.5 font-display text-caption transition-[background-color,border-color,box-shadow,translate] duration-150 active:scale-95 ${
+                          active
+                            ? "-translate-y-px border-ink bg-sun-wash text-ink shadow-[0_2px_0_var(--ink)]"
+                            : "border-line bg-paper text-ink-2 hover:border-line-2"
+                        } ${!o.inSession ? "italic opacity-80" : ""}`}
+                      >
+                        <Avatar name={o.name} seed={seedOfIdentity(o.identity)} size="xs" />
+                        <span className="max-w-[9rem] truncate">{o.name}</span>
+                        <span className={`num rounded-full px-1.5 text-[0.6875rem] ${active ? "bg-ink text-sun" : "bg-sand text-ink-3"}`}>
+                          {o.gamesPlayed}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
-          </motion.aside>
-        </div>
-      )}
-    </AnimatePresence>
-  );
 
-  return createPortal(drawer, document.body);
+            {/* Selected player summary */}
+            {!summary ? (
+              <EmptyHint title="เลือกผู้เล่นเพื่อดูสถิติ" sub="แตะชื่อด้านบน" />
+            ) : summary.gamesPlayed === 0 ? (
+              <div key={selectedIdentity} className="anim-rise space-y-3">
+                <div className="card flex items-center gap-3 rounded-[22px] px-4 py-3.5">
+                  <Avatar name={summary.name} seed={seedOfIdentity(summary.identity)} size="lg" />
+                  <div className="min-w-0">
+                    <span className="block truncate font-display text-lede font-semibold text-ink">{summary.name}</span>
+                    <span className="mt-0.5 block text-caption text-ink-3">ในเซสชันนี้</span>
+                  </div>
+                </div>
+                <EmptyHint title="ยังไม่มีประวัติการเล่น" sub="ผู้เล่นคนนี้ยังไม่ได้ลงเล่นเกมที่จบแล้วในเซสชันนี้" />
+              </div>
+            ) : (
+              <div key={selectedIdentity} className="anim-rise space-y-4">
+                {/* Games played */}
+                <div className="card flex items-center gap-3 rounded-[22px] px-4 py-3.5">
+                  <Avatar name={summary.name} seed={seedOfIdentity(summary.identity)} size="lg" />
+                  <div className="min-w-0 flex-1">
+                    <span className="block truncate font-display text-lede font-semibold text-ink">{summary.name}</span>
+                    <span className="mt-0.5 block text-caption text-ink-3">เล่นในเซสชันนี้</span>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <span className="num block text-h2 leading-none text-ink">{summary.gamesPlayed}</span>
+                    <span className="font-display text-[0.6875rem] text-ink-3">เกม</span>
+                  </div>
+                </div>
+
+                {/* Partners */}
+                <section>
+                  <h3 className="mb-2 px-1 font-display text-caption font-semibold text-teal-deep">เคยคู่กับ ({summary.partners.length})</h3>
+                  {summary.partners.length === 0 ? (
+                    <p className="px-1 text-caption text-ink-3">—</p>
+                  ) : (
+                    <ul className="space-y-1.5">
+                      {summary.partners.map((s, i) => (
+                        <RelationRow key={s.identity} stat={s} tone="partner" index={i} />
+                      ))}
+                    </ul>
+                  )}
+                </section>
+
+                {/* Opponents */}
+                <section>
+                  <h3 className="mb-2 px-1 font-display text-caption font-semibold text-pink-deep">เคยเจอกับ ({summary.opponents.length})</h3>
+                  {summary.opponents.length === 0 ? (
+                    <p className="px-1 text-caption text-ink-3">—</p>
+                  ) : (
+                    <ul className="space-y-1.5">
+                      {summary.opponents.map((s, i) => (
+                        <RelationRow key={s.identity} stat={s} tone="rival" index={i + 1} />
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* ── Timeline ─────────────────────────────────────── */
+          <div key="timeline" className="anim-view-r">
+            {timeline.length === 0 ? (
+              <EmptyHint title="ยังไม่มีประวัติการเล่น" sub="เกมที่จบแล้วจะแสดงที่นี่ตามลำดับ" />
+            ) : (
+              <ol className="relative space-y-3 border-l-2 border-dashed border-line-2 pl-4">
+                {timeline.map((g, i) => (
+                  <li key={g.id} className="anim-rise relative" style={staggerDelay(Math.min(i, 8), 0.04)}>
+                    {/* A dot on the rail for every finished game. */}
+                    <span aria-hidden className="absolute -left-[1.4rem] top-4 h-3 w-3 rounded-full bg-sun ring-4 ring-cream" />
+                    <div className="card rounded-[20px] p-3">
+                      <div className="mb-2.5 flex items-center justify-between">
+                        <span className="font-display text-caption font-semibold text-ink">
+                          เกมที่ <span className="num">{g.index}</span>
+                        </span>
+                        <span className="chip bg-sand font-num text-[0.6875rem] font-semibold tabular-nums text-ink-3">
+                          {new Date(g.finishedAt).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      </div>
+                      <TeamChips team={g.teamA} tone="a" />
+                      <div className="my-2 flex items-center gap-2">
+                        <span className="h-0.5 flex-1 rounded-full bg-line" />
+                        <span className="num text-[0.625rem] text-ink-4">VS</span>
+                        <span className="h-0.5 flex-1 rounded-full bg-line" />
+                      </div>
+                      <TeamChips team={g.teamB} tone="b" />
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+        )}
+      </div>
+    </Sheet>
+  );
 }

@@ -1,26 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { motion } from "framer-motion";
 import { SKILLS, type Skill } from "@/lib/types";
-import { glide, press } from "./motion";
-import { E2 } from "./ui";
+import { Confetti } from "./Confetti";
+import { IconPeople, IconPlus, IconUserPlus } from "./icons";
+import { glide } from "./motion";
+import { LevelBars, SKILL_TONE } from "./SkillBadge";
+import { CARD } from "./ui";
 
 const DEFAULT_SKILL: Skill = "BG-";
 
-/** Segmented rank control — the active chip borrows that rank's own hue. */
-const ACTIVE_TIER: Record<Skill, string> = {
-  NB: "bg-slate-500 text-white shadow-sm",
-  "BG-": "bg-sky text-white shadow-sm",
-  BG: "bg-mint text-accent-deep shadow-sm",
-  N: "bg-coral text-white shadow-sm",
-};
-
-// Label colour of the active tier; its fill rides on the sliding pill below.
+// Label colour of the active tier; its fill rides on the sliding pill.
 const ACTIVE_TEXT: Record<Skill, string> = {
-  NB: "text-white",
-  "BG-": "text-white",
-  BG: "text-accent-deep",
+  NB: "text-ink",
+  "BG-": "text-ink",
+  BG: "text-ink",
   N: "text-white",
 };
 
@@ -36,7 +31,8 @@ export function AddPlayerForm({
   const [name, setName] = useState("");
   const [skill, setSkill] = useState<Skill>(DEFAULT_SKILL);
   const [busy, setBusy] = useState(false);
-  const [addedCount, setAddedCount] = useState(0); // each successful add rings the button once
+  const [addedCount, setAddedCount] = useState(0); // each successful add celebrates once
+  const inputId = useId();
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -56,35 +52,45 @@ export function AddPlayerForm({
   }
 
   return (
-    <form onSubmit={handleAdd} className={`${E2} relative overflow-hidden rounded-[24px] p-4`}>
-      <div aria-hidden className="absolute -right-8 -top-10 h-28 w-28 rounded-full bg-mint-wash blur-xl" />
-      <div className="relative flex items-center gap-3">
-        <span className="grid h-10 w-10 place-items-center rounded-[14px] bg-accent text-xl font-light text-mint">＋</span>
-        <div>
-          <span className="block text-sm font-extrabold text-ink">เพิ่มเพื่อนเข้าคิว</span>
-          <span className="mt-0.5 block text-[0.68rem] font-medium text-ink-3">ชื่อและระดับฝีมือ</span>
+    <form onSubmit={handleAdd} className={`${CARD} relative rounded-[26px] p-3.5`}>
+      <div className="flex items-center gap-2.5">
+        <span
+          aria-hidden
+          className="sticker grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-teal text-ink"
+          style={{ boxShadow: "0 3px 0 var(--teal-ledge)" }}
+        >
+          <IconUserPlus className="h-5 w-5" />
+        </span>
+        <div className="min-w-0">
+          <h2 className="font-display text-lede font-semibold leading-tight text-ink">เพิ่มเพื่อนเข้าคิว</h2>
+          <p className="text-caption text-ink-3">ชื่อและระดับฝีมือ</p>
         </div>
       </div>
 
+      <label htmlFor={inputId} className="sr-only">
+        ชื่อผู้เล่น
+      </label>
       <input
+        id={inputId}
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="พิมพ์ชื่อเลย…"
         maxLength={20}
-        className="relative mt-4 h-12 w-full rounded-[16px] border border-line bg-surface-2 px-4 text-body font-semibold text-ink outline-none transition-all duration-200 placeholder:font-normal placeholder:text-ink-4 focus:border-accent/45 focus:bg-white focus:shadow-[0_0_0_4px_rgba(108,92,231,0.08)]"
+        autoComplete="off"
+        className="mt-3 h-12 w-full rounded-2xl border-2 border-line bg-sand/60 px-4 font-display text-body text-ink outline-none transition-[border-color,background-color,box-shadow] duration-200 placeholder:font-sans placeholder:text-ink-4 focus:border-teal focus:bg-paper focus:shadow-[0_0_0_4px_rgba(43,196,174,0.18)]"
       />
 
-      <div className="mt-2.5 grid grid-cols-4 gap-1.5 rounded-[16px] bg-surface-2 p-1.5">
+      <div className="mt-2.5 grid grid-cols-4 gap-1.5 rounded-2xl bg-sand p-1.5" role="group" aria-label="ระดับฝีมือ">
         {SKILLS.map((s) => {
           const active = skill === s;
           return (
-            <motion.button
+            <button
               key={s}
               type="button"
-              whileTap={press}
               onClick={() => setSkill(s)}
-              className={`relative h-9 rounded-[11px] text-xs font-extrabold transition-all duration-200 before:absolute before:-inset-y-1 before:inset-x-0 before:content-[''] ${
-                active ? ACTIVE_TEXT[s] : "text-ink-3 hover:bg-white hover:text-ink hover:shadow-sm"
+              aria-pressed={active}
+              className={`relative flex h-10 items-center justify-center gap-1 rounded-xl font-num text-[0.8125rem] font-semibold transition-colors duration-200 active:scale-95 ${
+                active ? ACTIVE_TEXT[s] : "text-ink-3 hover:bg-paper hover:text-ink"
               }`}
             >
               {/* The tier colour slides to the level you tap. */}
@@ -93,37 +99,36 @@ export function AddPlayerForm({
                   layoutId="add-skill-pill"
                   transition={glide}
                   aria-hidden
-                  className={`absolute inset-0 rounded-[11px] ${ACTIVE_TIER[s]}`}
+                  className={`absolute inset-0 rounded-xl shadow-[0_2px_0_rgba(35,38,59,0.18)] ${SKILL_TONE[s].active}`}
                 />
               )}
               <span className="relative">{s}</span>
-            </motion.button>
+              <span className="relative">
+                <LevelBars level={SKILL_TONE[s].level} small />
+              </span>
+            </button>
           );
         })}
       </div>
 
-      <motion.button
-        key={addedCount}
-        type="submit"
-        whileTap={press}
-        disabled={busy || !name.trim()}
-        className={`${addedCount > 0 ? "anim-ready" : ""} ${busy ? "kq-busy" : ""} lime-button shine-button mt-3 h-12 w-full rounded-[16px] text-caption font-extrabold transition-all duration-200 hover:-translate-y-0.5 disabled:bg-none disabled:bg-line disabled:text-ink-4 disabled:shadow-none`}
-      >
-        {busy ? "กำลังเพิ่ม…" : "เพิ่มเข้าคิว"}
-      </motion.button>
+      {/* Each successful add pops a little confetti off the button. */}
+      <div className="relative mt-3">
+        <button
+          key={addedCount}
+          type="submit"
+          disabled={busy || !name.trim()}
+          className={`btn btn-sun ${busy ? "is-busy" : addedCount > 0 ? "ping-once" : ""} h-12 w-full rounded-2xl`}
+        >
+          <IconPlus className="h-5 w-5" />
+          {busy ? "กำลังเพิ่ม…" : "เพิ่มเข้าคิว"}
+        </button>
+        {addedCount > 0 && <Confetti key={addedCount} pieces={12} spread={0.85} />}
+      </div>
 
-      <motion.button
-        type="button"
-        whileTap={press}
-        onClick={onOpenRegistry}
-        className="relative mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-[16px] border border-accent/20 bg-accent-wash text-caption font-bold text-accent-deep transition-all duration-200 hover:-translate-y-0.5"
-      >
-        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden>
-          <circle cx="9" cy="8" r="3" stroke="currentColor" strokeWidth="1.8" />
-          <path d="M4 19c.5-3.2 2.4-5 5-5s4.5 1.8 5 5M16 7h4M18 5v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-        </svg>
+      <button type="button" onClick={onOpenRegistry} className="btn btn-teal-soft mt-2.5 h-11 w-full rounded-2xl">
+        <IconPeople className="h-5 w-5" />
         เลือกจากสมาชิกก๊วน
-      </motion.button>
+      </button>
     </form>
   );
 }

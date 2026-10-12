@@ -5,9 +5,8 @@ import { useEffect, useState } from "react";
 const WARN_MS = 20 * 60 * 1000; // 20 minutes
 
 /**
- * Broadcast-style elapsed clock. The numerals are the whole component — no
- * icon, no chrome. Past 20 minutes they turn red and breathe slowly: one of
- * the three looping animations in the app, and it earns it as an alert.
+ * Elapsed game clock, scoreboard-style. Teal while the rally is on; past 20
+ * minutes it turns tomato and breathes slowly — the one loop that is an alert.
  */
 export function CourtTimer({ startedAt }: { startedAt: number }) {
   const [now, setNow] = useState(() => Date.now());
@@ -24,22 +23,22 @@ export function CourtTimer({ startedAt }: { startedAt: number }) {
   const warn = elapsed >= WARN_MS;
 
   return (
-    <div className={`flex flex-col items-end rounded-[14px] px-3 py-2 ${warn ? "bg-alert-wash" : "bg-mint-wash"}`}>
-      <span className={`flex items-center gap-1.5 text-[0.64rem] font-extrabold ${warn ? "text-alert" : "text-mint-deep"}`}>
-        {!warn && (
-          <span aria-hidden className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-mint" />
-        )}
+    <div
+      className={`flex shrink-0 flex-col items-end rounded-2xl px-3 py-1.5 ring-2 ring-inset ${
+        warn ? "bg-tomato-wash ring-tomato/20" : "bg-teal-wash ring-teal/25"
+      }`}
+    >
+      <span className={`flex items-center gap-1.5 font-display text-[0.6875rem] font-medium ${warn ? "text-tomato-deep" : "text-teal-deep"}`}>
+        <span aria-hidden className={`inline-block h-1.5 w-1.5 rounded-full ${warn ? "bg-tomato" : "live-dot bg-teal"}`} />
         {warn ? "เกินเวลาแล้ว" : "กำลังตี"}
       </span>
-      <div
-        className={`numeral mt-1 flex items-baseline text-lede leading-[0.8] ${
-          warn ? "animate-warn text-alert" : "text-ink"
-        }`}
+      <span
+        className={`num mt-0.5 flex items-baseline text-[1.375rem] leading-none ${warn ? "anim-breathe text-tomato-deep" : "text-ink"}`}
       >
         <span>{mm}</span>
-        <span className="px-0.5 opacity-30">:</span>
+        <span aria-hidden className="px-px opacity-35">:</span>
         <span>{ss}</span>
-      </div>
+      </span>
     </div>
   );
 }

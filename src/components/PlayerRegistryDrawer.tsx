@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
-import { AnimatePresence, motion } from "framer-motion";
 import { type Profile, type Skill, SKILLS, normalizeNameKey } from "@/lib/types";
 import {
   addPlayerFromProfile,
@@ -11,17 +9,13 @@ import {
   updateProfileSkill,
 } from "@/lib/db";
 import { useModal } from "@/context/ModalContext";
-import { SkillBadge } from "./SkillBadge";
-import { press, sheetIn, sheetOut, staggerDelay } from "./motion";
+import { ShuttleBuddy } from "./art";
+import { Avatar } from "./Avatar";
+import { IconCheck, IconPeople, IconPlus, IconSearch, IconTrash } from "./icons";
+import { Sheet } from "./Sheet";
+import { LevelBars, SKILL_TONE, SkillBadge } from "./SkillBadge";
+import { staggerDelay } from "./motion";
 import { Tick } from "./Tick";
-
-/** Segmented rank control — mirrors AddPlayerForm's active-chip hues. */
-const ACTIVE_TIER: Record<Skill, string> = {
-  NB: "bg-slate-500 text-white shadow-sm",
-  "BG-": "bg-sky text-white shadow-sm",
-  BG: "bg-mint text-accent-deep shadow-sm",
-  N: "bg-coral text-white shadow-sm",
-};
 
 /** Relative "last joined" label, coarse on purpose. */
 function lastSeen(ms: number): string {
@@ -48,13 +42,10 @@ export function PlayerRegistryDrawer({
   sessionCreatedAt: number;
 }) {
   const modal = useModal();
-  const [mounted, setMounted] = useState(false);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-
-  useEffect(() => setMounted(true), []);
 
   // Reset transient UI whenever the drawer closes.
   useEffect(() => {
@@ -64,19 +55,6 @@ export function PlayerRegistryDrawer({
       setEditingId(null);
     }
   }, [open]);
-
-  // Lock background scroll + Esc to close while open.
-  useEffect(() => {
-    if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = prev;
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [open, onClose]);
 
   // Keep the selection valid as profiles/session change under us.
   useEffect(() => {
@@ -152,204 +130,190 @@ export function PlayerRegistryDrawer({
     });
   }
 
-  if (!mounted) return null;
-
   const selectableCount = [...selected].filter((id) => !sessionProfileIds.has(id)).length;
 
-  const drawer = (
-    <AnimatePresence>
-      {open && (
-        <div className="fixed inset-0 z-[90]">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1, transition: { duration: 0.25 } }}
-            exit={{ opacity: 0, transition: { duration: 0.2 } }}
-            onClick={onClose}
-            className="absolute inset-0 bg-ink/45 backdrop-blur-sm"
-          />
-
-          <motion.aside
-            initial={{ x: "100%" }}
-            animate={{ x: 0, transition: sheetIn }}
-            exit={{ x: "100%", transition: sheetOut }}
-            className="absolute inset-y-0 right-0 flex h-full w-full flex-col bg-canvas shadow-[0_0_60px_-10px_rgba(16,35,24,0.5)] sm:max-w-md"
-          >
-            {/* ── Header ────────────────────────────────────────────── */}
-            {/* Full-screen overlay sits under the iOS status bar / Dynamic Island
-                (viewport-fit=cover + black-translucent), so add the top inset to
-                the design's pt-5. env() is 0 on desktop → layout unchanged there. */}
-            <div className="club-panel relative shrink-0 overflow-hidden px-5 pb-5 pt-[calc(env(safe-area-inset-top)+1.25rem)]">
-              <div aria-hidden className="absolute -right-8 -top-10 h-32 w-32 rounded-full bg-mint/20 blur-2xl" />
-              <div className="relative flex items-start justify-between gap-3">
-                <div>
-                  <span className="text-[0.64rem] font-extrabold tracking-[0.16em] text-mint">สมาชิกก๊วน</span>
-                  <h2 className="display mt-1.5 text-h3 leading-none text-white">เพื่อนในก๊วน</h2>
-                </div>
-                <motion.button
-                  whileTap={press}
-                  onClick={onClose}
-                  aria-label="ปิด"
-                  className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/15 bg-white/8 text-white transition-colors duration-200 hover:bg-white/16"
-                >
-                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden>
-                    <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                  </svg>
-                </motion.button>
-              </div>
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="ค้นหาชื่อ…"
-                className="relative mt-4 h-11 w-full rounded-[14px] border border-white/10 bg-white/10 px-4 text-caption font-semibold text-white outline-none transition-all duration-200 placeholder:font-normal placeholder:text-white/40 focus:border-mint/40 focus:bg-white/16"
-              />
-            </div>
-
-            {/* ── Roster list ───────────────────────────────────────── */}
-            <div className="scroll-pane min-h-0 flex-1 overflow-y-auto px-5 py-3">
-              {shown.length === 0 ? (
-                <div className="anim-enter mt-8 rounded-[18px] border border-dashed border-line-2 bg-surface-2 px-4 py-10 text-center">
-                  <p className="text-body font-extrabold text-ink-2">
-                    {profiles.length === 0 ? "ยังไม่มีใครในสมาชิกก๊วน" : "ไม่พบชื่อที่ค้นหา"}
-                  </p>
-                  <p className="mt-1 text-caption text-ink-3">
-                    {profiles.length === 0 ? "เพิ่มเพื่อนเข้าคิวแล้วจะบันทึกให้อัตโนมัติ" : "ลองคำอื่นดู"}
-                  </p>
-                </div>
-              ) : (
-                <ul className="space-y-2">
-                  {shown.map((p, i) => {
-                    const inSession = sessionProfileIds.has(p.id);
-                    const isSelected = selected.has(p.id);
-                    const editing = editingId === p.id;
-                    return (
-                      <li
-                        key={p.id}
-                        // The roster pours in behind the sheet (capped, so long lists stay quick).
-                        style={staggerDelay(Math.min(i, 10), 0.025)}
-                        className={`anim-enter rounded-[16px] border transition-all duration-200 ${
-                          isSelected
-                            ? "border-mint-deep/25 bg-mint-wash"
-                            : "border-line bg-surface-2"
-                        } ${inSession ? "opacity-70" : ""}`}
-                      >
-                        <div className="flex items-center gap-2.5 py-2 pl-2.5 pr-2">
-                          {/* Select toggle (disabled once in session) */}
-                          <button
-                            type="button"
-                            disabled={inSession}
-                            onClick={() => toggleSelect(p.id)}
-                            aria-label="เลือก"
-                            className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border-2 transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-40 ${
-                              isSelected ? "border-mint-deep bg-mint-deep text-white" : "border-line-2 bg-white"
-                            }`}
-                          >
-                            {isSelected && (
-                              <svg viewBox="0 0 24 24" className="anim-stamp h-3.5 w-3.5" fill="none" aria-hidden>
-                                <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-                              </svg>
-                            )}
-                          </button>
-
-                          <div className="min-w-0 flex-1">
-                            <span className="block truncate text-body font-bold text-ink">{p.name}</span>
-                            <span className="mt-0.5 block text-[0.66rem] text-ink-3">
-                              มา {p.visitCount} ครั้ง · มาล่าสุด {lastSeen(p.lastJoinedAt)}
-                            </span>
-                          </div>
-
-                          {/* Skill — tap to edit */}
-                          <button type="button" onClick={() => setEditingId(editing ? null : p.id)} className="shrink-0" aria-label="แก้ระดับ">
-                            <SkillBadge skill={p.skill} />
-                          </button>
-
-                          {inSession ? (
-                            <span className="shrink-0 rounded-full bg-mint-wash px-2.5 py-1 text-[0.6rem] font-extrabold text-mint-deep">อยู่ในคิว</span>
-                          ) : (
-                            <motion.button
-                              whileTap={press}
-                              disabled={busy}
-                              onClick={() => addOne(p.id)}
-                              className="lime-button h-8 shrink-0 rounded-full px-3 text-[0.68rem] font-extrabold disabled:opacity-50"
-                            >
-                              เพิ่ม
-                            </motion.button>
-                          )}
-
-                          <button
-                            type="button"
-                            onClick={() => remove(p)}
-                            aria-label="ลบออกจากก๊วน"
-                            className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-ink-4 transition-colors duration-200 hover:bg-alert-wash hover:text-alert"
-                          >
-                            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden>
-                              <path d="M6 7h12M9 7V5h6v2M8 7l1 12h6l1-12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                          </button>
-                        </div>
-
-                        {/* Inline skill editor */}
-                        {editing && (
-                          <div className="anim-enter grid grid-cols-4 gap-1.5 border-t border-line/70 p-2">
-                            {SKILLS.map((s) => {
-                              const active = p.skill === s;
-                              return (
-                                <motion.button
-                                  key={s}
-                                  type="button"
-                                  whileTap={press}
-                                  onClick={() => changeSkill(p.id, s)}
-                                  className={`h-9 rounded-[10px] text-xs font-extrabold transition-all duration-200 ${
-                                    active ? ACTIVE_TIER[s] : "bg-white text-ink-3 hover:text-ink hover:shadow-sm"
-                                  }`}
-                                >
-                                  {s}
-                                </motion.button>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-
-            {/* ── Footer — multi-add ────────────────────────────────── */}
-            {/* Bottom inset keeps the add button clear of the Home Indicator; env()
-                is 0 on desktop so the padding stays the design's py-3.5 there. */}
-            <div className="shrink-0 border-t border-line bg-white/70 px-5 pt-3.5 pb-[calc(env(safe-area-inset-bottom)+0.875rem)] backdrop-blur">
-              <div className="flex items-center gap-3">
-                <motion.button
-                  whileTap={selectableCount > 0 ? press : undefined}
-                  disabled={selectableCount === 0 || busy}
-                  onClick={addSelected}
-                  className="lime-button shine-button h-12 flex-1 rounded-[15px] text-caption font-extrabold transition-all duration-200 hover:-translate-y-0.5 disabled:bg-none disabled:bg-line disabled:text-ink-4 disabled:shadow-none"
-                >
-                  {selectableCount > 0 ? (
-                    <>
-                      เพิ่ม <Tick value={selectableCount} /> คนเข้าคิว
-                    </>
-                  ) : (
-                    "เลือกคนเพื่อเพิ่มพร้อมกัน"
-                  )}
-                </motion.button>
-                {selectableCount > 0 && (
-                  <motion.button
-                    whileTap={press}
-                    onClick={() => setSelected(new Set())}
-                    className="h-12 shrink-0 rounded-[15px] border border-line bg-white px-4 text-caption font-bold text-ink-2 shadow-sm transition-colors duration-200 hover:bg-canvas"
-                  >
-                    ล้าง
-                  </motion.button>
-                )}
-              </div>
-            </div>
-          </motion.aside>
-        </div>
-      )}
-    </AnimatePresence>
+  const toolbar = (
+    <label className="relative block">
+      <span className="sr-only">ค้นหาชื่อ</span>
+      <IconSearch className="pointer-events-none absolute left-3.5 top-1/2 h-[1.125rem] w-[1.125rem] -translate-y-1/2 text-ink-4" />
+      <input
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="ค้นหาชื่อ…"
+        className="h-11 w-full rounded-2xl border-2 border-line bg-paper pl-10 pr-4 font-display text-body text-ink outline-none transition-[border-color,box-shadow] duration-200 placeholder:font-sans placeholder:text-ink-4 focus:border-teal focus:shadow-[0_0_0_4px_rgba(43,196,174,0.18)]"
+      />
+    </label>
   );
 
-  return createPortal(drawer, document.body);
+  // ── Footer — multi-add. The bottom inset keeps it clear of the Home Indicator.
+  const footer = (
+    <div className="shrink-0 border-t-2 border-line bg-paper/85 px-5 pb-[calc(env(safe-area-inset-bottom)+0.875rem)] pt-3 backdrop-blur">
+      <div className="flex items-center gap-2.5">
+        <button
+          type="button"
+          disabled={selectableCount === 0 || busy}
+          onClick={addSelected}
+          className={`btn btn-sun ${busy && selectableCount > 0 ? "is-busy" : ""} h-12 flex-1 rounded-2xl`}
+        >
+          {selectableCount > 0 ? (
+            <>
+              <IconPlus className="h-5 w-5" />
+              เพิ่ม <Tick value={selectableCount} /> คนเข้าคิว
+            </>
+          ) : (
+            "เลือกคนเพื่อเพิ่มพร้อมกัน"
+          )}
+        </button>
+        {selectableCount > 0 && (
+          <button type="button" onClick={() => setSelected(new Set())} className="btn h-12 rounded-2xl px-4">
+            ล้าง
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <Sheet
+      open={open}
+      onClose={onClose}
+      label="สมาชิกก๊วน"
+      eyebrow="CLUB ROSTER"
+      title="เพื่อนในก๊วน"
+      subtitle={`${profiles.length} คนในก๊วน · แตะรูปเพื่อเลือกหลายคน`}
+      icon={
+        <span aria-hidden className="sticker grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-teal-wash text-teal-deep ring-2 ring-inset ring-teal/30">
+          <IconPeople className="h-6 w-6" />
+        </span>
+      }
+      toolbar={toolbar}
+      footer={footer}
+    >
+      <div className="px-5 py-3">
+        {shown.length === 0 ? (
+          <div className="anim-rise mt-4 flex flex-col items-center rounded-[22px] border-2 border-dashed border-line-2 bg-sand/60 px-4 py-9 text-center">
+            <span className="anim-bob" style={{ ["--bob-y" as string]: "-6px", ["--bob-d" as string]: "3.2s" }}>
+              <ShuttleBuddy className="h-12 w-12" mood={profiles.length === 0 ? "happy" : "wow"} />
+            </span>
+            <p className="mt-3 font-display text-body font-semibold text-ink-2">
+              {profiles.length === 0 ? "ยังไม่มีใครในสมาชิกก๊วน" : "ไม่พบชื่อที่ค้นหา"}
+            </p>
+            <p className="mt-1 text-caption text-ink-3">
+              {profiles.length === 0 ? "เพิ่มเพื่อนเข้าคิวแล้วจะบันทึกให้อัตโนมัติ" : "ลองคำอื่นดู"}
+            </p>
+          </div>
+        ) : (
+          <ul className="space-y-2">
+            {shown.map((p, i) => {
+              const inSession = sessionProfileIds.has(p.id);
+              const isSelected = selected.has(p.id);
+              const editing = editingId === p.id;
+              return (
+                <li
+                  key={p.id}
+                  // The roster pours in behind the sheet (capped, so long lists stay quick).
+                  style={staggerDelay(Math.min(i, 10), 0.025)}
+                  className={`anim-rise rounded-[20px] border-2 transition-[background-color,border-color,box-shadow] duration-200 ${
+                    isSelected
+                      ? "border-ink bg-sun-wash shadow-[0_3px_0_var(--ink)]"
+                      : "border-line bg-paper shadow-[0_2px_0_var(--line-2)]"
+                  } ${inSession ? "opacity-75" : ""}`}
+                >
+                  <div className="flex items-center gap-2 py-1.5 pl-1.5 pr-1">
+                    {/* The avatar is the select toggle (disabled once in session). */}
+                    <button
+                      type="button"
+                      disabled={inSession}
+                      onClick={() => toggleSelect(p.id)}
+                      aria-pressed={isSelected}
+                      aria-label={`เลือก ${p.name}`}
+                      className="relative shrink-0 rounded-full transition-transform duration-150 active:scale-90 disabled:cursor-not-allowed"
+                    >
+                      <Avatar name={p.name} seed={p.id} size="lg" />
+                      <span
+                        key={isSelected ? "on" : "off"}
+                        aria-hidden
+                        className={`absolute -bottom-0.5 -right-0.5 grid h-5 w-5 place-items-center rounded-full ring-2 ring-paper ${
+                          isSelected
+                            ? "anim-stamp bg-teal text-ink"
+                            : inSession
+                              ? "bg-teal-wash text-teal-deep"
+                              : "bg-paper text-transparent shadow-[inset_0_0_0_2px_var(--line-2)]"
+                        }`}
+                      >
+                        <IconCheck className="h-3 w-3" />
+                      </span>
+                    </button>
+
+                    <div className="min-w-0 flex-1">
+                      <span className="block truncate font-display text-body font-medium text-ink">{p.name}</span>
+                      <span className="mt-0.5 block truncate text-[0.6875rem] text-ink-3">
+                        มา {p.visitCount} ครั้ง · มาล่าสุด {lastSeen(p.lastJoinedAt)}
+                      </span>
+                    </div>
+
+                    {/* Skill — tap to edit */}
+                    <button
+                      type="button"
+                      onClick={() => setEditingId(editing ? null : p.id)}
+                      aria-expanded={editing}
+                      aria-label={`แก้ระดับของ ${p.name}`}
+                      className="shrink-0 rounded-full transition-transform duration-150 active:scale-90"
+                    >
+                      <SkillBadge skill={p.skill} />
+                    </button>
+
+                    {inSession ? (
+                      <span className="chip shrink-0 bg-teal-wash text-[0.6875rem] text-teal-deep">อยู่ในคิว</span>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => addOne(p.id)}
+                        className="btn btn-sun h-9 min-h-9 shrink-0 rounded-xl px-3 text-caption"
+                      >
+                        เพิ่ม
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => remove(p)}
+                      aria-label="ลบออกจากก๊วน"
+                      className="btn btn-ghost h-9 min-h-9 w-9 shrink-0 rounded-full px-0 text-ink-3 hover:text-tomato-deep"
+                    >
+                      <IconTrash className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  {/* Inline skill editor */}
+                  {editing && (
+                    <div className="anim-status grid grid-cols-4 gap-1.5 border-t-2 border-dashed border-line p-2">
+                      {SKILLS.map((s) => {
+                        const active = p.skill === s;
+                        return (
+                          <button
+                            key={s}
+                            type="button"
+                            onClick={() => changeSkill(p.id, s)}
+                            aria-pressed={active}
+                            className={`flex h-10 items-center justify-center gap-1 rounded-xl font-num text-[0.8125rem] font-semibold transition-colors duration-200 active:scale-95 ${
+                              active ? `${SKILL_TONE[s].active} shadow-[0_2px_0_rgba(35,38,59,0.18)]` : "bg-sand text-ink-3 hover:text-ink"
+                            }`}
+                          >
+                            {s}
+                            <LevelBars level={SKILL_TONE[s].level} small />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </Sheet>
+  );
 }

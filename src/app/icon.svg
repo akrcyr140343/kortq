@@ -1,22 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
   <defs>
-    <linearGradient id="kqg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#34d399"/>
-      <stop offset="1" stop-color="#059669"/>
+    <linearGradient id="kq-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3fd3bd"/>
+      <stop offset="1" stop-color="#14a08c"/>
     </linearGradient>
   </defs>
-  <rect width="64" height="64" rx="15" fill="url(#kqg)"/>
-  <!-- Racket -->
-  <g transform="rotate(-40 25 31)" fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round">
-    <ellipse cx="25" cy="21" rx="9.5" ry="12" stroke-width="3"/>
-    <path d="M18.5 16.5 V25.5 M25 13.5 V28.5 M31.5 16.5 V25.5" stroke-width="1.4"/>
-    <path d="M16.5 21 H33.5 M17.5 26 H32.5" stroke-width="1.4"/>
-    <path d="M21.5 32 L25 40 M28.5 32 L25 40 M25 40 V50" stroke-width="3"/>
-  </g>
-  <!-- Shuttlecock -->
-  <g transform="translate(42 37) rotate(18)">
-    <path d="M-7 -13 L7 -13 L4.5 1.5 L-4.5 1.5 Z" fill="#ffffff"/>
-    <path d="M-3.5 -13 V1.5 M0 -14 V1.5 M3.5 -13 V1.5" stroke="#059669" stroke-width="0.9" fill="none"/>
-    <circle cx="0" cy="5" r="4.8" fill="#f0fdf4" stroke="#047857" stroke-width="1"/>
+  <rect width="64" height="64" rx="16" fill="url(#kq-bg)"/>
+  <circle cx="51" cy="12" r="6.5" fill="#ffc83d"/>
+  <!-- Shuttle buddy: feather skirt + a smiling cork -->
+  <g transform="rotate(-16 32 31)">
+    <path d="M15 8 H49 L42 34 H22 Z" fill="#ffffff" stroke="#23263b" stroke-width="2.6" stroke-linejoin="round"/>
+    <path d="M23 8 L26.5 34 M32 8 V34 M41 8 L37.5 34" stroke="#a7abbe" stroke-width="1.6" stroke-linecap="round"/>
+    <path d="M22.5 29.5 H41.5" stroke="#ffc83d" stroke-width="3" stroke-linecap="round"/>
+    <path d="M20 34 H44 V37 C44 44.5 38.6 50 32 50 C25.4 50 20 44.5 20 37 Z" fill="#ffc83d" stroke="#23263b" stroke-width="2.6" stroke-linejoin="round"/>
+    <circle cx="27.5" cy="40.5" r="1.7" fill="#23263b"/>
+    <circle cx="36.5" cy="40.5" r="1.7" fill="#23263b"/>
+    <path d="M29.5 44 Q32 46.2 34.5 44" fill="none" stroke="#23263b" stroke-width="1.6" stroke-linecap="round"/>
+    <ellipse cx="24.6" cy="43.6" rx="2" ry="1.2" fill="#ff6a8e" opacity=".75"/>
+    <ellipse cx="39.4" cy="43.6" rx="2" ry="1.2" fill="#ff6a8e" opacity=".75"/>
   </g>
 </svg>

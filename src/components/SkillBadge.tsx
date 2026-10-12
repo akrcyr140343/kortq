@@ -1,24 +1,53 @@
 import type { Skill } from "@/lib/types";
 
 /**
- * Rank chips read by hue, weakest → strongest: slate, sky, amber, violet.
- * Each is a soft tint with its own ring one step darker, so the chip never
- * dissolves into the white card behind it. Emerald is deliberately absent —
- * it belongs to actions, not to people.
+ * Rank chips, weakest → strongest: leaf, sky, sun, grape. The hue is never the
+ * only cue — a little "signal" of 1–4 bars repeats the level, so the ladder
+ * reads at a glance and for colour-blind players too.
  */
-const TIER: Record<Skill, string> = {
-  NB: "bg-slate-100 text-slate-600 ring-slate-200",
-  "BG-": "bg-sky-wash text-sky-deep ring-sky/25",
-  BG: "bg-mint-wash text-mint-deep ring-mint/35",
-  N: "bg-coral-wash text-coral-deep ring-coral/25",
+export const SKILL_TONE: Record<Skill, { badge: string; active: string; level: number }> = {
+  NB: { badge: "bg-leaf-wash text-leaf-deep ring-leaf/30", active: "bg-leaf text-ink", level: 1 },
+  "BG-": { badge: "bg-sky-wash text-sky-deep ring-sky/30", active: "bg-sky text-ink", level: 2 },
+  BG: { badge: "bg-sun-wash text-sun-deep ring-sun/50", active: "bg-sun text-ink", level: 3 },
+  N: { badge: "bg-grape-wash text-grape-deep ring-grape/30", active: "bg-grape text-white", level: 4 },
 };
 
-export function SkillBadge({ skill, className = "" }: { skill: Skill; className?: string }) {
+/** Four rising bars, the first `level` filled. */
+export function LevelBars({ level, small = false }: { level: number; small?: boolean }) {
+  const heights = small ? [4, 6, 8, 10] : [5, 7, 9, 11];
+  return (
+    <span aria-hidden className="flex items-end gap-[1.5px]">
+      {heights.map((h, i) => (
+        <span
+          key={i}
+          className={`${small ? "w-[2.5px]" : "w-[3px]"} rounded-full bg-current ${i < level ? "" : "opacity-25"}`}
+          style={{ height: h }}
+        />
+      ))}
+    </span>
+  );
+}
+
+export function SkillBadge({
+  skill,
+  size = "md",
+  className = "",
+}: {
+  skill: Skill;
+  size?: "sm" | "md";
+  className?: string;
+}) {
+  const tone = SKILL_TONE[skill];
+  const small = size === "sm";
   return (
     <span
-      className={`inline-flex h-6 shrink-0 items-center justify-center rounded-full px-2 text-eyebrow font-extrabold tracking-wide ring-1 ring-inset ${TIER[skill]} ${className}`}
+      className={`inline-flex shrink-0 items-center justify-center gap-1 rounded-full font-num font-semibold ring-1 ring-inset ${
+        small ? "h-5 px-1.5 text-[0.625rem]" : "h-6 px-2 text-[0.6875rem]"
+      } ${tone.badge} ${className}`}
     >
-      {skill}
+      <span>{skill}</span>
+      <LevelBars level={tone.level} small={small} />
+      <span className="sr-only">ระดับ {tone.level} จาก 4</span>
     </span>
   );
 }

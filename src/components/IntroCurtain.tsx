@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
+import { ShuttleBuddy } from "./art";
 import { EASE } from "./motion";
 
 const AUTO_MS = 1150; // ceiling before it dismisses itself
@@ -15,14 +16,13 @@ const REDUCE_MS = 180;
  * Framer Motion doesn't cross-fade two logos, it continuously reshapes ONE
  * from its big centred moment into its small header slot while the curtain
  * fades off around it. `revealed` in Home() flips the instant a skip fires,
- * so the page behind starts its own staggered entrance in that same frame —
- * the curtain lifting and the hall appearing are one continuous gesture.
+ * so the page behind starts its own staggered entrance in that same frame.
+ *
+ * Pop Court staging: a sunny sky, the letters of "KortQ" bouncing in one by
+ * one, and the shuttle buddy lobbing across the screen.
  *
  * Never blocks: tap/click anywhere skips instantly, and a timer caps the
  * unskipped wait well under what would feel like "waiting for an app".
- * `MotionConfig reducedMotion="user"` (see MotionProvider) already turns the
- * layout hand-off into a plain cut for reduced-motion users; the shorter
- * timer here just stops it holding the screen at all in that case.
  */
 export function IntroCurtain({ onSkip }: { onSkip: () => void }) {
   const skipped = useRef(false);
@@ -48,55 +48,68 @@ export function IntroCurtain({ onSkip }: { onSkip: () => void }) {
       onClick={skip}
       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && skip()}
       initial={{ opacity: 0 }}
-      animate={{ opacity: 1, transition: { duration: 0.28, ease: EASE } }}
+      animate={{ opacity: 1, transition: { duration: 0.24, ease: EASE } }}
       exit={{ opacity: 0, transition: { duration: 0.34, ease: EASE } }}
-      className="fixed inset-0 z-[999] flex cursor-pointer select-none flex-col items-center justify-center overflow-hidden"
+      className="fixed inset-0 z-[999] flex cursor-pointer select-none flex-col items-center justify-center overflow-hidden bg-cream"
     >
-      {/* Same deep club-panel gradient the header hands off to, so the cut
-          from curtain-background to header-background is invisible. */}
       <div
         aria-hidden
         className="absolute inset-0"
         style={{
           background:
-            "radial-gradient(120% 90% at 50% -12%, rgba(184,239,47,0.18), transparent 55%), linear-gradient(150deg, #052a22, #073b35 48%, #0b5148 100%)",
+            "radial-gradient(60% 46% at 50% 44%, rgba(255,226,140,0.75) 0%, rgba(255,241,194,0) 70%), linear-gradient(180deg, #dff2ff 0%, #fff6e3 52%, #fff9f0 100%)",
         }}
       />
+      {/* Soft sun disc rising behind the mark. */}
       <motion.div
         aria-hidden
-        className="absolute -right-16 -top-24 h-72 w-72 rounded-full bg-mint/10 blur-3xl"
-        initial={{ opacity: 0, scale: 0.7 }}
+        className="absolute left-1/2 top-[44%] h-[22rem] w-[22rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-sun/30 blur-2xl"
+        initial={{ opacity: 0, scale: 0.6 }}
         animate={{ opacity: 1, scale: 1, transition: { duration: 0.9, ease: EASE } }}
       />
+
+      {/* The shuttle buddy lobs across, net to net. */}
+      <span aria-hidden className="anim-arc absolute left-1/2 top-[30%] -ml-7">
+        <ShuttleBuddy className="h-14 w-14" mood="wow" />
+      </span>
 
       <motion.div
         layoutId="brand-mark"
         transition={{ type: "spring", stiffness: 190, damping: 24 }}
-        className="relative z-10 grid h-24 w-24 place-items-center overflow-hidden rounded-[28px] bg-white shadow-[0_30px_60px_-20px_rgba(0,0,0,0.65)] sm:h-28 sm:w-28"
+        className="relative z-10 grid h-28 w-28 place-items-center rounded-[30px] bg-paper shadow-[0_6px_0_var(--line-2),0_30px_50px_-20px_rgba(91,62,24,0.45)] ring-4 ring-paper sm:h-32 sm:w-32"
       >
-        <Image src="/kd-logo.png" alt="" fill sizes="112px" className="object-cover" priority />
+        <span className="absolute inset-0 overflow-hidden rounded-[26px]">
+          <Image src="/kd-logo.png" alt="" fill sizes="128px" className="object-cover" priority />
+        </span>
       </motion.div>
 
       <motion.span
         layoutId="brand-word"
         transition={{ type: "spring", stiffness: 190, damping: 24 }}
-        className="display relative z-10 mt-6 block text-[3.4rem] leading-none tracking-tight text-white sm:text-[4.25rem]"
+        className="num relative z-10 mt-6 block text-[3.75rem] leading-none text-ink sm:text-[4.5rem]"
       >
-        Kort<span className="text-mint">Q</span>
+        {"Kort".split("").map((ch, i) => (
+          <span key={i} className="anim-letter" style={{ animationDelay: `${(0.1 + i * 0.06).toFixed(2)}s` }}>
+            {ch}
+          </span>
+        ))}
+        <span className="anim-letter text-teal-deep" style={{ animationDelay: "0.38s" }}>
+          Q
+        </span>
       </motion.span>
 
       <motion.span
         initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0, transition: { delay: 0.32, duration: 0.34, ease: EASE } }}
-        className="relative z-10 mt-4 text-[0.7rem] font-bold tracking-[0.24em] text-white/55"
+        animate={{ opacity: 1, y: 0, transition: { delay: 0.42, duration: 0.34, ease: EASE } }}
+        className="eyebrow relative z-10 mt-4 text-ink-3"
       >
         KD · KHONDEE-TEEBAD
       </motion.span>
 
       <motion.span
         initial={{ opacity: 0 }}
-        animate={{ opacity: 0.5, transition: { delay: 0.6, duration: 0.4 } }}
-        className="absolute bottom-10 z-10 text-[0.68rem] font-semibold tracking-[0.14em] text-white/40"
+        animate={{ opacity: 1, transition: { delay: 0.6, duration: 0.4 } }}
+        className="absolute bottom-[calc(env(safe-area-inset-bottom)+2.5rem)] z-10 font-display text-caption text-ink-3"
       >
         แตะเพื่อข้าม
       </motion.span>

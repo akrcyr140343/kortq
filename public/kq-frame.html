@@ -1,0 +1,20 @@
+<!doctype html>
+<html>
+  <!-- TEMPORARY screenshot harness: renders preview scenes in phone-width iframes. Deleted after review. -->
+  <body style="margin:0;background:#8a8f99;display:flex;gap:8px;align-items:flex-start">
+    <script>
+      const q = new URLSearchParams(location.search);
+      const w = q.get("w") || "390";
+      const h = q.get("h") || "844";
+      for (const src of q.getAll("src")) {
+        const f = document.createElement("iframe");
+        f.src = src;
+        f.width = w;
+        f.height = h;
+        f.style.border = "0";
+        f.style.background = "#fff";
+        document.body.appendChild(f);
+      }
+    </script>
+  </body>
+</html>

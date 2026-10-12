@@ -1,224 +1,225 @@
 @import "tailwindcss";
 
-/* KortQ x KD — courtside daylight system
-   Warm paper and grass tints keep the app bright; forest green is reserved
-   for focal panels, while electric lime makes every important action obvious. */
+/* ═══════════════════════════════════════════════════════════════════
+   KortQ — "Pop Court"
+   A bright, warm, playful system built for phones first:
+     · a sunny cream canvas (softer on the eyes than paper white),
+     · chunky white cards and buttons that sit on a solid ledge and
+       physically press down when tapped,
+     · rounded type (Mitr for Thai display, Fredoka for numbers),
+     · colour that always means the same thing:
+         sun    → the main "do it" action
+         teal   → live / ready / go
+         sky    → team A          pink   → team B
+         grape  → Fair (the smart pick)
+         tomato → destructive / overtime
+         lilac  → resting
+   Fills that carry text either take ink text (sun, teal) or are deep
+   enough for white text (grape, tomato) — labels meet WCAG AA.
+   ═══════════════════════════════════════════════════════════════════ */
 
 :root {
   /* Surfaces */
-  --canvas: #eef7f2;
-  --surface: #ffffff;
-  --surface-2: #f6faf7;
+  --cream: #fff9f0;
+  --paper: #ffffff;
+  --sand: #fbf2e4;
+  --sand-2: #f4e7d3;
+  --line: #efe3d1;
+  --line-2: #e3d3bb;
 
-  /* Ink ladder — four steps, each a real contrast jump */
-  --ink: #0b2624;
-  --ink-2: #405a58;
-  --ink-3: #6f8581;
-  --ink-4: #9eb0ad;
+  /* Ink ramp (all AA on paper except ink-4, which is decorative only) */
+  --ink: #23263b;
+  --ink-2: #575c76;
+  --ink-3: #6b7088;
+  --ink-4: #a7abbe;
 
-  /* Hairlines — always lighter than the fill they sit on */
-  --line: #e0ebe6;
-  --line-2: #cbded6;
+  /* Accents: fill · ledge (pressed edge) · deep (AA text) · wash (tint) */
+  --sun: #ffc83d;
+  --sun-ledge: #e6a510;
+  --sun-deep: #9a5b00;
+  --sun-wash: #fff2cf;
 
-  /* Forest is structure; lime is action. */
-  --accent: #0b5148;
-  --accent-2: #0b8d86;
-  --accent-deep: #073b35;
-  --accent-wash: #e8f6ef;
+  --teal: #2bc4ae;
+  --teal-ledge: #14a08c;
+  --teal-deep: #0b7f73;
+  --teal-wash: #dcf6f1;
 
-  --mint: #b8ef2f;
-  --mint-deep: #4d7b10;
-  --mint-wash: #f0fbdc;
-  --coral: #f5a623;
-  --coral-deep: #bd6c00;
-  --coral-wash: #fff4df;
-  --sky: #8fb2a0;
-  --sky-deep: #496f5c;
-  --sky-wash: #edf5ef;
-  --sun: #ffd45c;
-  --sun-wash: #fff8d9;
+  --sky: #3d9dff;
+  --sky-ledge: #1f7ae0;
+  --sky-deep: #1462c2;
+  --sky-wash: #e5f1ff;
 
-  --alert: #ed4665;
-  --alert-wash: #fff0f3;
+  --pink: #ff6a8e;
+  --pink-ledge: #e04470;
+  --pink-deep: #c2214f;
+  --pink-wash: #ffe9ef;
+
+  --grape: #7c4deb;
+  --grape-ledge: #5a2fc6;
+  --grape-deep: #6a3bd1;
+  --grape-wash: #f0e9ff;
+
+  --leaf: #5dbb2e;
+  --leaf-deep: #3c7a16;
+  --leaf-wash: #e7f6dc;
+
+  --tomato: #d92d40;
+  --tomato-ledge: #a81e30;
+  --tomato-deep: #c21f2e;
+  --tomato-wash: #ffe7e9;
+
+  --orange: #ff9a1f;
+  --orange-deep: #a85300;
+  --orange-wash: #fff0da;
+
+  --lilac: #9c8cf5;
+  --lilac-deep: #5b4bc4;
+  --lilac-wash: #f0edff;
+
+  /* Soft drop shadows are warm brown, never grey-blue, so they sit
+     naturally on the cream canvas. */
+  --shadow-tint: 91, 62, 24;
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-back: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 @theme inline {
-  --color-canvas: var(--canvas);
-  --color-surface: var(--surface);
-  --color-surface-2: var(--surface-2);
+  --color-cream: var(--cream);
+  --color-paper: var(--paper);
+  --color-sand: var(--sand);
+  --color-sand-2: var(--sand-2);
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
+
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
   --color-ink-3: var(--ink-3);
   --color-ink-4: var(--ink-4);
-  --color-line: var(--line);
-  --color-line-2: var(--line-2);
-  --color-accent: var(--accent);
-  --color-accent-2: var(--accent-2);
-  --color-accent-deep: var(--accent-deep);
-  --color-accent-wash: var(--accent-wash);
-  --color-mint: var(--mint);
-  --color-mint-deep: var(--mint-deep);
-  --color-mint-wash: var(--mint-wash);
-  --color-coral: var(--coral);
-  --color-coral-deep: var(--coral-deep);
-  --color-coral-wash: var(--coral-wash);
+
+  --color-sun: var(--sun);
+  --color-sun-ledge: var(--sun-ledge);
+  --color-sun-deep: var(--sun-deep);
+  --color-sun-wash: var(--sun-wash);
+  --color-teal: var(--teal);
+  --color-teal-ledge: var(--teal-ledge);
+  --color-teal-deep: var(--teal-deep);
+  --color-teal-wash: var(--teal-wash);
   --color-sky: var(--sky);
+  --color-sky-ledge: var(--sky-ledge);
   --color-sky-deep: var(--sky-deep);
   --color-sky-wash: var(--sky-wash);
-  --color-sun: var(--sun);
-  --color-sun-wash: var(--sun-wash);
-  --color-alert: var(--alert);
-  --color-alert-wash: var(--alert-wash);
+  --color-pink: var(--pink);
+  --color-pink-ledge: var(--pink-ledge);
+  --color-pink-deep: var(--pink-deep);
+  --color-pink-wash: var(--pink-wash);
+  --color-grape: var(--grape);
+  --color-grape-ledge: var(--grape-ledge);
+  --color-grape-deep: var(--grape-deep);
+  --color-grape-wash: var(--grape-wash);
+  --color-leaf: var(--leaf);
+  --color-leaf-deep: var(--leaf-deep);
+  --color-leaf-wash: var(--leaf-wash);
+  --color-tomato: var(--tomato);
+  --color-tomato-ledge: var(--tomato-ledge);
+  --color-tomato-deep: var(--tomato-deep);
+  --color-tomato-wash: var(--tomato-wash);
+  --color-orange: var(--orange);
+  --color-orange-deep: var(--orange-deep);
+  --color-orange-wash: var(--orange-wash);
+  --color-lilac: var(--lilac);
+  --color-lilac-deep: var(--lilac-deep);
+  --color-lilac-wash: var(--lilac-wash);
 
-  --font-sans: var(--font-body-thai), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-display-thai), var(--font-body-thai), ui-sans-serif, system-ui, sans-serif;
-  --font-numeral: var(--font-sora), var(--font-body-thai), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-anuphan), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-mitr), var(--font-anuphan), ui-sans-serif, system-ui, sans-serif;
+  --font-num: var(--font-fredoka), var(--font-mitr), ui-sans-serif, system-ui, sans-serif;
 
-  /* Type scale — 11/14/17/21/26/32/40/56/72. Steps of 3,3,4,5,6,8,16,16:
-     no two sizes sit 2px apart, so any pair that lands side by side in the
-     same block reads as a deliberate difference rather than a mistake. */
+  /* Type scale — 11 / 13 / 15 / 18 / 22 / 28 / 36 / 48 / 64 */
   --text-eyebrow: 0.6875rem;
-  --text-caption: 0.875rem;
-  --text-body: 1.0625rem;
-  --text-lede: 1.3125rem;
-  --text-title: 1.625rem;
-  --text-h3: 2rem;
-  --text-h2: 2.5rem;
-  --text-h1: 3.5rem;
-  --text-mega: 4.5rem;
-
-  /* Radius scale — containers stop at 2xl; nothing is a pill */
-  --radius-xs: 6px;
-  --radius-sm: 10px;
-  --radius-md: 14px;
-  --radius-lg: 18px;
-  --radius-xl: 24px;
-  --radius-2xl: 32px;
+  --text-eyebrow--line-height: 1.2;
+  --text-caption: 0.8125rem;
+  --text-caption--line-height: 1.35;
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.45;
+  --text-lede: 1.125rem;
+  --text-lede--line-height: 1.35;
+  --text-title: 1.375rem;
+  --text-title--line-height: 1.2;
+  --text-h3: 1.75rem;
+  --text-h3--line-height: 1.12;
+  --text-h2: 2.25rem;
+  --text-h2--line-height: 1.08;
+  --text-h1: 3rem;
+  --text-h1--line-height: 1.04;
+  --text-mega: 4rem;
+  --text-mega--line-height: 1;
 }
 
-html {
-  color-scheme: light;
-  touch-action: manipulation;
-  -webkit-text-size-adjust: 100%;
-}
+/* ═══ Base ═════════════════════════════════════════════════════════ */
 
-body {
-  background: var(--canvas);
-  color: var(--ink);
-  font-family: var(--font-sans);
-  /* The UI leans on extrabold (800), but the Thai body face tops out at 700.
-     Disable only WEIGHT synthesis so those clamp cleanly to 700 instead of a
-     smeared faux-bold — while keeping italic synthesis for the rare slanted
-     body label. Kerning + contextual alternates keep Thai marks tidy. */
-  font-synthesis-weight: none;
-  font-feature-settings: "kern", "calt";
-  letter-spacing: -0.006em;
-  -webkit-tap-highlight-color: transparent;
-  overflow-x: hidden;
-  overscroll-behavior-y: none;
-}
-
-/* The court stays completely still. Mascots are separate transparent layers
-   below, so their movement cannot shift scenery, content or hit targets. */
-.court-artwork {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background: url("/kortq-court-bg-clean.webp") center center / cover no-repeat;
-}
-
-.court-mascot {
-  position: fixed;
-  z-index: 0;
-  bottom: -9vh;
-  pointer-events: none;
-  background-position: center bottom;
-  background-repeat: no-repeat;
-  background-size: contain;
-  filter: drop-shadow(0 18px 22px rgba(22, 85, 76, 0.1));
-  will-change: transform;
-}
-
-.court-mascot-female {
-  left: -1.5rem;
-  width: min(35vw, 34rem);
-  height: min(67vh, 38rem);
-  background-image: url("/kortq-mascot-female.webp");
-  transform-origin: 48% 86%;
-  animation: kq-female-ready 6.8s ease-in-out infinite;
-}
-
-.court-mascot-male {
-  right: -1rem;
-  width: min(34vw, 32rem);
-  height: min(72vh, 42rem);
-  background-image: url("/kortq-mascot-male.webp");
-  transform-origin: 54% 88%;
-  animation: kq-male-jump 5.9s ease-in-out -2.1s infinite;
-}
-
-@keyframes kq-female-ready {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) rotate(-0.45deg);
-  }
-  50% {
-    transform: translate3d(4px, -7px, 0) rotate(0.45deg);
-  }
-}
-
-@keyframes kq-male-jump {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) rotate(0.35deg);
-  }
-  48% {
-    transform: translate3d(-3px, -9px, 0) rotate(-0.55deg);
-  }
-}
-
-/* On tablet and mobile, the existing center zoom keeps the baked-in players
-   fully outside the content-safe viewport instead of leaving half a figure. */
-@media (max-width: 1279px) {
-  .court-artwork {
-    background-size: auto 125%;
-    background-position: center center;
+@layer base {
+  html {
+    color-scheme: light;
+    background: var(--cream);
+    touch-action: manipulation;
+    -webkit-text-size-adjust: 100%;
   }
 
-  .court-mascot-female {
-    left: -10rem;
-    width: 32rem;
-    height: 55vh;
+  body {
+    background: var(--cream);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    /* Every face tops out at 700 — clamp instead of smearing a faux bold. */
+    font-synthesis-weight: none;
+    font-feature-settings: "kern", "calt";
+    -webkit-tap-highlight-color: transparent;
+    overflow-x: hidden;
+    overscroll-behavior-y: none;
   }
 
-  .court-mascot-male {
-    right: -9rem;
-    width: 30rem;
-    height: 59vh;
+  /* Ambient light: three soft colour pools drifting very slowly behind
+     everything. Decorative, fixed, never interactive. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: -20%;
+    z-index: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(34rem 26rem at 10% 8%, rgba(255, 200, 61, 0.2), transparent 66%),
+      radial-gradient(32rem 28rem at 94% 16%, rgba(43, 196, 174, 0.14), transparent 66%),
+      radial-gradient(38rem 32rem at 72% 98%, rgba(255, 106, 142, 0.1), transparent 66%);
+    animation: kq-wash 28s ease-in-out infinite alternate;
   }
-}
 
-@media (max-width: 767px) {
-  .court-mascot {
-    display: none;
+  /* A barely-there dot grid — texture, like a gym floor seen from above. */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-image: radial-gradient(rgba(35, 38, 59, 0.055) 1px, transparent 1.3px);
+    background-size: 22px 22px;
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 78%, transparent);
+    mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 78%, transparent);
   }
-}
 
-/* Pastel wash — white → mint → sky, breathing on a 30s cycle. Three
-   two-stop gradients; the movement is slow enough to read as light,
-   not as animation. */
-body::before {
-  content: "";
-  position: fixed;
-  inset: -25%;
-  z-index: 1;
-  pointer-events: none;
-  background-image:
-    radial-gradient(45rem 32rem at 50% 12%, rgba(255, 255, 255, 0.32), transparent 68%),
-    radial-gradient(38rem 30rem at 8% 8%, rgba(184, 239, 47, 0.07), transparent 64%),
-    radial-gradient(46rem 34rem at 90% 5%, rgba(143, 210, 202, 0.1), transparent 65%);
-  animation: kq-wash 24s ease-in-out infinite alternate;
+  ::selection {
+    background: var(--sun-wash);
+    color: var(--ink);
+  }
+
+  button {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  :focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--sky) 70%, transparent);
+    outline-offset: 3px;
+  }
 }
 
 @keyframes kq-wash {
@@ -230,502 +231,862 @@ body::before {
   }
 }
 
-button {
-  -webkit-user-select: none;
-  user-select: none;
-}
-
-/* ═══ Typography ═══════════════════════════════════════════════════ */
-
-.display {
-  font-family: var(--font-display);
-  font-style: italic;
-  font-weight: 700;
-  /* Bai Jamjuree is less condensed than the old display face, so it needs a
-     gentler negative track — tight enough to feel athletic, loose enough to
-     keep Thai tone marks legible at display sizes. */
-  letter-spacing: -0.02em;
-  text-wrap: balance;
-  font-variant-numeric: tabular-nums;
-}
-
-.section-heading {
-  font-family: var(--font-display);
-  font-style: italic;
-  font-weight: 700;
-  letter-spacing: -0.012em;
-}
-
-.sport-title {
-  position: relative;
-  display: block;
-  width: fit-content;
-  isolation: isolate;
-}
-
-.sport-title::after {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  left: 8%;
-  bottom: -0.08em;
-  width: 58%;
-  height: 0.22em;
-  border-radius: 999px;
-  background: linear-gradient(90deg, rgba(255, 174, 128, 0.82), rgba(255, 201, 136, 0.24));
-  transform: rotate(-1.8deg);
-}
-
-.numeral {
-  font-family: var(--font-numeral);
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  font-variant-numeric: tabular-nums;
-}
-
-/* Small uppercase label — carries hierarchy so icons don't have to. */
-.eyebrow {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 0.6875rem;
-  line-height: 1;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-/* ═══ Elevation — three genuinely different shadows ════════════════
-   e1 sits on the page, e2 lifts off it, e3 floats above everything.
-   Each pairs with a hairline that is lighter than its own fill, so
-   border and background never collapse into one tone.
+/* ═══ Components ═══════════════════════════════════════════════════
+   In the components layer, so any Tailwind utility on the same element
+   (sizes, radius, padding) still wins.
    ═══════════════════════════════════════════════════════════════════ */
 
-.e1 {
-  background: rgba(255, 255, 255, 0.84);
-  border: 1px solid rgba(196, 222, 213, 0.82);
-  box-shadow: 0 10px 28px -20px rgba(10, 81, 72, 0.28);
-  backdrop-filter: blur(14px);
-}
-
-.e2 {
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(196, 222, 213, 0.88);
-  box-shadow:
-    0 20px 45px -30px rgba(10, 81, 72, 0.38),
-    0 8px 20px -16px rgba(83, 169, 145, 0.22);
-  backdrop-filter: blur(15px);
-}
-
-.e3 {
-  background: var(--surface);
-  border: 1px solid var(--line-2);
-  box-shadow:
-    0 32px 70px -28px rgba(18, 40, 25, 0.34),
-    0 14px 30px -20px rgba(143, 178, 160, 0.26);
-}
-
-/* A court mid-game: the only surface allowed to glow. */
-.e-live {
-  background:
-    linear-gradient(150deg, rgba(184, 242, 61, 0.2), rgba(143, 178, 160, 0.08) 48%, rgba(255, 255, 255, 0) 72%),
-    var(--surface);
-  border: 1px solid rgba(84, 117, 0, 0.28);
-  box-shadow:
-    0 24px 52px -30px rgba(84, 117, 0, 0.42),
-    0 10px 28px -22px rgba(29, 51, 34, 0.32);
-}
-
-.glass {
-  background: rgba(255, 255, 255, 0.78);
-  border: 1px solid rgba(255, 255, 255, 0.88);
-  box-shadow: 0 18px 45px -34px rgba(29, 51, 34, 0.38);
-  backdrop-filter: blur(18px);
-}
-
-.soft-grid {
-  background-image:
-    linear-gradient(rgba(29, 51, 34, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(29, 51, 34, 0.035) 1px, transparent 1px);
-  background-size: 28px 28px;
-}
-
-.app-shell {
-  background:
-    linear-gradient(180deg, rgba(247, 252, 249, 0.08), rgba(240, 248, 244, 0.24)),
-    radial-gradient(55rem 28rem at 50% 38%, rgba(255, 255, 255, 0.28), transparent 72%);
-}
-
-.club-panel {
-  background:
-    radial-gradient(circle at 82% 0%, rgba(184, 239, 47, 0.18), transparent 27%),
-    linear-gradient(120deg, #073b35, #0b5148 58%, #125f55);
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 24px 52px -30px rgba(16, 35, 24, 0.72);
-}
-
-.lime-button {
-  background: linear-gradient(135deg, #c8ff42, #a9e921);
-  color: #142017;
-  box-shadow: 0 14px 28px -16px rgba(121, 174, 12, 0.9);
-}
-
-.play-button {
-  background: linear-gradient(105deg, #67cc35 0%, #0da490 54%, #008797 100%);
-  box-shadow: 0 20px 36px -18px rgba(0, 125, 114, 0.72);
-}
-
-.choice-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.55), transparent 46%);
-}
-
-.dashboard-title {
-  min-height: 3.75rem;
-}
-
-@media (min-width: 1600px) {
-  .court-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+@layer components {
+  /* ── Type helpers ─────────────────────────────────────────────── */
+  .num {
+    font-family: var(--font-num);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
   }
-}
 
-/* "เกมถัดไป" lives in the court grid so its width follows the real court count.
-   Default = full row: correct for the 1-column (mobile) and 2-column
-   (sm–xl) layouts, where the courts already fill every track. */
-.next-up-cell {
-  grid-column: 1 / -1;
-  min-width: 0;
-}
-
-/* Only at the 3-column layout does the count matter: with 2 courts the staged
-   game spans just those 2 columns (auto-placement wraps it onto the next row,
-   aligned under the courts, leaving the empty 3rd column open) instead of
-   stretching the full width. 3 courts keep the full-row span above. */
-@media (min-width: 1600px) {
-  .next-up-cell[data-courts="2"] {
-    grid-column: span 2;
+  .eyebrow {
+    font-family: var(--font-num);
+    font-weight: 600;
+    font-size: 0.6875rem;
+    line-height: 1;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
   }
-}
 
-.stat-card:nth-child(2n) {
-  transform-origin: center bottom;
-}
+  /* A hand-drawn highlighter swipe under a heading. */
+  .marker {
+    position: relative;
+    isolation: isolate;
+    display: inline-block;
+  }
 
-/* "เริ่มเกม" — a court loaded and primed to launch. Teal-navy tuned to KortQ's
-   daylight palette: a deep navy pulled toward the sage "sky" family so it sits
-   with the warm greens instead of fighting them — and harmonises with the
-   emerald glow a court gets once it is live. The glow and rim are the theme's
-   own --sky (rgba 143,178,160); a soft mint-white label keeps it easy on the
-   eye and reads instantly apart from the saturated lime "จบเกม + กลับคิว" and
-   the plain white hairline of "ยกเลิก". Lime stays the app's universal
-   primary; this treatment is used for starting a game and nowhere else. */
-.start-button {
-  background:
-    radial-gradient(120% 96% at 16% 0%, rgba(143, 178, 160, 0.22), transparent 58%),
-    linear-gradient(140deg, #2b4f63, #1d3a4a 52%, #162c37);
-  border: 1.5px solid rgba(143, 178, 160, 0.42);
-  color: #eaf3ee;
-  box-shadow:
-    0 12px 26px -16px rgba(15, 32, 30, 0.9),
-    inset 0 1px 0 rgba(200, 226, 214, 0.16);
-}
+  .marker::after {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    left: -0.12em;
+    right: -0.12em;
+    bottom: 0.04em;
+    height: 0.42em;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--marker, var(--sun)) 70%, transparent);
+    transform: rotate(-1.5deg);
+    transform-origin: left center;
+    animation: kq-marker 0.6s var(--ease-out) 0.15s backwards;
+  }
 
-/* Hover is a contrast step, not a move: the sky rim firms up and a faint halo
-   lifts off the edge, so the control feels pressable without anything
-   sliding around. */
-.start-button:hover {
-  border-color: rgba(143, 178, 160, 0.66);
-  box-shadow:
-    0 14px 30px -14px rgba(15, 32, 30, 0.95),
-    0 0 0 1px rgba(143, 178, 160, 0.2),
-    inset 0 1px 0 rgba(200, 226, 214, 0.24);
-}
+  /* ── Surfaces ─────────────────────────────────────────────────── */
+  /* The workhorse card: white, a 2px warm outline and a solid ledge
+     underneath, so it reads as a thing you could pick up. */
+  .card {
+    background: var(--paper);
+    border: 2px solid var(--line);
+    box-shadow:
+      0 4px 0 var(--line-2),
+      0 20px 34px -28px rgba(var(--shadow-tint), 0.42);
+  }
 
-.court-grain {
-  background-image:
-    linear-gradient(118deg, rgba(255, 255, 255, 0.28), transparent 35%),
-    repeating-linear-gradient(90deg, rgba(29, 51, 34, 0.018) 0 18px, transparent 18px 36px);
-}
+  /* A game on court — the only card with a teal edge. */
+  .card-live {
+    border-color: color-mix(in srgb, var(--teal) 50%, var(--line));
+    box-shadow:
+      0 4px 0 color-mix(in srgb, var(--teal) 62%, var(--line-2)),
+      0 22px 40px -26px rgba(20, 160, 140, 0.5);
+  }
 
-.app-bottom-nav {
-  bottom: max(0.75rem, env(safe-area-inset-bottom));
-}
+  /* The game that goes on court next — sun edge. */
+  .card-next {
+    border-color: color-mix(in srgb, var(--sun) 80%, var(--line));
+    box-shadow:
+      0 4px 0 var(--sun-ledge),
+      0 22px 40px -26px rgba(230, 165, 16, 0.55);
+  }
 
-@media (display-mode: standalone) {
+  /* An open slot / a place to arrange something. */
+  .card-dashed {
+    background: color-mix(in srgb, var(--paper) 72%, transparent);
+    border: 2px dashed var(--line-2);
+  }
+
+  /* Ticket notches for queued games (คิว = a ticket in line). The
+     notch is filled with the canvas colour and outlined to match. */
+  .ticket-notch {
+    position: absolute;
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    background: var(--cream);
+    border: 2px solid var(--notch, var(--line));
+    pointer-events: none;
+  }
+
+  /* ── Buttons — chunky, tactile, press down onto their ledge ──── */
+  .btn {
+    --btn-bg: var(--paper);
+    --btn-fg: var(--ink-2);
+    --btn-ledge: var(--line-2);
+    --btn-border: var(--line);
+    --btn-glow: 0 0 #0000;
+    --btn-shine: rgba(255, 200, 61, 0.42);
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    padding: 0 1rem;
+    border-radius: 1rem;
+    border: 2px solid var(--btn-border);
+    background-color: var(--btn-bg);
+    /* The busy shine travels across via background-position, so the
+       button never needs overflow:hidden (which would clip its ring). */
+    background-image: linear-gradient(110deg, transparent 38%, var(--btn-shine) 50%, transparent 62%);
+    background-size: 260% 100%;
+    background-position: 110% 0;
+    background-repeat: no-repeat;
+    color: var(--btn-fg);
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: 0.9375rem;
+    line-height: 1.1;
+    white-space: nowrap;
+    box-shadow:
+      0 4px 0 var(--btn-ledge),
+      var(--btn-glow);
+    transform: translateY(0);
+    transition:
+      transform 140ms var(--ease-out),
+      box-shadow 140ms var(--ease-out),
+      background-color 180ms ease,
+      color 180ms ease,
+      border-color 180ms ease;
+    cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  @media (hover: hover) {
+    .btn:not(:disabled):hover {
+      transform: translateY(-1px);
+      box-shadow:
+        0 5px 0 var(--btn-ledge),
+        var(--btn-glow);
+    }
+  }
+
+  .btn:not(:disabled):active {
+    transform: translateY(4px);
+    box-shadow:
+      0 0 0 var(--btn-ledge),
+      var(--btn-glow);
+    transition-duration: 60ms;
+  }
+
+  .btn:disabled {
+    --btn-bg: var(--sand);
+    --btn-fg: var(--ink-4);
+    --btn-ledge: var(--line-2);
+    --btn-border: var(--line);
+    --btn-glow: 0 0 #0000;
+    cursor: not-allowed;
+  }
+
+  .btn-sun {
+    --btn-bg: var(--sun);
+    --btn-fg: var(--ink);
+    --btn-ledge: var(--sun-ledge);
+    --btn-border: transparent;
+    --btn-glow: 0 14px 22px -14px rgba(230, 165, 16, 0.75);
+    --btn-shine: rgba(255, 255, 255, 0.6);
+    font-weight: 600;
+  }
+
+  .btn-teal {
+    --btn-bg: var(--teal);
+    --btn-fg: var(--ink);
+    --btn-ledge: var(--teal-ledge);
+    --btn-border: transparent;
+    --btn-glow: 0 16px 26px -14px rgba(20, 160, 140, 0.7);
+    --btn-shine: rgba(255, 255, 255, 0.55);
+    font-weight: 600;
+  }
+
+  .btn-grape {
+    --btn-bg: var(--grape);
+    --btn-fg: #ffffff;
+    --btn-ledge: var(--grape-ledge);
+    --btn-border: transparent;
+    --btn-glow: 0 14px 22px -14px rgba(90, 47, 198, 0.7);
+    --btn-shine: rgba(255, 255, 255, 0.35);
+    font-weight: 600;
+  }
+
+  .btn-danger {
+    --btn-bg: var(--tomato);
+    --btn-fg: #ffffff;
+    --btn-ledge: var(--tomato-ledge);
+    --btn-border: transparent;
+    --btn-glow: 0 14px 22px -14px rgba(168, 30, 48, 0.6);
+    --btn-shine: rgba(255, 255, 255, 0.35);
+    font-weight: 600;
+  }
+
+  .btn-ink {
+    --btn-bg: var(--ink);
+    --btn-fg: #ffffff;
+    --btn-ledge: #0f1120;
+    --btn-border: transparent;
+    --btn-shine: rgba(255, 255, 255, 0.25);
+    font-weight: 600;
+  }
+
+  /* Tinted "soft" variants: a wash fill with a matching deep label. */
+  .btn-grape-soft {
+    --btn-bg: var(--grape-wash);
+    --btn-fg: var(--grape-deep);
+    --btn-ledge: color-mix(in srgb, var(--grape) 30%, var(--line-2));
+    --btn-border: color-mix(in srgb, var(--grape) 22%, var(--line));
+    --btn-shine: rgba(124, 77, 235, 0.22);
+  }
+
+  .btn-teal-soft {
+    --btn-bg: var(--teal-wash);
+    --btn-fg: var(--teal-deep);
+    --btn-ledge: color-mix(in srgb, var(--teal) 40%, var(--line-2));
+    --btn-border: color-mix(in srgb, var(--teal) 30%, var(--line));
+  }
+
+  .btn-ghost {
+    --btn-bg: transparent;
+    --btn-ledge: transparent;
+    --btn-border: transparent;
+    box-shadow: none;
+  }
+
+  .btn-ghost:not(:disabled):active {
+    transform: scale(0.96);
+  }
+
+  @media (hover: hover) {
+    .btn-ghost:not(:disabled):hover {
+      --btn-bg: var(--sand);
+      transform: none;
+      box-shadow: none;
+    }
+  }
+
+  /* A request is in flight: the shine keeps travelling until it settles.
+     The short delay means instant replies never flicker. */
+  .btn.is-busy {
+    animation: kq-shine 1.05s cubic-bezier(0.45, 0, 0.55, 1) 0.14s infinite;
+  }
+
+  /* An action that is ready and waiting: a soft ring keeps rippling out. */
+  .pulse-ring::after {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: inherit;
+    border: 3px solid var(--ring, var(--teal));
+    opacity: 0;
+    pointer-events: none;
+    animation: kq-ring 2.2s var(--ease-out) infinite;
+  }
+
+  .ping-once::after {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: inherit;
+    border: 3px solid var(--ring, var(--sun));
+    opacity: 0;
+    pointer-events: none;
+    animation: kq-ring 0.9s var(--ease-out) 1;
+  }
+
+  .btn:disabled.pulse-ring::after,
+  .btn:disabled.ping-once::after {
+    display: none;
+  }
+
+  /* ── Chips & stickers ─────────────────────────────────────────── */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    border-radius: 999px;
+    padding: 0.3125rem 0.625rem;
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: 0.75rem;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  /* A slightly tilted badge with its own little ledge. */
+  .sticker {
+    transform: rotate(var(--tilt, -5deg));
+    box-shadow: 0 3px 0 rgba(var(--shadow-tint), 0.18);
+  }
+
+  /* "VS" — the face-off badge between two teams. */
+  .vs-badge {
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 999px;
+    background: var(--sun);
+    border: 2px solid var(--paper);
+    color: var(--ink);
+    font-family: var(--font-num);
+    font-weight: 700;
+    font-size: 0.75rem;
+    letter-spacing: 0.02em;
+    box-shadow:
+      0 3px 0 var(--sun-ledge),
+      0 8px 14px -8px rgba(230, 165, 16, 0.8);
+    transform: rotate(-8deg);
+  }
+
+  /* ── Decorative court banner behind the top of the dashboard ──── */
+  /* z-index -1: painted under the in-flow content of the app wrapper's
+     stacking context, still above the body's ambient layers. */
+  .court-banner {
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 21rem;
+    z-index: -1;
+    pointer-events: none;
+    background: url("/kortq-court-bg-clean.webp") center 38% / cover no-repeat;
+    opacity: 0.5;
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.8) 38%, transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.8) 38%, transparent 100%);
+  }
+
+  /* ── Layout helpers ───────────────────────────────────────────── */
+  .app-bottom-nav {
+    bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
+
   .app-safe-top {
     padding-top: env(safe-area-inset-top);
   }
-}
 
-.shine-button {
-  position: relative;
-  overflow: hidden;
-}
+  .scroll-pane {
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-2) transparent;
+  }
 
-.shine-button::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(110deg, transparent 20%, rgba(255, 255, 255, 0.32) 48%, transparent 76%);
-  transform: translateX(-120%);
-  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
-}
+  .scroll-pane::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
 
-.shine-button:hover::after {
-  transform: translateX(120%);
-}
+  .scroll-pane::-webkit-scrollbar-thumb {
+    background: var(--line-2);
+    border-radius: 8px;
+  }
 
-/* ═══ Entrances ════════════════════════════════════════════════════
-   These are CSS rather than Framer variants. A hidden document freezes
-   every animation timeline, JS and CSS alike, so both approaches park
-   an entering element at opacity 0 until the tab is looked at again —
-   but the CSS one costs no per-element JS, needs no variant plumbing
-   through the tree, and can be inspected and driven via getAnimations().
+  .scroll-pane::-webkit-scrollbar-track {
+    background: transparent;
+  }
 
-   `backwards` fill and nothing else: the "from" state holds during the
-   stagger delay, and once the run ends no animated value lingers — so
-   the hover lift applied later is not permanently overridden.
-   ═══════════════════════════════════════════════════════════════════ */
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
 
-@keyframes kq-enter {
-  from {
-    opacity: 0;
-    transform: translate3d(0, 10px, 0);
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
   }
 }
 
-@keyframes kq-enter-x {
+/* ═══ Motion ═══════════════════════════════════════════════════════
+   Entrances are CSS, not JS: a hidden tab freezes timelines, and CSS
+   entrances with `backwards` fill hold their "from" state only during
+   the stagger delay — once they finish nothing lingers, so hover and
+   press transforms keep working. Loops are kept slow and small, and the
+   whole layer switches off for "reduce motion".
+   ═══════════════════════════════════════════════════════════════════ */
+
+@keyframes kq-rise {
   from {
     opacity: 0;
-    transform: translate3d(20px, 0, 0);
+    transform: translate3d(0, 18px, 0) scale(0.98);
   }
 }
 
 @keyframes kq-pop {
   0% {
     opacity: 0;
-    transform: scale(0.9) translateY(6px);
+    transform: scale(0.6);
   }
-  62% {
+  60% {
     opacity: 1;
-    transform: scale(1.035) translateY(0);
+    transform: scale(1.07);
+  }
+  100% {
+    transform: scale(1);
   }
 }
 
-@keyframes kq-rise {
+@keyframes kq-fade {
   from {
     opacity: 0;
-    transform: translate3d(0, 20px, 0);
   }
 }
 
-.anim-enter,
-.anim-enter-x,
-.anim-pop,
-.anim-rise {
-  animation-duration: 0.3s;
-  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
-  animation-fill-mode: backwards;
-}
-
-.anim-enter {
-  animation-name: kq-enter;
-}
-
-/* Queue rows arrive from the rail on the right. */
-.anim-enter-x {
-  animation-name: kq-enter-x;
-}
-
-/* A player landing in a court slot. */
-.anim-pop {
-  animation-name: kq-pop;
-}
-
-/* The selection bar rising from the bottom edge. */
-.anim-rise {
-  animation-name: kq-rise;
-}
-
-/* ═══ Micro-interactions — every one lands under 350ms ═════════════ */
-
-/* Court just filled: a single emerald wash across the card. */
-@keyframes kq-flash {
+@keyframes kq-enter-x {
   from {
-    background-color: rgba(16, 185, 129, 0.3);
-  }
-  to {
-    background-color: rgba(16, 185, 129, 0);
+    opacity: 0;
+    transform: translate3d(22px, 0, 0);
   }
 }
 
-.flash-live::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  border-radius: inherit;
-  animation: kq-flash 0.34s ease-out forwards;
+@keyframes kq-view-l {
+  from {
+    opacity: 0;
+    transform: translate3d(-28px, 0, 0) scale(0.98);
+  }
 }
 
-/* Empty court while players are selected: "drop them here". */
-@keyframes kq-tap {
+@keyframes kq-view-r {
+  from {
+    opacity: 0;
+    transform: translate3d(28px, 0, 0) scale(0.98);
+  }
+}
+
+@keyframes kq-status {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -6px, 0) scale(0.9);
+  }
+  70% {
+    opacity: 1;
+    transform: translate3d(0, 1px, 0) scale(1.03);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+@keyframes kq-stamp {
+  0% {
+    transform: scale(0.4) rotate(-18deg);
+  }
+  65% {
+    transform: scale(1.15) rotate(4deg);
+  }
+  100% {
+    transform: scale(1) rotate(0);
+  }
+}
+
+@keyframes kq-wiggle {
   0%,
   100% {
-    box-shadow:
-      0 0 0 0 rgba(5, 150, 105, 0),
-      0 6px 16px -6px rgba(13, 26, 22, 0.1);
+    transform: rotate(0);
+  }
+  20% {
+    transform: rotate(-7deg);
+  }
+  45% {
+    transform: rotate(6deg);
+  }
+  70% {
+    transform: rotate(-3deg);
+  }
+}
+
+@keyframes kq-tada {
+  0% {
+    transform: scale(1);
+  }
+  20% {
+    transform: scale(0.92) rotate(-3deg);
+  }
+  45% {
+    transform: scale(1.1) rotate(3deg);
+  }
+  70% {
+    transform: scale(0.98) rotate(-1deg);
+  }
+  100% {
+    transform: scale(1) rotate(0);
+  }
+}
+
+@keyframes kq-shake {
+  15%,
+  85% {
+    transform: translateX(-2px);
+  }
+  30%,
+  70% {
+    transform: translateX(6px);
+  }
+  45%,
+  55% {
+    transform: translateX(-8px);
+  }
+}
+
+@keyframes kq-bob {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(var(--bob-r, 0deg));
   }
   50% {
-    box-shadow:
-      0 0 0 7px rgba(5, 150, 105, 0.13),
-      0 6px 16px -6px rgba(13, 26, 22, 0.1);
+    transform: translate3d(0, var(--bob-y, -10px), 0) rotate(calc(var(--bob-r, 0deg) * -1));
   }
 }
 
-.tap-ready {
-  border-color: rgba(5, 150, 105, 0.42);
-  animation: kq-tap 1.9s ease-in-out infinite;
-}
-
-/* Past 20 minutes the clock breathes red. An alert, so it may loop. */
-@keyframes kq-warn {
+@keyframes kq-hop {
   0%,
   100% {
+    transform: translate3d(0, 0, 0) scale(1, 1);
+  }
+  12% {
+    transform: translate3d(0, 0, 0) scale(1.08, 0.9);
+  }
+  45% {
+    transform: translate3d(0, -26px, 0) scale(0.95, 1.06) rotate(-8deg);
+  }
+  78% {
+    transform: translate3d(0, 0, 0) scale(1.06, 0.94);
+  }
+}
+
+@keyframes kq-hop-shadow {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.32;
+  }
+  45% {
+    transform: scale(0.55);
+    opacity: 0.14;
+  }
+}
+
+@keyframes kq-ring {
+  0% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1.06, 1.32);
+  }
+}
+
+@keyframes kq-shine {
+  from {
+    background-position: 110% 0;
+  }
+  to {
+    background-position: -10% 0;
+  }
+}
+
+@keyframes kq-blink {
+  0%,
+  100% {
+    transform: scale(1);
     opacity: 1;
   }
   50% {
+    transform: scale(0.6);
     opacity: 0.45;
   }
 }
 
-.animate-warn {
-  animation: kq-warn 1.6s ease-in-out infinite;
-}
-
-/* Live indicator dot — gentle proof the clock is running. */
-@keyframes kq-dot {
+@keyframes kq-breathe {
   0%,
   100% {
     opacity: 1;
   }
   50% {
-    opacity: 0.25;
+    opacity: 0.5;
   }
+}
+
+@keyframes kq-marker {
+  from {
+    transform: rotate(-1.5deg) scaleX(0);
+  }
+}
+
+@keyframes kq-tick-up {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0.6em, 0) scale(0.8);
+  }
+  70% {
+    opacity: 1;
+    transform: translate3d(0, -0.08em, 0) scale(1.06);
+  }
+}
+
+@keyframes kq-tick-down {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -0.6em, 0) scale(0.8);
+  }
+  70% {
+    opacity: 1;
+    transform: translate3d(0, 0.08em, 0) scale(1.06);
+  }
+}
+
+@keyframes kq-flash {
+  from {
+    background-color: rgba(43, 196, 174, 0.32);
+  }
+  to {
+    background-color: rgba(43, 196, 174, 0);
+  }
+}
+
+@keyframes kq-sweep {
+  to {
+    transform: translate3d(110%, 0, 0);
+  }
+}
+
+@keyframes kq-zzz {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 4px, 0) scale(0.6);
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(8px, -16px, 0) scale(1.1);
+  }
+}
+
+@keyframes kq-twinkle {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.7);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+@keyframes kq-arc {
+  0% {
+    opacity: 0;
+    transform: translate3d(-46vw, 18vh, 0) rotate(-40deg);
+  }
+  15% {
+    opacity: 1;
+  }
+  50% {
+    transform: translate3d(0, -14vh, 0) rotate(140deg);
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(46vw, 16vh, 0) rotate(320deg);
+  }
+}
+
+@keyframes kq-letter {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0.6em, 0) scale(0.6) rotate(-8deg);
+  }
+  60% {
+    opacity: 1;
+    transform: translate3d(0, -0.12em, 0) scale(1.08) rotate(3deg);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+@keyframes kq-confetti {
+  0% {
+    opacity: 1;
+    transform: translate3d(-50%, -50%, 0) rotate(0deg) scale(0.5);
+  }
+  55% {
+    opacity: 1;
+    transform: translate3d(calc(-50% + var(--dx)), calc(-50% + var(--dy)), 0) rotate(calc(var(--r) * 0.6)) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(calc(-50% + var(--dx) * 1.18), calc(-50% + var(--dy) + 46px), 0) rotate(var(--r)) scale(0.9);
+  }
+}
+
+.anim-rise,
+.anim-pop,
+.anim-fade,
+.anim-enter-x,
+.anim-status,
+.anim-stamp {
+  animation-duration: 0.46s;
+  animation-timing-function: var(--ease-out);
+  animation-fill-mode: backwards;
+}
+
+/* Cards and sections arriving. */
+.anim-rise {
+  animation-name: kq-rise;
+}
+
+/* A player chip landing somewhere — with a little overshoot. */
+.anim-pop {
+  animation-name: kq-pop;
+  animation-timing-function: var(--ease-back);
+}
+
+.anim-fade {
+  animation-name: kq-fade;
+}
+
+/* Queue rows slide in from the right. */
+.anim-enter-x {
+  animation-name: kq-enter-x;
+  animation-duration: 0.36s;
+}
+
+/* A status label replaced by the next one drops into place. */
+.anim-status {
+  animation-name: kq-status;
+  animation-duration: 0.4s;
+}
+
+/* A choice being made: the badge slaps down. */
+.anim-stamp {
+  animation-name: kq-stamp;
+  animation-duration: 0.42s;
+  animation-timing-function: var(--ease-back);
+}
+
+.anim-wiggle {
+  animation: kq-wiggle 0.5s ease-in-out;
+}
+
+.anim-tada {
+  animation: kq-tada 0.6s var(--ease-out);
+}
+
+.anim-shake {
+  animation: kq-shake 0.42s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+/* A player picked for a swap: one ring ripples out from the chip. */
+@keyframes kq-ping {
+  from {
+    box-shadow: 0 0 0 0 rgba(35, 38, 59, 0.38);
+  }
+  to {
+    box-shadow: 0 0 0 11px rgba(35, 38, 59, 0);
+  }
+}
+
+.anim-ping {
+  animation: kq-ping 0.55s ease-out;
+}
+
+/* The dice tumbles when you ask for a random draw. */
+@keyframes kq-roll {
+  0% {
+    transform: rotate(0) scale(1);
+  }
+  45% {
+    transform: rotate(220deg) scale(1.22);
+  }
+  100% {
+    transform: rotate(360deg) scale(1);
+  }
+}
+
+.anim-roll {
+  animation: kq-roll 0.6s var(--ease-out);
+}
+
+/* Slow idle float for mascots and illustrations. */
+.anim-bob {
+  animation: kq-bob var(--bob-d, 4.2s) ease-in-out infinite;
+}
+
+/* The shuttle buddy hopping (loader / free court). */
+.anim-hop {
+  animation: kq-hop 1.15s var(--ease-out) infinite;
+  transform-origin: 50% 100%;
+}
+
+.anim-hop-shadow {
+  animation: kq-hop-shadow 1.15s var(--ease-out) infinite;
 }
 
 .live-dot {
-  animation: kq-dot 2.4s ease-in-out infinite;
+  animation: kq-blink 1.6s ease-in-out infinite;
 }
 
-/* Soft mint halo — the "QR ก๊วน" invite button breathes gently to invite a tap
-   without shouting. Reduced-motion users get a static ring. */
-@keyframes kq-qr-glow {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgba(184, 242, 61, 0);
-  }
-  50% {
-    box-shadow: 0 0 16px 0 rgba(184, 242, 61, 0.22);
-  }
+/* Past 20 minutes the clock breathes. An alert, so it may loop. */
+.anim-breathe {
+  animation: kq-breathe 1.6s ease-in-out infinite;
 }
 
-.qr-glow {
-  animation: kq-qr-glow 3.2s ease-in-out infinite;
+.anim-zzz {
+  animation: kq-zzz 2.4s ease-out infinite;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .qr-glow {
-    animation: none;
-  }
+.anim-twinkle {
+  animation: kq-twinkle 1.8s ease-in-out infinite;
 }
 
-/* ═══ Ambient badminton field ══════════════════════════════════════
-   Pure CSS keyframes on a fixed, non-interactive layer. Per-item
-   duration/delay/size/drift arrive as inline custom properties so the
-   field never settles into a visible rhythm.
-   ═══════════════════════════════════════════════════════════════════ */
+.anim-arc {
+  animation: kq-arc 1.05s cubic-bezier(0.4, 0, 0.2, 1) 0.1s both;
+}
 
-@keyframes kq-drift {
-  0% {
-    transform: translate3d(0, 108vh, 0) rotate(0deg);
-    opacity: 0;
+.anim-letter {
+  display: inline-block;
+  animation: kq-letter 0.5s var(--ease-out) backwards;
+}
+
+/* Phones: the two tabs arrive from their own side of the tab bar. */
+@media (max-width: 1279.98px) {
+  .view-from-left {
+    animation: kq-view-l 0.38s var(--ease-out) backwards;
   }
-  10% {
-    opacity: var(--kq-op);
-  }
-  78% {
-    opacity: var(--kq-op);
-  }
-  100% {
-    transform: translate3d(var(--kq-drift), -20vh, 0) rotate(var(--kq-rot));
-    opacity: 0;
+
+  .view-from-right {
+    animation: kq-view-r 0.38s var(--ease-out) backwards;
   }
 }
 
-.kq-float {
-  position: absolute;
-  top: 0;
-  animation-name: kq-drift;
-  animation-timing-function: linear;
-  animation-iteration-count: infinite;
-  will-change: transform, opacity;
+.anim-view-l {
+  animation: kq-view-l 0.34s var(--ease-out) backwards;
 }
 
-/* ═══ Utilities ════════════════════════════════════════════════════ */
-
-.scroll-pane {
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: var(--line-2) transparent;
+.anim-view-r {
+  animation: kq-view-r 0.34s var(--ease-out) backwards;
 }
-
-.scroll-pane::-webkit-scrollbar {
-  width: 8px;
-}
-
-.scroll-pane::-webkit-scrollbar-thumb {
-  background: var(--line-2);
-  border-radius: 8px;
-}
-
-.scroll-pane::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-  .kq-float {
-    display: none;
-  }
-  .court-mascot {
-    animation: none !important;
-  }
-}
-
-/* ═══ Motion layer — "Rally" ═══════════════════════════════════════
-   Animation only: nothing below changes how anything looks at rest.
-   Every effect is either a one-shot tied to a real state change, or a
-   loop that only runs while a request is in flight. Transform + opacity
-   (+ a box-shadow ring) only, so low-end tablets stay on the compositor.
-   ═══════════════════════════════════════════════════════════════════ */
 
 /* A figure that changed rolls in from the direction it moved. */
 .tick-up,
 .tick-down {
   display: inline-block;
-  animation-duration: 0.34s;
-  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  animation-duration: 0.42s;
+  animation-timing-function: var(--ease-out);
   animation-fill-mode: backwards;
 }
 
@@ -737,100 +1098,17 @@ button {
   animation-name: kq-tick-down;
 }
 
-@keyframes kq-tick-up {
-  from {
-    opacity: 0;
-    transform: translate3d(0, 0.55em, 0);
-  }
+/* Game on: one teal wash across the card... */
+.flash-live::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  animation: kq-flash 0.5s ease-out forwards;
 }
 
-@keyframes kq-tick-down {
-  from {
-    opacity: 0;
-    transform: translate3d(0, -0.55em, 0);
-  }
-}
-
-/* Phones: each view arrives from its own side of the tab bar with a little
-   depth (scale) behind it, so "สนาม" and "คิว" read as two distinct places
-   rather than the same content nudged sideways. */
-@media (max-width: 1279.98px) {
-  .view-from-left {
-    animation: kq-view-l 0.36s cubic-bezier(0.22, 1, 0.36, 1) backwards;
-  }
-
-  .view-from-right {
-    animation: kq-view-r 0.36s cubic-bezier(0.22, 1, 0.36, 1) backwards;
-  }
-}
-
-@keyframes kq-view-l {
-  from {
-    opacity: 0;
-    transform: translate3d(-30px, 0, 0) scale(0.97);
-  }
-}
-
-@keyframes kq-view-r {
-  from {
-    opacity: 0;
-    transform: translate3d(30px, 0, 0) scale(0.97);
-  }
-}
-
-/* Mirror of .anim-enter-x, for content arriving from the left. */
-.anim-enter-xl {
-  animation: kq-view-l 0.3s cubic-bezier(0.22, 1, 0.36, 1) backwards;
-}
-
-/* A status label replaced by the next one drops into place. */
-.anim-status {
-  animation: kq-status 0.32s cubic-bezier(0.22, 1, 0.36, 1) backwards;
-}
-
-@keyframes kq-status {
-  from {
-    opacity: 0;
-    transform: translate3d(0, -6px, 0) scale(0.94);
-  }
-}
-
-/* A primary action handing over to the next one (เริ่มเกม → จบเกม). */
-.anim-swap {
-  animation: kq-swap 0.3s cubic-bezier(0.22, 1, 0.36, 1) backwards;
-}
-
-@keyframes kq-swap {
-  from {
-    opacity: 0.35;
-    transform: scale(0.95);
-  }
-}
-
-/* The empty court scene settles back onto a freed court. */
-.anim-scene {
-  animation: kq-scene 0.46s cubic-bezier(0.22, 1, 0.36, 1) backwards;
-}
-
-@keyframes kq-scene {
-  from {
-    opacity: 0;
-    transform: translate3d(0, 14px, 0) scale(0.95);
-  }
-}
-
-/* Game on: the court number jumps once. */
-.anim-bump {
-  animation: kq-bump 0.46s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-@keyframes kq-bump {
-  35% {
-    transform: scale(1.14);
-  }
-}
-
-/* Game on: a band of light serves across the card, under the players. */
+/* ...and a band of light serving across it, under the players. */
 .serve-sweep::before {
   content: "";
   position: absolute;
@@ -840,187 +1118,51 @@ button {
   background: linear-gradient(
     105deg,
     transparent 28%,
-    rgba(214, 255, 120, 0.34) 45%,
-    rgba(255, 255, 255, 0.5) 50%,
-    rgba(214, 255, 120, 0.34) 55%,
+    rgba(43, 196, 174, 0.28) 45%,
+    rgba(255, 255, 255, 0.7) 50%,
+    rgba(255, 200, 61, 0.3) 55%,
     transparent 72%
   );
   transform: translate3d(-110%, 0, 0);
-  animation: kq-serve 0.7s cubic-bezier(0.45, 0, 0.2, 1) forwards;
+  animation: kq-sweep 0.8s cubic-bezier(0.45, 0, 0.2, 1) forwards;
 }
 
-@keyframes kq-serve {
-  to {
-    transform: translate3d(110%, 0, 0);
-  }
-}
-
-/* Court freed: the markings redraw outward from the net. */
-.marks-redraw > * {
-  animation-duration: 0.56s;
-  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
-  animation-fill-mode: backwards;
-}
-
-.marks-redraw > :nth-child(1) {
-  animation-name: kq-mark-fade;
-}
-
-.marks-redraw > :nth-child(2),
-.marks-redraw > :nth-child(3) {
-  animation-name: kq-mark-x;
-  animation-delay: 0.08s;
-}
-
-.marks-redraw > :nth-child(4) {
-  animation-name: kq-mark-y;
-}
-
-@keyframes kq-mark-fade {
-  from {
-    opacity: 0;
-  }
-}
-
-@keyframes kq-mark-x {
-  from {
-    opacity: 0;
-    transform: scaleX(0);
-  }
-}
-
-@keyframes kq-mark-y {
-  from {
-    opacity: 0;
-    transform: scaleY(0);
-  }
-}
-
-/* A picked player for a swap: one ring ripples out, then the ring stays. */
-.anim-ping {
-  animation: kq-ping 0.5s ease-out;
-}
-
-@keyframes kq-ping {
-  from {
-    outline: 2px solid rgba(11, 81, 72, 0.45);
-    outline-offset: 0;
-  }
-  to {
-    outline: 2px solid rgba(11, 81, 72, 0);
-    outline-offset: 9px;
-  }
-}
-
-/* Selected queue row: the emerald rule grows from its middle and the
-   order stamp snaps down. */
-.anim-rule {
-  animation: kq-rule 0.26s cubic-bezier(0.22, 1, 0.36, 1) backwards;
-}
-
-@keyframes kq-rule {
-  from {
-    transform: scaleY(0);
-  }
-}
-
-.anim-stamp {
-  animation: kq-stamp 0.34s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
-}
-
-@keyframes kq-stamp {
-  from {
-    transform: scale(0.55) rotate(-14deg);
-  }
-}
-
-/* Something just became possible: a single soft ring, never a loop. */
-.anim-ready {
-  animation: kq-ready 0.8s ease-out;
-}
-
-@keyframes kq-ready {
-  from {
-    box-shadow: 0 0 0 0 rgba(184, 239, 47, 0.6);
-  }
-  to {
-    box-shadow: 0 0 0 12px rgba(184, 239, 47, 0);
-  }
-}
-
-/* Random: the label shuffles like a deck being cut. */
-.anim-shuffle {
-  animation: kq-shuffle 0.44s ease-in-out;
-}
-
-@keyframes kq-shuffle {
-  20% {
-    transform: translateX(-3px) rotate(-3deg);
-  }
-  45% {
-    transform: translateX(3px) rotate(2.5deg);
-  }
-  70% {
-    transform: translateX(-1.5px) rotate(-1deg);
-  }
-}
-
-/* Wrong PIN: the dots shake their head. */
-.anim-shake {
-  animation: kq-shake 0.42s cubic-bezier(0.36, 0.07, 0.19, 0.97);
-}
-
-@keyframes kq-shake {
-  15%,
-  85% {
-    transform: translateX(-2px);
-  }
-  30%,
-  70% {
-    transform: translateX(5px);
-  }
-  45%,
-  55% {
-    transform: translateX(-7px);
-  }
-}
-
-/* In flight: a shine keeps travelling across the button until the request
-   settles. The 0.14s delay means instant replies never flicker. */
-.kq-busy {
-  position: relative;
-  overflow: hidden;
-}
-
-.kq-busy::after {
-  content: "";
+/* ── Confetti — a one-shot burst, positions arrive as custom props ── */
+.confetti {
   position: absolute;
-  inset: 0;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
   pointer-events: none;
-  background: linear-gradient(
-    110deg,
-    transparent 22%,
-    rgba(184, 239, 47, 0.24) 40%,
-    rgba(255, 255, 255, 0.55) 50%,
-    rgba(184, 239, 47, 0.24) 60%,
-    transparent 78%
-  );
-  transform: translateX(-120%);
-  animation: kq-busy 1.05s cubic-bezier(0.45, 0, 0.55, 1) 0.14s infinite;
+  z-index: 5;
 }
 
-@keyframes kq-busy {
-  from {
-    transform: translateX(-120%);
-  }
-  to {
-    transform: translateX(120%);
-  }
+.confetti > i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+  width: 8px;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--c);
+  opacity: 0;
+  animation: kq-confetti 0.95s cubic-bezier(0.15, 0.75, 0.3, 1) var(--d, 0s) forwards;
 }
 
-/* Players travelling between the queue, the next game and the courts are
-   drawn as clones on a fixed layer above both scroll panes, so a pane edge
-   never clips the trip. See components/flights.ts. */
+.confetti > i.round {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+}
+
+.confetti > i.strip {
+  width: 4px;
+  height: 14px;
+}
+
+/* ── Player flights (see components/flights.ts) ─────────────────── */
 .kq-flight-layer {
   position: fixed;
   inset: 0;
@@ -1039,4 +1181,20 @@ button {
 .kq-flight * {
   animation: none !important;
   transition: none !important;
+}
+
+/* ═══ Reduced motion ═══════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .confetti,
+  .anim-arc {
+    display: none !important;
+  }
 }

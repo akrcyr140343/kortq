@@ -1,25 +1,71 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
+import Image from "next/image";
 import { useAdmin } from "@/context/AdminContext";
 import { startSession } from "@/lib/db";
-import { press, staggerDelay } from "./motion";
+import { CourtArt, ShuttleBuddy } from "./art";
+import { IconArrowRight, IconCheck } from "./icons";
+import { staggerDelay } from "./motion";
 
-export function CourtChoiceArt({ active }: { active: boolean }) {
+/** The illustrated "title screen": sunny court, two players mid-rally. */
+function HeroScene() {
   return (
-    <div className={`relative h-20 w-full max-w-[13rem] ${active ? "anim-scene" : ""}`} aria-hidden>
-      <svg viewBox="0 0 220 84" className="absolute inset-x-0 bottom-0 w-full overflow-visible">
-        <defs>
-          <linearGradient id={active ? "court-active" : "court-idle"} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor={active ? "#62c77a" : "#9ccbb5"} />
-            <stop offset="1" stopColor={active ? "#249d6f" : "#6db197"} />
-          </linearGradient>
-        </defs>
-        <path d="M42 18h136l31 55H11l31-55Z" fill={`url(#${active ? "court-active" : "court-idle"})`} stroke="#147858" strokeWidth="2" />
-        <path d="M42 18 11 73M178 18l31 55M110 18v55M24 51h172M68 18 55 73M152 18l13 55" fill="none" stroke="white" strokeOpacity=".82" strokeWidth="1.5" />
-        <path d="M36 28h148" stroke="#0b6047" strokeWidth="2.5" />
-      </svg>
+    <div className="anim-rise relative h-[15.5rem] w-full overflow-hidden rounded-[32px] border-2 border-line bg-sky-wash shadow-[0_4px_0_var(--line-2)] sm:h-[19rem]">
+      <Image
+        src="/kortq-court-bg-clean.webp"
+        alt=""
+        fill
+        priority
+        sizes="(max-width: 768px) 100vw, 46rem"
+        className="object-cover object-[50%_72%]"
+      />
+      <div aria-hidden className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white/50 to-transparent" />
+
+      <span
+        className="sticker chip anim-pop absolute left-1/2 top-4 -translate-x-1/2 bg-paper/95 px-3.5 py-2 text-ink-2 ring-2 ring-line"
+        style={{ ...staggerDelay(3), ["--tilt" as string]: "-3deg" }}
+      >
+        <span className="eyebrow text-teal-deep">KD CLUB · LET&apos;S PLAY</span>
+      </span>
+
+      {/* The shuttle buddy floats over the net between them. */}
+      <span
+        aria-hidden
+        className="anim-bob absolute left-1/2 top-[34%] -ml-6"
+        style={{ ["--bob-y" as string]: "-12px", ["--bob-r" as string]: "10deg", ["--bob-d" as string]: "2.8s" }}
+      >
+        <ShuttleBuddy className="h-12 w-12 drop-shadow-[0_6px_6px_rgba(91,62,24,0.25)]" mood="wow" />
+      </span>
+
+      <div
+        aria-hidden
+        className="anim-bob absolute -bottom-3 -left-2 sm:left-6"
+        style={{ ["--bob-y" as string]: "-6px", ["--bob-d" as string]: "4.6s" }}
+      >
+        <Image
+          src="/kortq-mascot-female.webp"
+          alt=""
+          width={651}
+          height={1100}
+          priority
+          className="h-[14.5rem] w-auto drop-shadow-[0_10px_12px_rgba(20,80,90,0.25)] sm:h-[18.5rem]"
+        />
+      </div>
+      <div
+        aria-hidden
+        className="anim-bob absolute -bottom-2 -right-1 sm:right-6"
+        style={{ ["--bob-y" as string]: "-14px", ["--bob-d" as string]: "3.6s" }}
+      >
+        <Image
+          src="/kortq-mascot-male.webp"
+          alt=""
+          width={598}
+          height={1100}
+          priority
+          className="h-[15rem] w-auto drop-shadow-[0_10px_12px_rgba(20,80,90,0.25)] sm:h-[19rem]"
+        />
+      </div>
     </div>
   );
 }
@@ -54,65 +100,104 @@ export function StartSession({
   }
 
   return (
-    <div className="start-hero flex flex-1 items-start justify-center px-4 pb-12 pt-8 sm:px-6 sm:pt-10 lg:pt-12">
-      <div className="anim-enter relative flex w-full max-w-[47rem] flex-col items-center text-center">
-        <span className="anim-enter rounded-full border border-[#80bd88] bg-white/60 px-5 py-2 text-[0.7rem] font-extrabold tracking-[0.2em] text-[#5e9d61] shadow-sm backdrop-blur-md" style={staggerDelay(1)}>
-          KD CLUB · LET&apos;S PLAY
-        </span>
+    <div className="flex flex-1 justify-center px-3 pb-14 pt-3 sm:px-6 sm:pt-6">
+      <div className="flex w-full max-w-[46rem] flex-col items-center text-center">
+        <HeroScene />
 
-        <h1 className="anim-enter display sport-title relative mt-5 text-[2.65rem] font-extrabold leading-[1.05] text-accent-deep drop-shadow-[0_2px_0_rgba(255,255,255,.8)] sm:text-[3.9rem]" style={staggerDelay(2)}>
-          {isAdmin ? "เปิดสนามกันเลย!" : "ยังไม่เปิดสนาม"}
+        <h1
+          className="anim-rise mt-6 font-display text-[2.375rem] font-semibold leading-[1.1] text-ink sm:text-h1"
+          style={staggerDelay(2)}
+        >
+          {isAdmin ? (
+            <>
+              <span className="marker">เปิดสนาม</span>กันเลย!
+            </>
+          ) : (
+            <>
+              ยัง<span className="marker" style={{ ["--marker" as string]: "var(--lilac)" }}>ไม่เปิดสนาม</span>
+            </>
+          )}
         </h1>
 
-        <p className="anim-enter mt-6 max-w-xl text-body font-semibold leading-relaxed text-ink-2 sm:text-lede" style={staggerDelay(3)}>
+        <p className="anim-rise mt-3 max-w-md text-body text-ink-2 sm:text-lede" style={staggerDelay(3)}>
           {isAdmin ? "เลือกจำนวนคอร์ตวันนี้ แล้วเริ่มจัดคิวได้เลย 🏸" : "รอแอดมินเปิดสนามอยู่นะ อีกเดี๋ยวก็ได้ตีแล้ว"}
         </p>
 
-        {isAdmin && (
-          <div className="w-full max-w-[42rem]">
-            <div className="anim-enter mt-7 grid grid-cols-2 gap-3 sm:gap-5" style={staggerDelay(4)}>
+        {isAdmin ? (
+          <div className="w-full max-w-[34rem]">
+            <div className="anim-rise mt-6 grid grid-cols-2 gap-3 sm:gap-4" style={staggerDelay(4)} role="group" aria-label="จำนวนคอร์ต">
               {[2, 3].map((n) => {
                 const active = courtCount === n;
                 return (
-                  <motion.button
+                  <button
                     key={n}
-                    whileTap={press}
+                    type="button"
                     onClick={() => setCourtCount(n)}
-                    className={`choice-card relative flex h-[13.5rem] flex-col items-center justify-center overflow-hidden rounded-[28px] border-2 px-4 transition-all duration-200 sm:h-[14.5rem] ${
-                      active
-                        ? "-translate-y-1 border-[#68b97a] bg-[#f3fff0]/92 shadow-[0_24px_50px_-26px_rgba(21,125,79,.65)]"
-                        : "border-white/80 bg-white/76 shadow-[0_18px_44px_-30px_rgba(16,76,59,.42)] hover:-translate-y-0.5 hover:border-[#9ec9b2] hover:bg-white/90"
+                    aria-pressed={active}
+                    className={`card relative flex flex-col items-center rounded-[26px] px-3 pb-4 pt-6 transition-[translate,border-color,box-shadow] duration-200 active:translate-y-0.5 ${
+                      active ? "card-next -translate-y-1" : "hover:-translate-y-0.5"
                     }`}
                   >
-                    {/* Choosing a count stamps the tick and lifts its court art into place. */}
+                    {/* Choosing a count stamps the tick and lights its court. */}
                     <span
                       key={active ? "on" : "off"}
-                      className={`absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-full border-2 text-sm font-black ${active ? "anim-stamp border-[#63bf53] bg-[#65c51f] text-white" : "border-[#9bbdb1] text-transparent"}`}
+                      aria-hidden
+                      className={`absolute right-3 top-3 grid h-7 w-7 place-items-center rounded-full ${
+                        active ? "anim-stamp bg-teal text-ink shadow-[0_2px_0_var(--teal-ledge)]" : "bg-sand text-transparent ring-2 ring-inset ring-line-2"
+                      }`}
                     >
-                      ✓
+                      <IconCheck className="h-4 w-4" />
                     </span>
-                    <CourtChoiceArt key={active ? "on" : "off"} active={active} />
-                    <span className={`numeral mt-3 text-[3rem] leading-none ${active ? "text-accent-deep" : "text-[#234c4b]"}`}>{String(n).padStart(2, "0")}</span>
-                    <span className="mt-1 text-sm font-bold text-ink-3">คอร์ต</span>
-                  </motion.button>
+                    <span key={active ? "lit" : "dim"} className={`block w-full max-w-[10rem] ${active ? "anim-pop" : ""}`}>
+                      <CourtArt lit={active} />
+                    </span>
+                    <span className={`num mt-1 text-[2.75rem] leading-none ${active ? "text-ink" : "text-ink-3"}`}>{n}</span>
+                    <span className="font-display text-caption font-medium text-ink-3">คอร์ต</span>
+                  </button>
                 );
               })}
             </div>
 
-            <motion.button
-              whileTap={press}
-              onClick={handleStart}
-              disabled={busy}
-              style={staggerDelay(5)}
-              className={`${busy ? "kq-busy" : ""} play-button shine-button anim-enter relative mt-5 flex h-16 w-full items-center justify-center gap-4 rounded-full px-6 text-lede font-extrabold text-white transition-all duration-200 hover:-translate-y-0.5 disabled:bg-none disabled:bg-line disabled:text-ink-4 disabled:shadow-none`}
-            >
-              <span aria-hidden className="text-3xl drop-shadow-sm">🏸</span>
-              <span>{busy ? "กำลังเปิดสนาม…" : "เปิดสนามเลย!"}</span>
-              <span aria-hidden className="absolute right-3 grid h-11 w-11 place-items-center rounded-full bg-white/20 text-2xl">→</span>
-            </motion.button>
-            <p className="anim-enter mt-5 text-[0.66rem] font-extrabold tracking-[0.22em] text-[#6e8e88]" style={staggerDelay(6)}>
+            {/* The entrance lives on a wrapper so it never fights the button's
+                own busy-shine animation. */}
+            <div className="anim-rise mt-5" style={staggerDelay(5)}>
+              <button
+                type="button"
+                onClick={handleStart}
+                disabled={busy}
+                className={`btn btn-teal ${busy ? "is-busy" : "pulse-ring"} h-16 w-full rounded-[22px] text-lede`}
+              >
+                <ShuttleBuddy className="-my-2 h-10 w-10" />
+                <span>{busy ? "กำลังเปิดสนาม…" : "เปิดสนามเลย!"}</span>
+                <span aria-hidden className="absolute right-3 grid h-10 w-10 place-items-center rounded-full bg-ink/10">
+                  <IconArrowRight className="h-5 w-5" />
+                </span>
+              </button>
+            </div>
+            <p className="eyebrow anim-fade mt-5 text-ink-3" style={staggerDelay(7)}>
               MORE GAMES · MORE FRIENDS · A HAPPIER YOU
             </p>
+          </div>
+        ) : (
+          <div
+            className="card anim-rise mt-6 flex w-full max-w-sm items-center gap-4 rounded-[26px] px-5 py-4 text-left"
+            style={staggerDelay(4)}
+          >
+            <span className="relative shrink-0">
+              <ShuttleBuddy className="h-14 w-14" mood="sleepy" />
+              <span aria-hidden className="anim-zzz num absolute -right-1 -top-2 text-caption text-lilac-deep">z</span>
+              <span
+                aria-hidden
+                className="anim-zzz num absolute -right-3.5 -top-4 text-body text-lilac-deep"
+                style={{ animationDelay: "0.8s" }}
+              >
+                Z
+              </span>
+            </span>
+            <div className="min-w-0">
+              <p className="font-display text-body font-medium text-ink">สนามยังปิดไฟอยู่</p>
+              <p className="mt-0.5 text-caption text-ink-3">เปิดเมื่อไหร่ หน้านี้จะเปลี่ยนเองทันที ไม่ต้องรีเฟรช</p>
+            </div>
           </div>
         )}
       </div>
