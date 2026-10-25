@@ -97,7 +97,7 @@ export function PlayerToken({
         >
           {player.name}
         </span>
-        <span className={`flex items-center gap-1 ${right ? "flex-row-reverse" : ""}`}>
+        <span className={`flex flex-wrap items-center gap-x-1 gap-y-0.5 ${right ? "flex-row-reverse justify-start" : ""}`}>
           <SkillBadge skill={player.skill} size="sm" />
           <span className="whitespace-nowrap text-[0.6875rem] font-medium tabular-nums text-ink-3">{games} เกม</span>
         </span>

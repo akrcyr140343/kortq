@@ -91,7 +91,7 @@ export function LiveCourt({
   return (
     <article style={staggerDelay(index + 1)} className="anim-rise relative flex flex-col rounded-[30px] bg-paper p-2 shadow-soft">
       <div
-        className={`court-surface relative min-h-[14rem] overflow-hidden rounded-[24px] ${
+        className={`court-surface relative min-h-[13rem] sm:min-h-[14rem] overflow-hidden rounded-[24px] ${
           fx === "live" ? "anim-lights-on serve-sweep" : ""
         }`}
       >
@@ -124,7 +124,7 @@ export function LiveCourt({
           {court.startedAt != null && <CourtTimer startedAt={court.startedAt} />}
         </div>
 
-        <div className="relative z-[2] grid grid-cols-2 gap-6 px-2.5 pb-10 pt-1 sm:gap-8">
+        <div className="relative z-[2] grid grid-cols-2 gap-4 px-2.5 pb-10 pt-1 sm:gap-8">
           <CourtHalf courtId={court.id} ids={court.teamA} byId={byId} tone="a" />
           <CourtHalf courtId={court.id} ids={court.teamB} byId={byId} tone="b" />
         </div>
@@ -173,7 +173,7 @@ export function OpenCourt({
   const [busy, setBusy] = useState(false);
   return (
     <div style={staggerDelay(index + 1)} className="anim-rise relative rounded-[30px] bg-paper/70 p-2 ring-1 ring-line">
-      <div className="court-surface-off relative flex min-h-[14rem] flex-col items-center justify-center overflow-hidden rounded-[24px] px-4 py-5 text-center">
+      <div className="court-surface-off relative flex min-h-[10.5rem] sm:min-h-[14rem] flex-col items-center justify-center overflow-hidden rounded-[24px] px-4 py-5 text-center">
         <CourtLines dashed color="rgba(11,112,73,0.3)" />
         <span aria-hidden className="absolute inset-y-2 left-1/2 w-0 -translate-x-1/2 border-l-2 border-dashed border-court-deep/30" />
 

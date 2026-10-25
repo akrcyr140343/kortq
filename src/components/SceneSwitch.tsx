@@ -34,7 +34,7 @@ export function SceneSwitch({
   return (
     <nav
       aria-label="เมนูหลัก"
-      className="sticky top-[calc(4rem+env(safe-area-inset-top))] z-30 -mx-3 bg-canvas/85 px-3 pb-2 pt-2 backdrop-blur-md sm:-mx-5 sm:px-5 lg:hidden"
+      className="sticky top-[var(--kq-header-h)] z-30 -mx-3 bg-canvas/85 px-3 pb-2 pt-2 backdrop-blur-md sm:-mx-5 sm:px-5 lg:hidden"
     >
       <div className="grid grid-cols-2 gap-1 rounded-full bg-paper p-1.5 shadow-soft">
         {scenes.map(({ id, label, count, Icon }) => {
@@ -45,7 +45,7 @@ export function SceneSwitch({
               type="button"
               onClick={() => onChange(id)}
               aria-current={selected ? "page" : undefined}
-              className={`relative flex h-12 items-center justify-center gap-2 rounded-full font-display text-body font-semibold transition-[color,scale] duration-200 active:scale-95 ${
+              className={`relative flex h-12 items-center justify-center gap-1.5 rounded-full px-1 font-display text-body font-semibold sm:gap-2 transition-[color,scale] duration-200 active:scale-95 ${
                 selected ? "text-white" : "text-ink-3 hover:text-ink"
               }`}
             >

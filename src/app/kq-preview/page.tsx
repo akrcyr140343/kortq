@@ -114,7 +114,7 @@ function BoardScene({
   return (
     <div className="relative flex min-h-dvh flex-col lg:h-dvh lg:min-h-0 lg:overflow-hidden">
       <Header session={session} onEndSession={noop} onOpenHistory={noop} />
-      <main className="relative mx-auto flex w-full min-w-0 max-w-[1600px] flex-1 flex-col overflow-x-hidden px-3 pb-32 pt-1 sm:px-5 lg:min-h-0 lg:pb-4 lg:pt-6">
+      <main className="relative mx-auto flex w-full min-w-0 max-w-[1600px] flex-1 flex-col overflow-x-clip px-3 pb-12 pt-1 sm:px-5 lg:min-h-0 lg:pb-4 lg:pt-6">
         <Board
           isAdmin={isAdmin}
           activeView={activeView}

@@ -77,13 +77,13 @@ export function PickDock({
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:flex-nowrap">
         {!queueFull ? (
           <button
             key={ready ? "ready" : "wait"}
             type="button"
             onClick={() => trackBusy(onCreate(), setBusy)}
-            className={`btn btn-lime ${busy ? "is-busy" : ready ? "ping-once" : ""} h-12 flex-1 px-5 text-body sm:flex-none`}
+            className={`btn btn-lime ${busy ? "is-busy" : ready ? "ping-once" : ""} h-12 min-w-[9rem] flex-1 px-5 text-body sm:flex-none`}
             style={{ ["--ring" as string]: "rgba(197,240,60,0.7)" }}
           >
             <IconTicket className="h-[1.125rem] w-[1.125rem]" />

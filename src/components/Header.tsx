@@ -71,11 +71,11 @@ export function Header({
             >
               kort<span className="relative inline-block rounded-md bg-lime px-1 text-ink">q</span>
             </motion.span>
-            <span className="mt-1 flex items-center gap-1.5 whitespace-nowrap font-display text-[0.6875rem] font-medium text-ink-3">
+            <span className="mt-1 flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap font-display text-[0.6875rem] font-medium text-ink-3">
               {sessionActive ? (
                 <>
                   <span aria-hidden className="live-dot h-1.5 w-1.5 rounded-full bg-court" />
-                  <span className="text-court-deep">เปิดสนาม · {session?.courtCount} คอร์ต</span>
+                  <span className="truncate text-court-deep">เปิดสนาม · {session?.courtCount} คอร์ต</span>
                   <span className="hidden text-ink-4 sm:inline">· v{APP_VERSION}</span>
                 </>
               ) : (
