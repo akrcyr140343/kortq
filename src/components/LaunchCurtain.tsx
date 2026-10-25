@@ -17,7 +17,7 @@ export function revealCircle(origin: { x: number; y: number } | null) {
 }
 
 /** Three dots taking turns — "working on it". */
-export function WorkingDots({ tone = "bg-teal" }: { tone?: string }) {
+export function WorkingDots({ tone = "bg-ink" }: { tone?: string }) {
   return (
     <span aria-hidden className="flex items-center gap-1">
       {[0, 1, 2].map((i) => (
@@ -29,11 +29,10 @@ export function WorkingDots({ tone = "bg-teal" }: { tone?: string }) {
 
 /**
  * "Opening the hall" — staged for the one moment StartSession changes the
- * world. The sunny court is revealed through a circle grown from the exact
- * button that was pressed, the chosen number of courts pop onto a card, and
- * the curtain only lifts once Firestore has genuinely confirmed the session is
- * live — never on a timer, never before a failure would show. Confetti marks
- * the moment it is ready.
+ * world. A lime wave floods out from the exact button that was pressed, the
+ * chosen courts hop on and draw their lines, and the curtain only lifts once
+ * Firestore has genuinely confirmed the session is live — never on a timer,
+ * never before a failure would show. Confetti marks the moment it is ready.
  */
 export function LaunchCurtain({
   courtCount,
@@ -60,60 +59,52 @@ export function LaunchCurtain({
     >
       <motion.div
         aria-hidden
-        className="absolute inset-0"
-        style={{
-          background:
-            "url(/kortq-court-bg-clean.webp) center 62% / cover no-repeat, linear-gradient(180deg, #dff2ff, #fff9f0)",
-        }}
+        className="absolute inset-0 bg-lime"
         initial={{ clipPath: circle.from }}
         animate={{ clipPath: circle.to }}
         transition={{ duration: 0.62, ease: EASE }}
-      >
-        <div className="absolute inset-0 bg-white/20" />
-      </motion.div>
+      />
 
       <motion.div
-        initial={{ opacity: 0, y: 26, scale: 0.9 }}
-        animate={{ opacity: 1, y: 0, scale: 1, transition: { delay: 0.32, type: "spring", stiffness: 380, damping: 26 } }}
-        className="card relative z-10 flex w-full max-w-sm flex-col items-center rounded-[30px] px-5 py-6 text-center"
+        initial={{ opacity: 0, y: 30, scale: 0.92 }}
+        animate={{ opacity: 1, y: 0, scale: 1, transition: { delay: 0.3, type: "spring", stiffness: 360, damping: 24 } }}
+        className="relative z-10 flex w-full max-w-md flex-col items-center text-center"
       >
         {status === "error" ? (
-          <>
-            <span className="sticker grid h-14 w-14 place-items-center rounded-2xl bg-tomato-wash text-tomato-deep ring-2 ring-inset ring-tomato/20">
-              <span className="font-num text-[1.75rem] font-bold leading-none">!</span>
+          <div className="flex w-full flex-col items-center rounded-[36px] bg-paper px-6 py-8 shadow-lift">
+            <span className="grid h-14 w-14 place-items-center rounded-full bg-danger-wash text-danger-deep">
+              <span className="num text-[1.75rem] leading-none">!</span>
             </span>
-            <p className="mt-4 font-display text-lede font-semibold text-ink">เปิดสนามไม่สำเร็จ</p>
+            <p className="display mt-4 text-lede text-ink">เปิดสนามไม่สำเร็จ</p>
             <p className="mt-1.5 text-caption text-ink-3">{errorMessage || "ลองอีกครั้งนะ อาจเป็นที่การเชื่อมต่อ"}</p>
-            <button type="button" onClick={onRetry} className="btn btn-sun mt-5 h-12 rounded-full px-7">
+            <button type="button" onClick={onRetry} className="btn btn-ink mt-5 h-12 px-7">
               ลองใหม่
             </button>
-          </>
+          </div>
         ) : (
           <>
-            <div className="flex items-end justify-center gap-2.5">
+            <span className="num text-[7rem] leading-[0.85] text-ink sm:text-[9rem]">
+              <Tick value={courtCount} />
+            </span>
+            <span className="display mt-1 text-title text-ink">คอร์ตกำลังเปิด</span>
+
+            <div className="mt-6 flex items-end justify-center gap-3">
               {Array.from({ length: courtCount }, (_, i) => (
                 <motion.div
                   key={i}
-                  initial={{ opacity: 0, y: 18, scale: 0.75 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{ delay: 0.46 + i * 0.1, type: "spring", stiffness: 420, damping: 20 }}
-                  className="w-20 sm:w-24"
+                  initial={{ opacity: 0, y: -40, scale: 0.6, rotate: -8 }}
+                  animate={{ opacity: 1, y: 0, scale: 1, rotate: 0 }}
+                  transition={{ delay: 0.45 + i * 0.12, type: "spring", stiffness: 420, damping: 16 }}
+                  className="w-24 drop-shadow-[0_14px_14px_rgba(11,112,73,0.3)] sm:w-28"
                 >
-                  <CourtArt lit />
+                  <CourtArt lit draw />
                 </motion.div>
               ))}
             </div>
 
-            <div className="mt-4 flex items-baseline gap-2 text-ink">
-              <span className="num text-h2 leading-none">
-                <Tick value={courtCount} />
-              </span>
-              <span className="font-display text-lede font-medium">คอร์ตกำลังจะเปิด</span>
-            </div>
-
-            <div className="mt-3 flex h-8 items-center justify-center">
+            <div className="mt-6 flex h-10 items-center justify-center">
               {status === "opening" ? (
-                <span className="flex items-center gap-2 font-display text-caption text-ink-3">
+                <span className="flex items-center gap-2 rounded-full bg-paper/70 px-4 py-2.5 font-display text-caption text-ink-2">
                   <WorkingDots />
                   กำลังจัดคิว…
                 </span>
@@ -122,13 +113,13 @@ export function LaunchCurtain({
                   initial={{ scale: 0.5, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ type: "spring", stiffness: 460, damping: 18 }}
-                  className="chip bg-teal-wash px-3.5 py-2 text-caption text-teal-deep ring-2 ring-inset ring-teal/30"
+                  className="chip bg-ink px-4 py-2.5 text-caption text-lime"
                 >
                   ✓ พร้อมแล้ว ไปตีกัน!
                 </motion.span>
               )}
             </div>
-            {status === "ready" && <Confetti pieces={24} spread={1.7} />}
+            {status === "ready" && <Confetti pieces={28} spread={1.8} />}
           </>
         )}
       </motion.div>

@@ -1,19 +1,19 @@
 /**
- * A round initial avatar with a pastel colour picked deterministically from a
- * stable seed (the roster Profile id when there is one), so the same person
- * keeps the same colour all evening — and across sessions. Pure presentation.
+ * A round initial avatar with a colour picked deterministically from a stable
+ * seed (the roster Profile id when there is one), so the same person keeps the
+ * same colour all evening — and across sessions. Pure presentation.
  */
 
-// [background, initial] — every pair keeps the initial above AA contrast.
+// [background, initial] — bright pastel fills with deep initials, all above AA.
 const PALETTE: Array<[string, string]> = [
-  ["#ffe08a", "#7a4a00"],
-  ["#bdefe6", "#0b6b61"],
-  ["#cfe5ff", "#174e9c"],
-  ["#ffd0dc", "#a3183f"],
-  ["#e3d6ff", "#5330b0"],
-  ["#d7f2c2", "#2f6a10"],
-  ["#ffd9b8", "#8a3f00"],
-  ["#f6d4f2", "#8a1f7d"],
+  ["#e7fb9c", "#3d5400"],
+  ["#bff0da", "#0b6343"],
+  ["#c9e5ff", "#13519e"],
+  ["#ffd2c9", "#a32a17"],
+  ["#ddd3ff", "#4a2fc0"],
+  ["#ffe9a6", "#704a00"],
+  ["#ffd9bf", "#8f3d06"],
+  ["#f6d0f5", "#85197f"],
 ];
 
 const SIZES = {

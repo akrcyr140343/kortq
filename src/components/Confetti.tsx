@@ -1,9 +1,9 @@
 import type { CSSProperties } from "react";
 
-const COLORS = ["var(--sun)", "var(--teal)", "var(--pink)", "var(--sky)", "var(--grape)", "var(--orange)"];
+const COLORS = ["var(--lime)", "var(--court)", "var(--coral)", "var(--sky)", "var(--grape)", "var(--sun)"];
 
 /**
- * A one-shot burst of paper confetti from the centre of its positioned parent.
+ * A one-shot burst of confetti from the centre of its positioned parent.
  * CSS-only (see `.confetti` in globals.css); trajectories are derived from the
  * piece index, not Math.random, so renders stay pure. Mount it (or change its
  * `key`) at the moment worth celebrating; it removes nothing and costs nothing

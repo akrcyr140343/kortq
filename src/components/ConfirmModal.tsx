@@ -9,7 +9,8 @@ import { bouncy, popOut } from "./motion";
 /**
  * The app's single confirm/alert dialog — replaces raw window.confirm/alert.
  * Portalled to <body> and elevated above every drawer/modal (z-[120]) so it can
- * be raised from inside the roster sheet.
+ * be raised from inside the roster sheet. A card that springs up from the
+ * bottom with a coloured top band: sun for a question, red for a deletion.
  */
 export function ConfirmModal({
   title,
@@ -62,7 +63,7 @@ export function ConfirmModal({
       animate={{ opacity: 1, transition: { duration: 0.2 } }}
       exit={{ opacity: 0, transition: popOut }}
       style={present ? undefined : { pointerEvents: "none" }}
-      className="fixed inset-0 z-[120] overflow-y-auto bg-ink/35 backdrop-blur-[3px]"
+      className="fixed inset-0 z-[120] overflow-y-auto bg-ink/30 backdrop-blur-[4px]"
       onClick={showCancel ? onCancel : onConfirm}
     >
       <div className="flex min-h-dvh items-end justify-center p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:items-center">
@@ -71,46 +72,42 @@ export function ConfirmModal({
           aria-modal="true"
           aria-labelledby={titleId}
           aria-describedby={message ? messageId : undefined}
-          initial={{ opacity: 0, y: 34, scale: 0.92 }}
-          animate={{ opacity: 1, y: 0, scale: 1, transition: bouncy }}
-          exit={{ opacity: 0, y: 14, scale: 0.96, transition: popOut }}
-          className="card relative w-full max-w-[22rem] rounded-[30px] p-6"
+          initial={{ opacity: 0, y: 60, scale: 0.9, rotate: -2 }}
+          animate={{ opacity: 1, y: 0, scale: 1, rotate: 0, transition: bouncy }}
+          exit={{ opacity: 0, y: 20, scale: 0.96, transition: popOut }}
+          className="relative w-full max-w-[23rem] overflow-hidden rounded-[36px] bg-paper shadow-lift"
           onClick={(e) => e.stopPropagation()}
         >
-          <span
-            aria-hidden
-            className={`sticker anim-stamp grid h-14 w-14 place-items-center rounded-2xl ${
-              danger ? "bg-tomato-wash text-tomato-deep ring-2 ring-inset ring-tomato/20" : "bg-sun-wash ring-2 ring-inset ring-sun/40"
-            }`}
-          >
-            {danger ? (
-              <span className="font-num text-[1.75rem] font-bold leading-none">!</span>
-            ) : (
-              <ShuttleBuddy className="h-10 w-10" mood="wow" />
-            )}
-          </span>
-          <h2 id={titleId} className="mt-4 font-display text-title font-semibold leading-snug text-ink">
-            {title}
-          </h2>
-          {message && (
-            <p id={messageId} className="mt-2 text-body leading-relaxed text-ink-2">
-              {message}
-            </p>
-          )}
-
-          <div className="mt-6 flex gap-2.5">
-            {showCancel && (
-              <button type="button" onClick={onCancel} className="btn h-12 flex-1 rounded-2xl">
-                {cancelLabel}
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={onConfirm}
-              className={`btn h-12 flex-1 rounded-2xl ${danger ? "btn-danger" : "btn-sun"}`}
+          <div className={`relative flex h-24 items-end px-6 pb-0 ${danger ? "bg-danger-wash" : "bg-sun"}`}>
+            <span
+              aria-hidden
+              className={`anim-stamp absolute -bottom-7 left-6 grid h-16 w-16 place-items-center rounded-full ring-4 ring-paper ${
+                danger ? "bg-danger-deep text-white" : "bg-paper"
+              }`}
             >
-              {confirmLabel}
-            </button>
+              {danger ? <span className="num text-[2rem] leading-none">!</span> : <ShuttleBuddy className="h-11 w-11" mood="wow" />}
+            </span>
+          </div>
+          <div className="px-6 pb-6 pt-10">
+            <h2 id={titleId} className="display text-title leading-snug text-ink">
+              {title}
+            </h2>
+            {message && (
+              <p id={messageId} className="mt-2 text-body leading-relaxed text-ink-2">
+                {message}
+              </p>
+            )}
+
+            <div className="mt-6 flex gap-2.5">
+              {showCancel && (
+                <button type="button" onClick={onCancel} className="btn h-12 flex-1">
+                  {cancelLabel}
+                </button>
+              )}
+              <button type="button" onClick={onConfirm} className={`btn h-12 flex-1 ${danger ? "btn-danger" : "btn-ink"}`}>
+                {confirmLabel}
+              </button>
+            </div>
           </div>
         </motion.div>
       </div>

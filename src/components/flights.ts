@@ -145,13 +145,13 @@ function fly(id: string, from: { left: number; top: number }, to: Snap, delay: n
 
   const a = clone.animate(
     [
-      { transform: `translate(${dx}px, ${dy}px) scale(0.97)`, boxShadow: "0 0 0 rgba(11,81,72,0)" },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.97)`, boxShadow: "0 0 0 rgba(0,0,0,0)" },
       {
         transform: `translate(${dx * 0.45}px, ${dy * 0.45 - lift}px) scale(1.035)`,
-        boxShadow: "0 22px 34px -20px rgba(11,81,72,0.55)",
+        boxShadow: "0 22px 34px -20px rgba(25,26,40,0.35)",
         offset: 0.45,
       },
-      { transform: "translate(0px, 0px) scale(1)", boxShadow: "0 0 0 rgba(11,81,72,0)" },
+      { transform: "translate(0px, 0px) scale(1)", boxShadow: "0 0 0 rgba(0,0,0,0)" },
     ],
     { duration, delay, easing: EASE, fill: "backwards" },
   );

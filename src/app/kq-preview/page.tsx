@@ -8,14 +8,9 @@ import type { Court, Match, Player, Profile, Session, Skill } from "@/lib/types"
 import { SKILL_SCORE } from "@/lib/types";
 import type { ResolvedQueuedGame } from "@/hooks/useKortq";
 import { Header } from "@/components/Header";
-import { StatStrip } from "@/components/StatStrip";
-import { SectionHeader } from "@/components/SectionHeader";
-import { BottomNav } from "@/components/BottomNav";
-import { SelectionBar, SelectionTray } from "@/components/SelectionTray";
+import { Board, type AppView } from "@/components/Board";
+import { PickDock, PickTray } from "@/components/PickDock";
 import { LoadingScreen, OfflineScreen } from "@/components/StateScreens";
-import { CourtCard, FreeSlotCard } from "@/components/CourtCard";
-import { NewQueuedGameCard, QueuedGameCard } from "@/components/NextUpCard";
-import { QueuePanel } from "@/components/QueuePanel";
 import { StartSession } from "@/components/StartSession";
 import { PinModal } from "@/components/PinModal";
 import { ConfirmModal } from "@/components/ConfirmModal";
@@ -24,9 +19,7 @@ import { PlayerRegistryDrawer } from "@/components/PlayerRegistryDrawer";
 import { LaunchCurtain } from "@/components/LaunchCurtain";
 import { CloseCurtain } from "@/components/CloseCurtain";
 import { IntroCurtain } from "@/components/IntroCurtain";
-import { ShuttleBuddy } from "@/components/art";
-import { IconCourt, IconTicket } from "@/components/icons";
-import { CARD_DASHED } from "@/components/ui";
+
 
 const NOW = Date.now();
 let order = 0;
@@ -103,114 +96,75 @@ const profiles: Profile[] = players.slice(0, 9).map((p, i) => ({
 const noop = () => {};
 const slow = () => new Promise<void>((r) => setTimeout(r, 400000));
 
-function GamesScene({ isAdmin, selectedQ1 = false, fillQ2 = false }: { isAdmin: boolean; selectedQ1?: boolean; fillQ2?: boolean }) {
-  const slotsFree = 1;
+function BoardScene({
+  isAdmin,
+  view = "courts",
+  selectedQ1 = false,
+  fillQ2 = false,
+  picked = [],
+}: {
+  isAdmin: boolean;
+  view?: AppView;
+  selectedQ1?: boolean;
+  fillQ2?: boolean;
+  picked?: string[];
+}) {
+  const [activeView, setActiveView] = useState<AppView>(view);
+  const selected = new Set(picked);
   return (
-    <div className="relative flex min-h-dvh flex-col">
-      <div aria-hidden className="court-banner anim-fade" />
+    <div className="relative flex min-h-dvh flex-col lg:h-dvh lg:min-h-0 lg:overflow-hidden">
       <Header session={session} onEndSession={noop} onOpenHistory={noop} />
-      <main className="relative mx-auto flex w-full min-w-0 max-w-[1600px] flex-1 flex-col gap-4 overflow-x-hidden px-3 pb-32 pt-4 sm:px-5">
-        <div className="flex items-end justify-between gap-3 px-1 xl:hidden">
-          <div className="min-w-0">
-            <span className="eyebrow text-ink-3">KD CLUB · LIVE</span>
-            <h1 className="anim-status mt-1.5 font-display text-h3 font-semibold leading-none text-ink">
-              <span className="marker">สนามวันนี้</span>
-            </h1>
-          </div>
-          <span className="chip anim-status shrink-0 bg-paper py-2 text-ink-2 shadow-[0_2px_0_var(--line-2)] ring-2 ring-inset ring-line">
-            <span aria-hidden className="live-dot h-1.5 w-1.5 rounded-full bg-teal" />
-            2/3 กำลังเล่น
-          </span>
-        </div>
-        <StatStrip totalPlayers={players.length} waiting={waiting.length} playing={8} games={12} courtsActive={2} totalCourts={3} />
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:items-start lg:gap-5">
-          <div className="flex min-w-0 flex-col gap-3">
-            <SectionHeader eyebrow="GAME QUEUE" title="คิวเกม" count={queue.length} of={3} unit="คิว" icon={<IconTicket className="h-5 w-5" />} tone="bg-sun text-ink shadow-[0_3px_0_var(--sun-ledge)]" />
-            {queue.map((q, i) => (
-              <QueuedGameCard
-                key={q.id}
-                q={q}
-                isAdmin={isAdmin}
-                pairWarn={(ids) => (ids.includes("p9") ? 2 : 0)}
-                selectedId={selectedQ1 && q.number === 1 ? "p10" : null}
-                filling={fillQ2 && q.number === 2}
-                canSend={q.number === 1}
-                sendBlockedReason={q.number === 1 ? null : null}
-                canDraw
-                onSend={slow}
-                onFair={noop}
-                onRandom={noop}
-                onToggleFill={noop}
-                onDelete={noop}
-                onPlayerTap={noop}
-                onRemovePlayer={noop}
-                index={i}
-              />
-            ))}
-            {isAdmin && (
-              <NewQueuedGameCard number={3} canDraw selectedCount={0} onFair={noop} onRandom={noop} onPickManually={noop} onCreateFromSelected={noop} index={2} />
-            )}
-            {!isAdmin && (
-              <div className={`${CARD_DASHED} anim-rise flex flex-col items-center rounded-[26px] px-4 py-7 text-center`}>
-                <ShuttleBuddy className="h-12 w-12" mood="sleepy" />
-                <p className="mt-3 font-display text-body font-semibold text-ink-2">ยังไม่มีคิวเกม</p>
-              </div>
-            )}
-          </div>
-          <div className="flex min-w-0 flex-col gap-3">
-            <SectionHeader eyebrow="NOW PLAYING" title="กำลังเล่น" count={games.length} of={3} unit="คอร์ต" icon={<IconCourt className="h-5 w-5" />} tone="bg-teal text-ink shadow-[0_3px_0_var(--teal-ledge)]" />
-            {games.map((g, i) => (
-              <CourtCard key={g.id} court={g} byId={byId} isAdmin={isAdmin} finishing={false} onFinish={noop} onCancel={noop} index={i} />
-            ))}
-            {Array.from({ length: slotsFree }, (_, i) => (
-              <FreeSlotCard
-                key={i}
-                index={2 + i}
-                cta={isAdmin ? { players: [...queue[0].teamA, ...queue[0].teamB], onSend: slow } : null}
-                hint={isAdmin ? "เรียกคิวที่ 1 ลงสนามได้เลย" : "รอแอดมินเรียกคิวที่ 1 ลงสนาม"}
-              />
-            ))}
-          </div>
-        </div>
-      </main>
-      <BottomNav active="courts" onChange={noop} waitingCount={waiting.length} gameCount={queue.length} />
-    </div>
-  );
-}
-
-function QueueScene() {
-  const selected = new Set(["w1", "w3"]);
-  return (
-    <div className="relative flex min-h-dvh flex-col">
-      <Header session={session} onEndSession={noop} onOpenHistory={noop} />
-      <main className="relative mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-4 px-3 pb-32 pt-4 sm:px-5">
-        <div className="flex items-end justify-between gap-3 px-1">
-          <div>
-            <span className="eyebrow text-ink-3">KD CLUB · LIVE</span>
-            <h1 className="mt-1.5 font-display text-h3 font-semibold leading-none text-ink">
-              <span className="marker" style={{ ["--marker" as string]: "var(--teal)" }}>เพื่อนในคิว</span>
-            </h1>
-          </div>
-        </div>
-        <QueuePanel
+      <main className="relative mx-auto flex w-full min-w-0 max-w-[1600px] flex-1 flex-col overflow-x-hidden px-3 pb-32 pt-1 sm:px-5 lg:min-h-0 lg:pb-4 lg:pt-6">
+        <Board
+          isAdmin={isAdmin}
+          activeView={activeView}
+          onViewChange={setActiveView}
+          courtCount={session.courtCount}
+          games={games}
+          playersById={byId}
+          finishingIds={new Set()}
+          onFinish={noop}
+          onCancel={noop}
+          queue={queue}
+          maxQueued={3}
           waiting={waiting}
           resting={resting}
-          isAdmin
           selectedIds={selected}
-          pickActive={false}
-          pickLabel={null}
+          qSel={selectedQ1 ? { queueId: "q1", playerId: "p10" } : null}
+          fillQueueId={fillQ2 ? "q2" : null}
+          pick={fillQ2 ? { active: true, label: "เติมคิวที่ 2 — แตะเพื่อเพิ่ม (2/4)" } : { active: false, label: null }}
+          pairWarn={(ids) => (ids.includes("p9") ? 2 : 0)}
+          stats={{ totalPlayers: players.length, playing: 8, gamesPlayed: 12 }}
+          onSendQ1={slow}
+          onFairQ={noop}
+          onRandomQ={noop}
+          onToggleFill={noop}
+          onDeleteQ={noop}
+          onQueuedPlayerTap={noop}
+          onRemoveFromQ={noop}
+          onCreateFromSelected={noop}
+          onPickManually={noop}
           onAddPlayer={async () => true}
           onOpenRegistry={noop}
-          onToggleSelect={noop}
+          onWaitingTap={noop}
           onRest={noop}
           onResume={noop}
           onDelete={noop}
         />
       </main>
-      <SelectionTray className="sticky bottom-[calc(5.6rem+env(safe-area-inset-bottom))] z-30 shrink-0 px-3 pb-3 sm:px-5">
-        <SelectionBar players={[P.w1, P.w3]} queueFull={false} nextNumber={3} maxQueued={3} onCreate={noop} onGoToGames={noop} onClear={noop} />
-      </SelectionTray>
-      <BottomNav active="queue" onChange={noop} waitingCount={waiting.length} gameCount={queue.length} />
+      {picked.length > 0 && (
+        <PickTray className="sticky bottom-0 z-30 shrink-0 px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:px-5">
+          <PickDock
+            players={waiting.filter((p) => selected.has(p.id))}
+            queueFull={false}
+            nextNumber={3}
+            maxQueued={3}
+            onCreate={noop}
+            onGoToGames={noop}
+            onClear={noop}
+          />
+        </PickTray>
+      )}
     </div>
   );
 }
@@ -229,13 +183,13 @@ export default function Preview() {
 
   switch (scene) {
     case "games":
-      return <GamesScene isAdmin />;
+      return <BoardScene isAdmin />;
     case "games-member":
-      return <GamesScene isAdmin={false} />;
+      return <BoardScene isAdmin={false} />;
     case "swap":
-      return <GamesScene isAdmin selectedQ1 fillQ2 />;
+      return <BoardScene isAdmin selectedQ1 fillQ2 />;
     case "queue":
-      return <QueueScene />;
+      return <BoardScene isAdmin view="queue" picked={["w1", "w3"]} />;
     case "start":
       return (
         <div className="flex min-h-dvh flex-col">

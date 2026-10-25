@@ -140,20 +140,20 @@ export function PlayerRegistryDrawer({
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         placeholder="ค้นหาชื่อ…"
-        className="h-11 w-full rounded-2xl border-2 border-line bg-paper pl-10 pr-4 font-display text-body text-ink outline-none transition-[border-color,box-shadow] duration-200 placeholder:font-sans placeholder:text-ink-4 focus:border-teal focus:shadow-[0_0_0_4px_rgba(43,196,174,0.18)]"
+        className="field h-11 pl-10 placeholder:font-sans"
       />
     </label>
   );
 
   // ── Footer — multi-add. The bottom inset keeps it clear of the Home Indicator.
   const footer = (
-    <div className="shrink-0 border-t-2 border-line bg-paper/85 px-5 pb-[calc(env(safe-area-inset-bottom)+0.875rem)] pt-3 backdrop-blur">
+    <div className="shrink-0 border-t border-line bg-paper/90 backdrop-blur px-5 pb-[calc(env(safe-area-inset-bottom)+0.875rem)] pt-3">
       <div className="flex items-center gap-2.5">
         <button
           type="button"
           disabled={selectableCount === 0 || busy}
           onClick={addSelected}
-          className={`btn btn-sun ${busy && selectableCount > 0 ? "is-busy" : ""} h-12 flex-1 rounded-2xl`}
+          className={`btn btn-lime ${busy && selectableCount > 0 ? "is-busy" : ""} h-12 flex-1 rounded-2xl`}
         >
           {selectableCount > 0 ? (
             <>
@@ -182,7 +182,7 @@ export function PlayerRegistryDrawer({
       title="เพื่อนในก๊วน"
       subtitle={`${profiles.length} คนในก๊วน · แตะรูปเพื่อเลือกหลายคน`}
       icon={
-        <span aria-hidden className="sticker grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-teal-wash text-teal-deep ring-2 ring-inset ring-teal/30">
+        <span aria-hidden className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-court-wash text-court-deep ring-1 ring-inset ring-court/30">
           <IconPeople className="h-6 w-6" />
         </span>
       }
@@ -191,7 +191,7 @@ export function PlayerRegistryDrawer({
     >
       <div className="px-5 py-3">
         {shown.length === 0 ? (
-          <div className="anim-rise mt-4 flex flex-col items-center rounded-[22px] border-2 border-dashed border-line-2 bg-sand/60 px-4 py-9 text-center">
+          <div className="anim-rise mt-4 flex flex-col items-center rounded-[22px] border border-dashed border-line-2 px-4 py-9 text-center">
             <span className="anim-bob" style={{ ["--bob-y" as string]: "-6px", ["--bob-d" as string]: "3.2s" }}>
               <ShuttleBuddy className="h-12 w-12" mood={profiles.length === 0 ? "happy" : "wow"} />
             </span>
@@ -213,11 +213,11 @@ export function PlayerRegistryDrawer({
                   key={p.id}
                   // The roster pours in behind the sheet (capped, so long lists stay quick).
                   style={staggerDelay(Math.min(i, 10), 0.025)}
-                  className={`anim-rise rounded-[20px] border-2 transition-[background-color,border-color,box-shadow] duration-200 ${
+                  className={`anim-rise rounded-2xl border transition-[background-color,border-color,box-shadow] duration-200 ${
                     isSelected
-                      ? "border-ink bg-sun-wash shadow-[0_3px_0_var(--ink)]"
-                      : "border-line bg-paper shadow-[0_2px_0_var(--line-2)]"
-                  } ${inSession ? "opacity-75" : ""}`}
+                      ? "border-ink bg-lime shadow-soft"
+                      : "border-line bg-paper"
+                  } ${inSession ? "opacity-60" : ""}`}
                 >
                   <div className="flex items-center gap-2 py-1.5 pl-1.5 pr-1">
                     {/* The avatar is the select toggle (disabled once in session). */}
@@ -235,9 +235,9 @@ export function PlayerRegistryDrawer({
                         aria-hidden
                         className={`absolute -bottom-0.5 -right-0.5 grid h-5 w-5 place-items-center rounded-full ring-2 ring-paper ${
                           isSelected
-                            ? "anim-stamp bg-teal text-ink"
+                            ? "anim-stamp bg-lime text-ink"
                             : inSession
-                              ? "bg-teal-wash text-teal-deep"
+                              ? "bg-court-wash text-court-deep"
                               : "bg-paper text-transparent shadow-[inset_0_0_0_2px_var(--line-2)]"
                         }`}
                       >
@@ -264,13 +264,13 @@ export function PlayerRegistryDrawer({
                     </button>
 
                     {inSession ? (
-                      <span className="chip shrink-0 bg-teal-wash text-[0.6875rem] text-teal-deep">อยู่ในคิว</span>
+                      <span className="chip shrink-0 border border-court/30 bg-court-wash text-[0.6875rem] text-court-deep">อยู่ในคิว</span>
                     ) : (
                       <button
                         type="button"
                         disabled={busy}
                         onClick={() => addOne(p.id)}
-                        className="btn btn-sun h-9 min-h-9 shrink-0 rounded-xl px-3 text-caption"
+                        className="btn btn-lime h-9 min-h-9 shrink-0 rounded-lg px-3 text-caption"
                       >
                         เพิ่ม
                       </button>
@@ -280,7 +280,7 @@ export function PlayerRegistryDrawer({
                       type="button"
                       onClick={() => remove(p)}
                       aria-label="ลบออกจากก๊วน"
-                      className="btn btn-ghost h-9 min-h-9 w-9 shrink-0 rounded-full px-0 text-ink-3 hover:text-tomato-deep"
+                      className="btn btn-ghost h-9 min-h-9 w-9 shrink-0 rounded-full px-0 text-ink-3 hover:text-danger-deep"
                     >
                       <IconTrash className="h-4 w-4" />
                     </button>
@@ -288,7 +288,7 @@ export function PlayerRegistryDrawer({
 
                   {/* Inline skill editor */}
                   {editing && (
-                    <div className="anim-status grid grid-cols-4 gap-1.5 border-t-2 border-dashed border-line p-2">
+                    <div className="anim-status grid grid-cols-4 gap-1.5 border-t border-dashed border-line-2 p-2">
                       {SKILLS.map((s) => {
                         const active = p.skill === s;
                         return (
@@ -297,8 +297,8 @@ export function PlayerRegistryDrawer({
                             type="button"
                             onClick={() => changeSkill(p.id, s)}
                             aria-pressed={active}
-                            className={`flex h-10 items-center justify-center gap-1 rounded-xl font-num text-[0.8125rem] font-semibold transition-colors duration-200 active:scale-95 ${
-                              active ? `${SKILL_TONE[s].active} shadow-[0_2px_0_rgba(35,38,59,0.18)]` : "bg-sand text-ink-3 hover:text-ink"
+                            className={`flex h-10 items-center justify-center gap-1 rounded-full font-num text-[0.8125rem] font-semibold transition-colors duration-200 active:scale-95 ${
+                              active ? SKILL_TONE[s].active : "bg-mist text-ink-3 hover:text-ink"
                             }`}
                           >
                             {s}

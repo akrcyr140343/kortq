@@ -9,6 +9,17 @@ import { EASE } from "./motion";
 const AUTO_MS = 1150; // ceiling before it dismisses itself
 const REDUCE_MS = 180;
 
+// The club colours bursting out from behind the mark, then settling as dots.
+const BURST = [
+  { c: "bg-lime", x: -120, y: -90, s: 64, d: 0 },
+  { c: "bg-sky", x: 130, y: -70, s: 48, d: 0.05 },
+  { c: "bg-coral", x: 110, y: 100, s: 56, d: 0.1 },
+  { c: "bg-sun", x: -110, y: 110, s: 44, d: 0.15 },
+  { c: "bg-grape", x: 0, y: -150, s: 28, d: 0.2 },
+  { c: "bg-court", x: -170, y: 10, s: 32, d: 0.12 },
+  { c: "bg-lime", x: 175, y: 20, s: 24, d: 0.18 },
+];
+
 /**
  * Cinematic hand-off, not a splash screen. The mark and wordmark here share
  * `layoutId`s with the real ones in <Header>, which is already mounted
@@ -18,8 +29,8 @@ const REDUCE_MS = 180;
  * fades off around it. `revealed` in Home() flips the instant a skip fires,
  * so the page behind starts its own staggered entrance in that same frame.
  *
- * Pop Court staging: a sunny sky, the letters of "KortQ" bouncing in one by
- * one, and the shuttle buddy lobbing across the screen.
+ * Court Board staging: the club colours burst out of the mark like a serve,
+ * the shuttle loops over it, and "kortq" bounces in letter by letter.
  *
  * Never blocks: tap/click anywhere skips instantly, and a timer caps the
  * unskipped wait well under what would feel like "waiting for an app".
@@ -48,37 +59,51 @@ export function IntroCurtain({ onSkip }: { onSkip: () => void }) {
       onClick={skip}
       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && skip()}
       initial={{ opacity: 0 }}
-      animate={{ opacity: 1, transition: { duration: 0.24, ease: EASE } }}
+      animate={{ opacity: 1, transition: { duration: 0.2, ease: EASE } }}
       exit={{ opacity: 0, transition: { duration: 0.34, ease: EASE } }}
-      className="fixed inset-0 z-[999] flex cursor-pointer select-none flex-col items-center justify-center overflow-hidden bg-cream"
+      className="fixed inset-0 z-[999] flex cursor-pointer select-none flex-col items-center justify-center overflow-hidden bg-canvas"
     >
-      <div
-        aria-hidden
-        className="absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(60% 46% at 50% 44%, rgba(255,226,140,0.75) 0%, rgba(255,241,194,0) 70%), linear-gradient(180deg, #dff2ff 0%, #fff6e3 52%, #fff9f0 100%)",
-        }}
-      />
-      {/* Soft sun disc rising behind the mark. */}
-      <motion.div
-        aria-hidden
-        className="absolute left-1/2 top-[44%] h-[22rem] w-[22rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-sun/30 blur-2xl"
-        initial={{ opacity: 0, scale: 0.6 }}
-        animate={{ opacity: 1, scale: 1, transition: { duration: 0.9, ease: EASE } }}
-      />
+      {/* Colour burst. */}
+      <div aria-hidden className="absolute left-1/2 top-[44%]">
+        {BURST.map((b, i) => (
+          <motion.span
+            key={i}
+            className={`absolute rounded-full ${b.c}`}
+            style={{ width: b.s, height: b.s, marginLeft: -b.s / 2, marginTop: -b.s / 2 }}
+            initial={{ x: 0, y: 0, scale: 0, opacity: 0 }}
+            animate={{
+              x: b.x,
+              y: b.y,
+              scale: 1, // spring overshoots on its own (low damping); arrays allow 2 frames only
+              opacity: 1,
+              transition: { delay: 0.05 + b.d, type: "spring", stiffness: 260, damping: 16 },
+            }}
+          />
+        ))}
+      </div>
 
-      {/* The shuttle buddy lobs across, net to net. */}
-      <span aria-hidden className="anim-arc absolute left-1/2 top-[30%] -ml-7">
-        <ShuttleBuddy className="h-14 w-14" mood="wow" />
-      </span>
+      {/* The shuttle loops over the mark. */}
+      <motion.span
+        aria-hidden
+        className="absolute left-1/2 top-[44%] -ml-6 -mt-6"
+        initial={{ x: -160, y: 40, rotate: -70, opacity: 0 }}
+        animate={{
+          x: [-160, 0, 160],
+          y: [40, -150, 40],
+          rotate: [-70, 40, 150],
+          opacity: [0, 1, 0],
+          transition: { delay: 0.15, duration: 0.95, ease: "easeInOut" },
+        }}
+      >
+        <ShuttleBuddy className="h-12 w-12" mood="wow" />
+      </motion.span>
 
       <motion.div
         layoutId="brand-mark"
         transition={{ type: "spring", stiffness: 190, damping: 24 }}
-        className="relative z-10 grid h-28 w-28 place-items-center rounded-[30px] bg-paper shadow-[0_6px_0_var(--line-2),0_30px_50px_-20px_rgba(91,62,24,0.45)] ring-4 ring-paper sm:h-32 sm:w-32"
+        className="relative z-10 grid h-28 w-28 place-items-center rounded-full bg-paper shadow-lift ring-4 ring-ink sm:h-32 sm:w-32"
       >
-        <span className="absolute inset-0 overflow-hidden rounded-[26px]">
+        <span className="absolute inset-0 overflow-hidden rounded-full">
           <Image src="/kd-logo.png" alt="" fill sizes="128px" className="object-cover" priority />
         </span>
       </motion.div>
@@ -86,21 +111,23 @@ export function IntroCurtain({ onSkip }: { onSkip: () => void }) {
       <motion.span
         layoutId="brand-word"
         transition={{ type: "spring", stiffness: 190, damping: 24 }}
-        className="num relative z-10 mt-6 block text-[3.75rem] leading-none text-ink sm:text-[4.5rem]"
+        className="num relative z-10 mt-7 block text-[4rem] lowercase leading-none text-ink sm:text-[5rem]"
       >
-        {"Kort".split("").map((ch, i) => (
-          <span key={i} className="anim-letter" style={{ animationDelay: `${(0.1 + i * 0.06).toFixed(2)}s` }}>
-            {ch}
+        {"kort".split("").map((ch, i) => (
+          <span key={i} className="kq-word">
+            <span style={{ animationDelay: `${(0.14 + i * 0.05).toFixed(2)}s` }}>{ch}</span>
           </span>
         ))}
-        <span className="anim-letter text-teal-deep" style={{ animationDelay: "0.38s" }}>
-          Q
+        <span className="kq-word">
+          <span className="rounded-xl bg-lime px-2" style={{ animationDelay: "0.38s" }}>
+            q
+          </span>
         </span>
       </motion.span>
 
       <motion.span
         initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0, transition: { delay: 0.42, duration: 0.34, ease: EASE } }}
+        animate={{ opacity: 1, y: 0, transition: { delay: 0.45, duration: 0.34, ease: EASE } }}
         className="eyebrow relative z-10 mt-4 text-ink-3"
       >
         KD · KHONDEE-TEEBAD

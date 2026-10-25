@@ -33,20 +33,12 @@ import { IntroCurtain } from "@/components/IntroCurtain";
 import { LaunchCurtain } from "@/components/LaunchCurtain";
 import { CloseCurtain } from "@/components/CloseCurtain";
 import { StartSession } from "@/components/StartSession";
-import { CourtCard, FreeSlotCard } from "@/components/CourtCard";
-import { NewQueuedGameCard, QueuedGameCard } from "@/components/NextUpCard";
-import { QueuePanel } from "@/components/QueuePanel";
+import { Board, type AppView } from "@/components/Board";
 import { PlayerRegistryDrawer } from "@/components/PlayerRegistryDrawer";
 import { MatchHistoryDrawer } from "@/components/MatchHistoryDrawer";
-import { StatStrip } from "@/components/StatStrip";
-import { SectionHeader } from "@/components/SectionHeader";
-import { BottomNav, type AppView } from "@/components/BottomNav";
-import { SelectionBar, SelectionTray } from "@/components/SelectionTray";
+import { PickDock, PickTray } from "@/components/PickDock";
 import { LoadingScreen, OfflineScreen } from "@/components/StateScreens";
-import { ShuttleBuddy } from "@/components/art";
-import { IconCourt, IconTicket } from "@/components/icons";
 import { usePlayerFlights } from "@/components/flights";
-import { CARD_DASHED } from "@/components/ui";
 
 /** Surface a failed background write the way the rest of the page does. */
 const alertError = (fallback: string) => (e: unknown) =>
@@ -96,7 +88,6 @@ export default function Home() {
   const sessionCreatedAt = session?.createdAt ?? 0;
   const courtCount = session?.courtCount ?? 0;
   const queueFull = queue.length >= MAX_QUEUED_GAMES;
-  const slotsFree = Math.max(0, courtCount - games.length);
   // Selections are derived, not cleaned up by effects: a pick that points at a
   // Q/player that is gone (sent, deleted, removed on another device) or a Q
   // that is already full simply reads as "nothing selected".
@@ -461,7 +452,6 @@ export default function Home() {
   const totalGamesPlayed = Math.floor(
     players.reduce((sum, p) => sum + (p.gamesPlayed ?? 0), 0) / 4,
   );
-  const activeCourts = games.length;
 
   const selectedPlayers = useMemo(
     () => assignable.filter((p) => selectedIds.has(p.id)),
@@ -538,7 +528,7 @@ useEffect(() => {
   // "Opening the hall" — the launch curtain owns this window so it can hold
   // the old screen in place (StartSession keeps rendering, just hidden
   // underneath) until Firestore genuinely confirms the session is live, then
-  // hands off to the dashboard in the same beat the CourtCard/QueuePanel
+  // hands off to the dashboard in the same beat the LiveCourt/Bench
   // entrances fire. MIN_OPEN_MS is the floor for the curtain's own reveal
   // (ring + court lines) to finish even when the write itself is instant;
   // it never adds delay beyond a real write that's actually slower than that.
@@ -603,24 +593,19 @@ useEffect(() => {
     return () => window.clearTimeout(t);
   }, [close]);
 
-  // Presentation only: the sunny court banner sits behind the live dashboard
-  // (the same condition that renders <main> below), never behind StartSession.
+
+  // Presentation only: the lime halo sits behind the live board (the same
+  // condition that renders <main> below), never behind StartSession.
   const showDashboard = revealed && !error && !loading && !(launch || (!sessionActive && !close));
 
-  // Q1 can be called from the first free slot too (same handler, same guards).
-  const q1 = queue[0];
-  const q1Full = !!q1 && q1.teamA.length === 2 && q1.teamB.length === 2;
-  const freeSlotHint = !q1
-    ? "จัดคิวเกมไว้ แล้วเรียกลงสนามได้เลย"
-    : !q1Full
-      ? "คิวที่ 1 ยังไม่ครบ 4 คน"
-      : isAdmin
-        ? "เรียกคิวที่ 1 ลงสนามได้เลย"
-        : "รอแอดมินเรียกคิวที่ 1 ลงสนาม";
-
   return (
-    <div ref={shellRef} className="relative flex min-h-dvh flex-col xl:h-dvh xl:min-h-0 xl:overflow-hidden">
-      {showDashboard && <div aria-hidden className="court-banner anim-fade" />}
+    <div ref={shellRef} className="relative flex min-h-dvh flex-col lg:h-dvh lg:min-h-0 lg:overflow-hidden">
+      {showDashboard && (
+        <div
+          aria-hidden
+          className="anim-fade pointer-events-none absolute inset-x-0 top-0 -z-10 h-[24rem] bg-[radial-gradient(55%_80%_at_20%_0%,rgba(197,240,60,0.22),transparent_70%),radial-gradient(40%_70%_at_90%_0%,rgba(69,168,255,0.14),transparent_70%)]"
+        />
+      )}
       <Header
         session={session}
         onEndSession={handleEndSession}
@@ -660,180 +645,51 @@ useEffect(() => {
       ) : launch || (!sessionActive && !close) ? (
         <StartSession onLaunch={handleLaunch} onLaunchSettled={handleLaunchSettled} />
       ) : (
-        <main className="relative mx-auto flex w-full min-w-0 max-w-[1600px] flex-1 flex-col gap-4 overflow-x-hidden px-3 pb-32 pt-4 sm:px-5 xl:min-h-0 xl:pb-4">
-          {/* Phones: a big friendly title for the tab you're on. */}
-          <div className="flex items-end justify-between gap-3 px-1 xl:hidden">
-            <div className="min-w-0">
-              <span className="eyebrow text-ink-3">KD CLUB · LIVE</span>
-              <h1 key={activeView} className="anim-status mt-1.5 font-display text-h3 font-semibold leading-none text-ink">
-                <span className="marker" style={{ ["--marker" as string]: activeView === "courts" ? "var(--sun)" : "var(--teal)" }}>
-                  {activeView === "courts" ? "สนามวันนี้" : "เพื่อนในคิว"}
-                </span>
-              </h1>
-            </div>
-            <span key={activeView} className="chip anim-status shrink-0 bg-paper py-2 text-ink-2 shadow-[0_2px_0_var(--line-2)] ring-2 ring-inset ring-line">
-              <span aria-hidden className={`live-dot h-1.5 w-1.5 rounded-full ${activeView === "courts" ? "bg-teal" : "bg-sun-ledge"}`} />
-              {activeView === "courts" ? `${activeCourts}/${courtCount} กำลังเล่น` : `${assignable.length} คนกำลังรอ`}
-            </span>
-          </div>
-
-          {/* Two independent columns: roster on the left, games on the right.
-              Each scrolls in its own pane on large screens, so a long queue
-              can never stretch the games beside it. */}
-          <div className="grid min-w-0 flex-1 gap-4 xl:min-h-0 xl:grid-cols-[22rem_minmax(0,1fr)] xl:gap-5">
-            <aside className={`${activeView === "queue" ? "view-from-right block" : "hidden"} order-2 xl:order-1 xl:block xl:min-h-0`}>
-              <QueuePanel
-                waiting={assignable}
-                resting={resting}
-                isAdmin={isAdmin}
-                selectedIds={selectedIds}
-                pickActive={queuePick.active}
-                pickLabel={queuePick.label}
-                onAddPlayer={handleAddPlayer}
-                onOpenRegistry={() => setShowRegistry(true)}
-                onToggleSelect={handleWaitingTap}
-                onRest={handleRest}
-                onResume={handleResume}
-                onDelete={handleDelete}
-              />
-            </aside>
-
-            <section className={`${activeView === "courts" ? "view-from-left flex" : "hidden"} order-1 min-w-0 flex-col gap-4 xl:order-2 xl:flex xl:min-h-0`}>
-              <StatStrip
-                totalPlayers={players.length}
-                waiting={assignable.length}
-                playing={playingCount}
-                games={totalGamesPlayed}
-                courtsActive={activeCourts}
-                totalCourts={courtCount}
-              />
-
-              <div className="hidden shrink-0 items-end justify-between gap-4 px-1 xl:flex">
-                <div>
-                  <span className="eyebrow text-ink-3">KD CLUB · LET&apos;S PLAY</span>
-                  <h1 className="mt-1.5 font-display text-h3 font-semibold leading-none text-ink">
-                    จัดคิวไว้ แล้ว<span className="marker">ไปตีด้วยกัน!</span>
-                  </h1>
-                </div>
-                <span className="chip bg-paper/90 py-2 text-caption text-ink-2 shadow-[0_2px_0_var(--line-2)] ring-2 ring-inset ring-line backdrop-blur-sm">
-                  สนามว่างเมื่อไหร่ เรียกคิวที่ 1 ลงได้เลย 🏸
-                </span>
-              </div>
-
-              {/* The line (Q1–Q3) and the games being played, side by side from
-                  lg up. Q1 leads: whoever holds the tablet can call it straight
-                  onto court with one tap. */}
-              <div data-flip-scroll className="scroll-pane flex flex-col gap-4 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pb-2 xl:pr-1.5">
-                <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:items-start lg:gap-5">
-                  <div className="flex min-w-0 flex-col gap-3">
-                    <SectionHeader
-                      eyebrow="GAME QUEUE"
-                      title="คิวเกม"
-                      count={queue.length}
-                      of={MAX_QUEUED_GAMES}
-                      unit="คิว"
-                      icon={<IconTicket className="h-5 w-5" />}
-                      tone="bg-sun text-ink shadow-[0_3px_0_var(--sun-ledge)]"
-                    />
-                    {queue.map((q, i) => {
-                      const first = q.number === 1;
-                      const fullTeams = q.teamA.length === 2 && q.teamB.length === 2;
-                      return (
-                        <QueuedGameCard
-                          key={q.id}
-                          q={q}
-                          isAdmin={isAdmin}
-                          pairWarn={teamPairWarn}
-                          selectedId={qSel?.queueId === q.id ? qSel.playerId : null}
-                          filling={fillQ?.id === q.id}
-                          canSend={first && fullTeams && slotsFree > 0}
-                          sendBlockedReason={
-                            !first
-                              ? null
-                              : !fullTeams
-                                ? "ต้องมีผู้เล่นครบ 4 คนก่อนเรียกลงสนาม"
-                                : slotsFree === 0
-                                  ? `สนามเต็ม ${games.length}/${courtCount} — จบเกมก่อนแล้วค่อยเรียก`
-                                  : null
-                          }
-                          canDraw={assignable.length + q.count >= 4}
-                          onSend={handleSendQ1}
-                          onFair={() => handleFairQ(q.id)}
-                          onRandom={() => handleRandomQ(q.id)}
-                          onToggleFill={() => handleToggleFill(q.id)}
-                          onDelete={() => handleDeleteQ(q.id)}
-                          onPlayerTap={(pid) => handleQueuedPlayerTap(q.id, pid)}
-                          onRemovePlayer={(pid) => handleRemoveFromQ(q.id, pid)}
-                          index={i}
-                        />
-                      );
-                    })}
-                    {isAdmin && !queueFull && (
-                      <NewQueuedGameCard
-                        number={queue.length + 1}
-                        canDraw={assignable.length >= 4}
-                        selectedCount={selectedIds.size}
-                        onFair={() => handleFairQ(null)}
-                        onRandom={() => handleRandomQ(null)}
-                        onPickManually={handlePickManually}
-                        onCreateFromSelected={handleCreateFromSelected}
-                        index={queue.length}
-                      />
-                    )}
-                    {!isAdmin && queue.length === 0 && (
-                      <div className={`${CARD_DASHED} anim-rise flex flex-col items-center rounded-[26px] px-4 py-7 text-center`}>
-                        <span className="anim-bob" style={{ ["--bob-y" as string]: "-6px", ["--bob-d" as string]: "3.2s" }}>
-                          <ShuttleBuddy className="h-12 w-12" mood="sleepy" />
-                        </span>
-                        <p className="mt-3 font-display text-body font-semibold text-ink-2">ยังไม่มีคิวเกม</p>
-                        <p className="mt-1 text-caption text-ink-3">รอแอดมินจัดคิวถัดไปได้เลย</p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex min-w-0 flex-col gap-3">
-                    <SectionHeader
-                      eyebrow="NOW PLAYING"
-                      title="กำลังเล่น"
-                      count={games.length}
-                      of={courtCount}
-                      unit="คอร์ต"
-                      icon={<IconCourt className="h-5 w-5" />}
-                      tone="bg-teal text-ink shadow-[0_3px_0_var(--teal-ledge)]"
-                    />
-                    {games.map((game, i) => (
-                      <CourtCard
-                        key={game.id}
-                        court={game}
-                        byId={playersById}
-                        isAdmin={isAdmin}
-                        finishing={finishingIds.has(game.id)}
-                        onFinish={handleFinish}
-                        onCancel={handleRemove}
-                        index={i}
-                      />
-                    ))}
-                    {Array.from({ length: slotsFree }, (_, i) => (
-                      <FreeSlotCard
-                        key={`free-${i}`}
-                        index={games.length + i}
-                        cta={i === 0 && isAdmin && q1 && q1Full ? { players: [...q1.teamA, ...q1.teamB], onSend: handleSendQ1 } : null}
-                        hint={freeSlotHint}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </section>
-          </div>
+        <main className="relative mx-auto flex w-full min-w-0 max-w-[1600px] flex-1 flex-col overflow-x-hidden px-3 pb-32 pt-1 sm:px-5 lg:min-h-0 lg:pb-4 lg:pt-6">
+          <Board
+            isAdmin={isAdmin}
+            activeView={activeView}
+            onViewChange={setActiveView}
+            courtCount={courtCount}
+            games={games}
+            playersById={playersById}
+            finishingIds={finishingIds}
+            onFinish={handleFinish}
+            onCancel={handleRemove}
+            queue={queue}
+            maxQueued={MAX_QUEUED_GAMES}
+            waiting={assignable}
+            resting={resting}
+            selectedIds={selectedIds}
+            qSel={qSel}
+            fillQueueId={fillQ?.id ?? null}
+            pick={queuePick}
+            pairWarn={teamPairWarn}
+            stats={{ totalPlayers: players.length, playing: playingCount, gamesPlayed: totalGamesPlayed }}
+            onSendQ1={handleSendQ1}
+            onFairQ={handleFairQ}
+            onRandomQ={handleRandomQ}
+            onToggleFill={handleToggleFill}
+            onDeleteQ={handleDeleteQ}
+            onQueuedPlayerTap={handleQueuedPlayerTap}
+            onRemoveFromQ={handleRemoveFromQ}
+            onCreateFromSelected={handleCreateFromSelected}
+            onPickManually={handlePickManually}
+            onAddPlayer={handleAddPlayer}
+            onOpenRegistry={() => setShowRegistry(true)}
+            onWaitingTap={handleWaitingTap}
+            onRest={handleRest}
+            onResume={handleResume}
+            onDelete={handleDelete}
+          />
         </main>
       ))}
 
-      {/* ── Selection bar — names, not just a count ────────────────── */}
+      {/* ── Pick dock — names, not just a count ────────────────── */}
       <AnimatePresence>
       {isAdmin && sessionActive && selectedPlayers.length > 0 && (
-        <SelectionTray key="tray" className="sticky bottom-[calc(5.6rem+env(safe-area-inset-bottom))] z-30 shrink-0 px-3 pb-3 sm:px-5 xl:bottom-0">
-          <SelectionBar
+        <PickTray key="tray" className="sticky bottom-0 z-30 shrink-0 px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:px-5">
+          <PickDock
             players={selectedPlayers}
             queueFull={queueFull}
             nextNumber={queue.length + 1}
@@ -842,18 +698,9 @@ useEffect(() => {
             onGoToGames={() => setActiveView("courts")}
             onClear={() => setSelectedIds(new Set())}
           />
-        </SelectionTray>
+        </PickTray>
       )}
       </AnimatePresence>
-
-      {sessionActive && (
-        <BottomNav
-          active={activeView}
-          onChange={setActiveView}
-          waitingCount={assignable.length}
-          gameCount={queue.length}
-        />
-      )}
 
       {isAdmin && sessionActive && (
         <PlayerRegistryDrawer

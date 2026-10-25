@@ -27,8 +27,8 @@ export default function GlobalError({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#fff9f0",
-          color: "#23263b",
+          background: "#fcf8f1",
+          color: "#191a28",
           fontFamily: "system-ui, sans-serif",
           padding: "1.5rem",
         }}
@@ -39,15 +39,15 @@ export default function GlobalError({
             width: "100%",
             textAlign: "center",
             background: "#ffffff",
-            border: "2px solid #efe3d1",
-            borderRadius: 28,
-            boxShadow: "0 4px 0 #e3d3bb",
+            border: "none",
+            borderRadius: 36,
+            boxShadow: "0 24px 44px -22px rgba(25,26,40,0.4)",
             padding: "28px 24px",
           }}
         >
           <div style={{ fontSize: 44 }}>🏸</div>
           <h2 style={{ margin: "12px 0 4px", fontSize: 22 }}>แอปสะดุดแรงไปหน่อย</h2>
-          <p style={{ color: "#575c76", fontSize: 15, wordBreak: "break-word" }}>
+          <p style={{ color: "#44475b", fontSize: 15, wordBreak: "break-word" }}>
             {error?.message || "ลองโหลดหน้าใหม่อีกทีนะ"}
           </p>
           <button
@@ -56,11 +56,11 @@ export default function GlobalError({
               marginTop: 20,
               height: 48,
               width: "100%",
-              borderRadius: 16,
+              borderRadius: 999,
               border: "none",
-              background: "#ffc83d",
-              boxShadow: "0 4px 0 #e6a510",
-              color: "#23263b",
+              background: "#191a28",
+              boxShadow: "0 12px 26px -12px rgba(25,26,40,0.6)",
+              color: "#ffffff",
               fontSize: 15,
               fontWeight: 700,
               cursor: "pointer",

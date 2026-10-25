@@ -21,9 +21,10 @@ const STARS = [
 
 /**
  * "Closing the hall" — the mirror of <LaunchCurtain>, staged from the exact
- * "ปิดสนาม" button. Same reveal, but dusk instead of daylight: the stars come
- * out, the courts dim, and it only lifts once Firestore has actually confirmed
- * the session is over (never on a timer, never if the close fails).
+ * "ปิดสนาม" button. A lilac dusk washes out from it, the stars come out, the
+ * courts' lights go off one by one, and it only lifts once Firestore has
+ * actually confirmed the session is over (never on a timer, never if the
+ * close fails).
  */
 export function CloseCurtain({
   courtCount,
@@ -51,7 +52,7 @@ export function CloseCurtain({
       <motion.div
         aria-hidden
         className="absolute inset-0"
-        style={{ background: "linear-gradient(180deg, #e4defe 0%, #f3e6ff 46%, #ffe7da 100%)" }}
+        style={{ background: "linear-gradient(180deg, #e9e4ff 0%, #f6ecff 50%, #ffe9dc 100%)" }}
         initial={{ clipPath: circle.from }}
         animate={{ clipPath: circle.to }}
         transition={{ duration: 0.6, ease: EASE }}
@@ -69,49 +70,51 @@ export function CloseCurtain({
       </motion.div>
 
       <motion.div
-        initial={{ opacity: 0, y: 26, scale: 0.9 }}
-        animate={{ opacity: 1, y: 0, scale: 1, transition: { delay: 0.3, type: "spring", stiffness: 380, damping: 26 } }}
-        className="card relative z-10 flex w-full max-w-sm flex-col items-center rounded-[30px] px-5 py-6 text-center"
+        initial={{ opacity: 0, y: 30, scale: 0.92 }}
+        animate={{ opacity: 1, y: 0, scale: 1, transition: { delay: 0.28, type: "spring", stiffness: 360, damping: 26 } }}
+        className="relative z-10 flex w-full max-w-md flex-col items-center text-center"
       >
         {status === "error" ? (
-          <>
-            <span className="sticker grid h-14 w-14 place-items-center rounded-2xl bg-tomato-wash text-tomato-deep ring-2 ring-inset ring-tomato/20">
-              <span className="font-num text-[1.75rem] font-bold leading-none">!</span>
+          <div className="flex w-full flex-col items-center rounded-[36px] bg-paper px-6 py-8 shadow-lift">
+            <span className="grid h-14 w-14 place-items-center rounded-full bg-danger-wash text-danger-deep">
+              <span className="num text-[1.75rem] leading-none">!</span>
             </span>
-            <p className="mt-4 font-display text-lede font-semibold text-ink">ปิดสนามไม่สำเร็จ</p>
+            <p className="display mt-4 text-lede text-ink">ปิดสนามไม่สำเร็จ</p>
             <p className="mt-1.5 text-caption text-ink-3">{errorMessage || "ลองอีกครั้งนะ อาจเป็นที่การเชื่อมต่อ"}</p>
-            <button type="button" onClick={onRetry} className="btn btn-sun mt-5 h-12 rounded-full px-7">
+            <button type="button" onClick={onRetry} className="btn btn-ink mt-5 h-12 px-7">
               ลองใหม่
             </button>
-          </>
+          </div>
         ) : (
           <>
-            {/* The courts that were live go quiet instead of arriving. */}
-            <div className="flex items-end justify-center gap-2.5">
+            {/* Each court's lights go off in turn. */}
+            <div className="flex items-end justify-center gap-3">
               {Array.from({ length: Math.max(courtCount, 1) }, (_, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 1, y: 0, scale: 1 }}
-                  animate={{ opacity: 0.6, y: 4, scale: 0.94 }}
-                  transition={{ delay: 0.42 + i * 0.08, duration: 0.5, ease: EASE }}
-                  className="w-20 sm:w-24"
-                >
+                <div key={i} className="relative w-24 sm:w-28">
                   <CourtArt lit={false} />
-                </motion.div>
+                  <motion.span
+                    className="absolute inset-0"
+                    initial={{ opacity: 1 }}
+                    animate={{ opacity: 0 }}
+                    transition={{ delay: 0.45 + i * 0.16, duration: 0.45, ease: EASE }}
+                  >
+                    <CourtArt lit />
+                  </motion.span>
+                </div>
               ))}
             </div>
 
-            <div className="mt-4 flex items-baseline gap-2 text-ink">
-              <span className="num text-h2 leading-none">
+            <div className="mt-6 flex items-baseline gap-2.5">
+              <span className="num text-[4.5rem] leading-none text-lilac-deep">
                 <Tick value={courtCount} />
               </span>
-              <span className="font-display text-lede font-medium">คอร์ตปิดไฟแล้ว</span>
+              <span className="display text-title text-ink">คอร์ตปิดไฟแล้ว</span>
             </div>
 
-            <div className="mt-3 flex min-h-8 items-center justify-center">
+            <div className="mt-4 flex min-h-10 items-center justify-center">
               {status === "closing" ? (
-                <span className="flex items-center gap-2 font-display text-caption text-ink-3">
-                  <WorkingDots tone="bg-lilac" />
+                <span className="flex items-center gap-2 rounded-full bg-paper/70 px-4 py-2.5 font-display text-caption text-ink-2">
+                  <WorkingDots tone="bg-lilac-deep" />
                   กำลังปิดสนาม…
                 </span>
               ) : (
@@ -119,7 +122,7 @@ export function CloseCurtain({
                   initial={{ scale: 0.5, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ type: "spring", stiffness: 460, damping: 18 }}
-                  className="chip gap-2 bg-lilac-wash px-3.5 py-2 text-caption text-lilac-deep ring-2 ring-inset ring-lilac/30"
+                  className="chip gap-2 bg-paper px-4 py-2.5 text-caption text-lilac-deep shadow-soft"
                 >
                   <ShuttleBuddy className="-my-1 h-6 w-6" mood="sleepy" />✓ ปิดสนามแล้ว วันนี้เล่นสนุกกัน
                 </motion.span>

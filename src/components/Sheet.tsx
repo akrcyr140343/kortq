@@ -8,7 +8,8 @@ import { IconX } from "./icons";
 import { sheetIn, sheetOut } from "./motion";
 
 /**
- * The app's panel for longer tasks (history, roster).
+ * The app's panel for longer tasks (history, roster) — a dark slab that
+ * slides over the hall.
  *
  *  - Phones: a bottom sheet that rises from the thumb zone; drag the handle /
  *    title down (or tap the backdrop, or Esc) to dismiss.
@@ -73,7 +74,7 @@ export function Sheet({
             animate={{ opacity: 1, transition: { duration: 0.24 } }}
             exit={{ opacity: 0, transition: { duration: 0.2 } }}
             onClick={onClose}
-            className="absolute inset-0 bg-ink/35 backdrop-blur-[3px]"
+            className="absolute inset-0 bg-ink/30 backdrop-blur-[4px]"
           />
 
           <motion.aside
@@ -91,8 +92,8 @@ export function Sheet({
             }}
             className={
               wide
-                ? "absolute inset-y-0 right-0 flex h-full w-full max-w-md flex-col border-l-2 border-line bg-cream shadow-[-24px_0_60px_-30px_rgba(91,62,24,0.45)]"
-                : "absolute inset-x-0 bottom-0 flex h-[92dvh] flex-col rounded-t-[30px] border-t-2 border-line bg-cream shadow-[0_-24px_60px_-30px_rgba(91,62,24,0.5)]"
+                ? "absolute inset-y-0 right-0 flex h-full w-full max-w-md flex-col overflow-hidden rounded-l-[32px] bg-canvas shadow-lift"
+                : "absolute inset-x-0 bottom-0 flex h-[92dvh] flex-col overflow-hidden rounded-t-[32px] bg-canvas shadow-lift"
             }
           >
             {/* Drag handle + title (phones drag from here) */}
@@ -102,14 +103,14 @@ export function Sheet({
                 wide ? "pt-[calc(env(safe-area-inset-top)+1.25rem)]" : "touch-none pt-2.5"
               }`}
             >
-              {!wide && <span aria-hidden className="mx-auto mb-3 block h-1.5 w-11 rounded-full bg-line-2" />}
+              {!wide && <span aria-hidden className="mx-auto mb-3 block h-1.5 w-12 rounded-full bg-line-2" />}
               <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-3">
                   {icon}
                   <div className="min-w-0">
                     {eyebrow && <span className="eyebrow block text-ink-3">{eyebrow}</span>}
-                    <h2 className="mt-1 font-display text-title font-semibold text-ink">{title}</h2>
-                    {subtitle && <p className="mt-0.5 text-caption text-ink-3">{subtitle}</p>}
+                    <h2 className="display mt-1 text-h3 leading-none text-ink">{title}</h2>
+                    {subtitle && <p className="mt-1.5 text-caption text-ink-3">{subtitle}</p>}
                   </div>
                 </div>
                 <button
@@ -117,7 +118,7 @@ export function Sheet({
                   onClick={onClose}
                   onPointerDown={(e) => e.stopPropagation()}
                   aria-label="ปิด"
-                  className="btn h-11 w-11 shrink-0 rounded-full px-0"
+                  className="btn h-11 w-11 shrink-0 px-0"
                 >
                   <IconX className="h-5 w-5" />
                 </button>

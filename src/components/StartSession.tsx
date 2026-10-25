@@ -1,74 +1,34 @@
 "use client";
 
-import { useState } from "react";
-import Image from "next/image";
+import { useState, type CSSProperties } from "react";
 import { useAdmin } from "@/context/AdminContext";
 import { startSession } from "@/lib/db";
 import { CourtArt, ShuttleBuddy } from "./art";
 import { IconArrowRight, IconCheck } from "./icons";
 import { staggerDelay } from "./motion";
 
-/** The illustrated "title screen": sunny court, two players mid-rally. */
-function HeroScene() {
+/** Words that rise out of a mask one after another. */
+function Kinetic({ words, start = 0, className = "" }: { words: string[]; start?: number; className?: string }) {
   return (
-    <div className="anim-rise relative h-[15.5rem] w-full overflow-hidden rounded-[32px] border-2 border-line bg-sky-wash shadow-[0_4px_0_var(--line-2)] sm:h-[19rem]">
-      <Image
-        src="/kortq-court-bg-clean.webp"
-        alt=""
-        fill
-        priority
-        sizes="(max-width: 768px) 100vw, 46rem"
-        className="object-cover object-[50%_72%]"
-      />
-      <div aria-hidden className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white/50 to-transparent" />
-
-      <span
-        className="sticker chip anim-pop absolute left-1/2 top-4 -translate-x-1/2 bg-paper/95 px-3.5 py-2 text-ink-2 ring-2 ring-line"
-        style={{ ...staggerDelay(3), ["--tilt" as string]: "-3deg" }}
-      >
-        <span className="eyebrow text-teal-deep">KD CLUB · LET&apos;S PLAY</span>
-      </span>
-
-      {/* The shuttle buddy floats over the net between them. */}
-      <span
-        aria-hidden
-        className="anim-bob absolute left-1/2 top-[34%] -ml-6"
-        style={{ ["--bob-y" as string]: "-12px", ["--bob-r" as string]: "10deg", ["--bob-d" as string]: "2.8s" }}
-      >
-        <ShuttleBuddy className="h-12 w-12 drop-shadow-[0_6px_6px_rgba(91,62,24,0.25)]" mood="wow" />
-      </span>
-
-      <div
-        aria-hidden
-        className="anim-bob absolute -bottom-3 -left-2 sm:left-6"
-        style={{ ["--bob-y" as string]: "-6px", ["--bob-d" as string]: "4.6s" }}
-      >
-        <Image
-          src="/kortq-mascot-female.webp"
-          alt=""
-          width={651}
-          height={1100}
-          priority
-          className="h-[14.5rem] w-auto drop-shadow-[0_10px_12px_rgba(20,80,90,0.25)] sm:h-[18.5rem]"
-        />
-      </div>
-      <div
-        aria-hidden
-        className="anim-bob absolute -bottom-2 -right-1 sm:right-6"
-        style={{ ["--bob-y" as string]: "-14px", ["--bob-d" as string]: "3.6s" }}
-      >
-        <Image
-          src="/kortq-mascot-male.webp"
-          alt=""
-          width={598}
-          height={1100}
-          priority
-          className="h-[15rem] w-auto drop-shadow-[0_10px_12px_rgba(20,80,90,0.25)] sm:h-[19rem]"
-        />
-      </div>
-    </div>
+    <>
+      {words.map((w, i) => (
+        <span key={i} className="kq-word">
+          <span className={className} style={{ animationDelay: `${(start + i * 0.09).toFixed(2)}s` }}>
+            {w}
+          </span>
+        </span>
+      ))}
+    </>
   );
 }
+
+/** Soft colour shapes drifting behind the title — the club's confetti at rest. */
+const SHAPES: Array<{ cls: string; style: CSSProperties }> = [
+  { cls: "left-[4%] top-[6%] h-28 w-28 rounded-full bg-lime/70", style: { ["--fd" as string]: "8s", ["--fx" as string]: "10px", ["--fy" as string]: "-16px" } },
+  { cls: "right-[6%] top-[10%] h-20 w-20 rounded-[28%] bg-sky/45 rotate-12", style: { ["--fd" as string]: "10s", ["--fx" as string]: "-12px", ["--fy" as string]: "14px" } },
+  { cls: "right-[14%] top-[52%] h-14 w-14 rounded-full bg-coral/45", style: { ["--fd" as string]: "7s", ["--fx" as string]: "8px", ["--fy" as string]: "-12px" } },
+  { cls: "left-[10%] top-[60%] h-16 w-16 rounded-[30%] bg-sun/60 -rotate-12", style: { ["--fd" as string]: "11s", ["--fx" as string]: "-8px", ["--fy" as string]: "-10px" } },
+];
 
 export function StartSession({
   onLaunch,
@@ -100,32 +60,45 @@ export function StartSession({
   }
 
   return (
-    <div className="flex flex-1 justify-center px-3 pb-14 pt-3 sm:px-6 sm:pt-6">
-      <div className="flex w-full max-w-[46rem] flex-col items-center text-center">
-        <HeroScene />
+    <div className="relative flex flex-1 justify-center overflow-hidden px-4 pb-14 pt-8 sm:px-6 sm:pt-12">
+      <div aria-hidden className="pointer-events-none absolute inset-0">
+        {SHAPES.map((s, i) => (
+          <span key={i} className={`anim-float absolute ${s.cls}`} style={s.style} />
+        ))}
+      </div>
 
-        <h1
-          className="anim-rise mt-6 font-display text-[2.375rem] font-semibold leading-[1.1] text-ink sm:text-h1"
-          style={staggerDelay(2)}
-        >
-          {isAdmin ? (
-            <>
-              <span className="marker">เปิดสนาม</span>กันเลย!
-            </>
-          ) : (
-            <>
-              ยัง<span className="marker" style={{ ["--marker" as string]: "var(--lilac)" }}>ไม่เปิดสนาม</span>
-            </>
-          )}
-        </h1>
+      <div className="relative grid w-full max-w-[64rem] items-center gap-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:gap-12">
+        {/* ── Title ─────────────────────────────────────────────── */}
+        <div className="text-center lg:text-left">
+          <span className="eyebrow anim-fade inline-flex items-center gap-2 rounded-full bg-paper px-3 py-2 text-ink-2 shadow-soft">
+            <span aria-hidden className={`h-2 w-2 rounded-full ${isAdmin ? "live-dot bg-court" : "bg-lilac"}`} />
+            KD CLUB · {isAdmin ? "TONIGHT" : "LIGHTS OFF"}
+          </span>
+          <h1 className="display mt-5 text-[3rem] leading-[0.98] text-ink sm:text-[4.25rem] lg:text-mega">
+            {isAdmin ? (
+              <>
+                <Kinetic words={["เปิดสนาม"]} start={0.05} />
+                <br />
+                <Kinetic words={["กันเลย!"]} start={0.16} className="rounded-2xl bg-lime px-3" />
+              </>
+            ) : (
+              <>
+                <Kinetic words={["ยังไม่"]} start={0.05} />
+                <br />
+                <Kinetic words={["เปิดสนาม"]} start={0.14} className="rounded-2xl bg-lilac-wash px-3 text-lilac-deep" />
+              </>
+            )}
+          </h1>
+          <p className="anim-rise mx-auto mt-5 max-w-md text-body text-ink-2 sm:text-lede lg:mx-0" style={staggerDelay(4)}>
+            {isAdmin ? "เลือกจำนวนคอร์ตวันนี้ แล้วเริ่มจัดคิวได้เลย" : "รอแอดมินเปิดสนามอยู่นะ อีกเดี๋ยวก็ได้ตีแล้ว"}
+          </p>
+        </div>
 
-        <p className="anim-rise mt-3 max-w-md text-body text-ink-2 sm:text-lede" style={staggerDelay(3)}>
-          {isAdmin ? "เลือกจำนวนคอร์ตวันนี้ แล้วเริ่มจัดคิวได้เลย 🏸" : "รอแอดมินเปิดสนามอยู่นะ อีกเดี๋ยวก็ได้ตีแล้ว"}
-        </p>
-
+        {/* ── Court picker / waiting card ───────────────────────── */}
         {isAdmin ? (
-          <div className="w-full max-w-[34rem]">
-            <div className="anim-rise mt-6 grid grid-cols-2 gap-3 sm:gap-4" style={staggerDelay(4)} role="group" aria-label="จำนวนคอร์ต">
+          <div className="anim-rise mx-auto w-full max-w-[30rem] rounded-[36px] bg-paper p-4 shadow-lift sm:p-5" style={staggerDelay(3)}>
+            <span className="eyebrow block px-1 text-ink-3">วันนี้กี่คอร์ต?</span>
+            <div className="mt-3 grid grid-cols-2 gap-3" role="group" aria-label="จำนวนคอร์ต">
               {[2, 3].map((n) => {
                 const active = courtCount === n;
                 return (
@@ -134,70 +107,64 @@ export function StartSession({
                     type="button"
                     onClick={() => setCourtCount(n)}
                     aria-pressed={active}
-                    className={`card relative flex flex-col items-center rounded-[26px] px-3 pb-4 pt-6 transition-[translate,border-color,box-shadow] duration-200 active:translate-y-0.5 ${
-                      active ? "card-next -translate-y-1" : "hover:-translate-y-0.5"
+                    className={`relative flex flex-col items-center rounded-[26px] px-3 pb-3 pt-4 transition-[transform,background-color,box-shadow] duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] active:scale-95 ${
+                      active ? "-rotate-1 bg-lime shadow-lift" : "bg-mist hover:-translate-y-1"
                     }`}
                   >
-                    {/* Choosing a count stamps the tick and lights its court. */}
                     <span
                       key={active ? "on" : "off"}
                       aria-hidden
-                      className={`absolute right-3 top-3 grid h-7 w-7 place-items-center rounded-full ${
-                        active ? "anim-stamp bg-teal text-ink shadow-[0_2px_0_var(--teal-ledge)]" : "bg-sand text-transparent ring-2 ring-inset ring-line-2"
+                      className={`absolute right-3 top-3 grid h-6 w-6 place-items-center rounded-full ${
+                        active ? "anim-stamp bg-ink text-lime" : "bg-paper text-transparent"
                       }`}
                     >
-                      <IconCheck className="h-4 w-4" />
+                      <IconCheck className="h-3.5 w-3.5" />
                     </span>
-                    <span key={active ? "lit" : "dim"} className={`block w-full max-w-[10rem] ${active ? "anim-pop" : ""}`}>
-                      <CourtArt lit={active} />
+                    <span className="num text-[4rem] leading-[0.9] text-ink">{n}</span>
+                    <span className="font-display text-caption font-medium text-ink-2">คอร์ต</span>
+                    {/* One mini court per court — they light up when chosen. */}
+                    <span key={active ? "lit" : "dim"} className="mt-3 grid w-full grid-cols-3 gap-1">
+                      {Array.from({ length: n }, (_, i) => (
+                        <span key={i} className={active ? "anim-hop-in" : ""} style={active ? staggerDelay(i, 0.07) : undefined}>
+                          <CourtArt lit={active} />
+                        </span>
+                      ))}
                     </span>
-                    <span className={`num mt-1 text-[2.75rem] leading-none ${active ? "text-ink" : "text-ink-3"}`}>{n}</span>
-                    <span className="font-display text-caption font-medium text-ink-3">คอร์ต</span>
                   </button>
                 );
               })}
             </div>
 
-            {/* The entrance lives on a wrapper so it never fights the button's
+            {/* The entrance lives on the card so it never fights the button's
                 own busy-shine animation. */}
-            <div className="anim-rise mt-5" style={staggerDelay(5)}>
-              <button
-                type="button"
-                onClick={handleStart}
-                disabled={busy}
-                className={`btn btn-teal ${busy ? "is-busy" : "pulse-ring"} h-16 w-full rounded-[22px] text-lede`}
-              >
-                <ShuttleBuddy className="-my-2 h-10 w-10" />
-                <span>{busy ? "กำลังเปิดสนาม…" : "เปิดสนามเลย!"}</span>
-                <span aria-hidden className="absolute right-3 grid h-10 w-10 place-items-center rounded-full bg-ink/10">
-                  <IconArrowRight className="h-5 w-5" />
-                </span>
-              </button>
-            </div>
-            <p className="eyebrow anim-fade mt-5 text-ink-3" style={staggerDelay(7)}>
-              MORE GAMES · MORE FRIENDS · A HAPPIER YOU
-            </p>
+            <button
+              type="button"
+              onClick={handleStart}
+              disabled={busy}
+              className={`btn btn-ink ${busy ? "is-busy" : "pulse-ring"} mt-4 h-16 w-full justify-between pl-6 pr-2 text-lede`}
+              style={{ ["--ring" as string]: "rgba(25,26,40,0.3)" }}
+            >
+              <span>{busy ? "กำลังเปิดสนาม…" : "เปิดสนามเลย!"}</span>
+              <span aria-hidden className="grid h-12 w-12 place-items-center rounded-full bg-lime text-ink">
+                <IconArrowRight className="h-5 w-5" />
+              </span>
+            </button>
+            <p className="eyebrow mt-4 text-center text-ink-4">MORE GAMES · MORE FRIENDS · A HAPPIER YOU</p>
           </div>
         ) : (
-          <div
-            className="card anim-rise mt-6 flex w-full max-w-sm items-center gap-4 rounded-[26px] px-5 py-4 text-left"
-            style={staggerDelay(4)}
-          >
-            <span className="relative shrink-0">
-              <ShuttleBuddy className="h-14 w-14" mood="sleepy" />
+          <div className="anim-rise mx-auto flex w-full max-w-sm flex-col items-center rounded-[36px] bg-paper p-6 text-center shadow-lift" style={staggerDelay(3)}>
+            <span className="relative">
+              <ShuttleBuddy className="h-20 w-20" mood="sleepy" />
               <span aria-hidden className="anim-zzz num absolute -right-1 -top-2 text-caption text-lilac-deep">z</span>
-              <span
-                aria-hidden
-                className="anim-zzz num absolute -right-3.5 -top-4 text-body text-lilac-deep"
-                style={{ animationDelay: "0.8s" }}
-              >
+              <span aria-hidden className="anim-zzz num absolute -right-4 -top-5 text-body text-lilac-deep" style={{ animationDelay: "0.8s" }}>
                 Z
               </span>
             </span>
-            <div className="min-w-0">
-              <p className="font-display text-body font-medium text-ink">สนามยังปิดไฟอยู่</p>
-              <p className="mt-0.5 text-caption text-ink-3">เปิดเมื่อไหร่ หน้านี้จะเปลี่ยนเองทันที ไม่ต้องรีเฟรช</p>
+            <div className="mt-3 w-40">
+              <CourtArt lit={false} />
             </div>
+            <p className="display mt-4 text-body text-ink">สนามยังปิดไฟอยู่</p>
+            <p className="mt-1 text-caption text-ink-3">เปิดเมื่อไหร่ หน้านี้จะเปลี่ยนเองทันที ไม่ต้องรีเฟรช</p>
           </div>
         )}
       </div>

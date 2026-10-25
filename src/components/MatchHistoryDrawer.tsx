@@ -20,9 +20,9 @@ import { Sheet } from "./Sheet";
 
 type Mode = "player" | "timeline";
 
-/** Team pills — sky for Team A, pink for Team B, matching the court cards. */
+/** Team pills — sky for Team A, coral for Team B, matching the courts. */
 function TeamChips({ team, tone }: { team: NamedIdentity[]; tone: "a" | "b" }) {
-  const cls = tone === "a" ? "bg-sky-wash text-sky-deep" : "bg-pink-wash text-pink-deep";
+  const cls = tone === "a" ? "bg-sky-wash text-sky-deep ring-1 ring-inset ring-sky/20" : "bg-coral-wash text-coral-deep ring-1 ring-inset ring-coral/20";
   return (
     <div className="flex flex-wrap gap-1.5">
       {team.map((p) => (
@@ -40,10 +40,10 @@ function TeamChips({ team, tone }: { team: NamedIdentity[]; tone: "a" | "b" }) {
 
 /** A "คู่กับ / เจอกับ" row: avatar + name on the left, count bubble on the right. */
 function RelationRow({ stat, tone, index }: { stat: RelationStat; tone: "partner" | "rival"; index: number }) {
-  const chip = tone === "partner" ? "bg-teal-wash text-teal-deep" : "bg-pink-wash text-pink-deep";
+  const chip = tone === "partner" ? "bg-court-wash text-court-deep" : "bg-coral-wash text-coral-deep";
   return (
     <li
-      className="anim-enter-x flex items-center gap-2.5 rounded-2xl border-2 border-line bg-paper py-1.5 pl-1.5 pr-2"
+      className="anim-enter-x flex items-center gap-2.5 rounded-2xl border border-line bg-paper py-1.5 pl-1.5 pr-2"
       style={staggerDelay(Math.min(index, 8), 0.03)}
     >
       <Avatar name={stat.name} seed={seedOfIdentity(stat.identity)} size="sm" />
@@ -58,7 +58,7 @@ function RelationRow({ stat, tone, index }: { stat: RelationStat; tone: "partner
 
 function EmptyHint({ title, sub }: { title: string; sub?: string }) {
   return (
-    <div className="anim-rise flex flex-col items-center rounded-[22px] border-2 border-dashed border-line-2 bg-sand/60 px-4 py-9 text-center">
+    <div className="anim-rise flex flex-col items-center rounded-[22px] border border-dashed border-line-2 px-4 py-9 text-center">
       <span className="anim-bob" style={{ ["--bob-y" as string]: "-6px", ["--bob-d" as string]: "3.2s" }}>
         <ShuttleBuddy className="h-12 w-12" mood="sleepy" />
       </span>
@@ -129,9 +129,9 @@ export function MatchHistoryDrawer({
   const totalGames = matches.length;
   const courtCount = session?.courtCount ?? courts.length;
 
-  // Mode switch — the sun pill slides to the chosen view.
+  // Mode switch — the lime pill slides to the chosen view.
   const toolbar = (
-    <div className="grid grid-cols-2 gap-1 rounded-2xl bg-sand p-1" role="group" aria-label="มุมมอง">
+    <div className="seg grid-cols-2" role="group" aria-label="มุมมอง">
       {(["player", "timeline"] as const).map((m) => {
         const active = mode === m;
         return (
@@ -140,7 +140,7 @@ export function MatchHistoryDrawer({
             type="button"
             onClick={() => setMode(m)}
             aria-pressed={active}
-            className={`relative h-10 rounded-xl font-display text-caption font-medium transition-colors duration-200 ${
+            className={`relative h-10 rounded-full font-display text-caption font-medium transition-colors duration-200 ${
               active ? "text-ink" : "text-ink-3 hover:text-ink"
             }`}
           >
@@ -149,7 +149,7 @@ export function MatchHistoryDrawer({
                 layoutId="history-mode-pill"
                 transition={glide}
                 aria-hidden
-                className="absolute inset-0 rounded-xl bg-sun shadow-[0_2px_0_var(--sun-ledge)]"
+                className="absolute inset-0 rounded-full bg-lime"
               />
             )}
             <span className="relative">{m === "player" ? "รายคน" : "ไทม์ไลน์"}</span>
@@ -168,7 +168,7 @@ export function MatchHistoryDrawer({
       title="ประวัติการเล่น"
       subtitle={`เล่นจบแล้ว ${totalGames} เกม · ${courtCount} คอร์ต`}
       icon={
-        <span aria-hidden className="sticker grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-sky-wash text-sky-deep ring-2 ring-inset ring-sky/25">
+        <span aria-hidden className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-sky-wash text-sky-deep ring-1 ring-inset ring-sky/25">
           <IconHistory className="h-6 w-6" />
         </span>
       }
@@ -187,7 +187,7 @@ export function MatchHistoryDrawer({
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="ค้นหาผู้เล่น…"
-                  className="h-11 w-full rounded-2xl border-2 border-line bg-paper pl-10 pr-4 font-display text-body text-ink outline-none transition-[border-color,box-shadow] duration-200 placeholder:font-sans placeholder:text-ink-4 focus:border-sky focus:shadow-[0_0_0_4px_rgba(61,157,255,0.16)]"
+                  className="field h-11 pl-10 placeholder:font-sans"
                 />
               </label>
               {shown.length === 0 ? (
@@ -203,15 +203,15 @@ export function MatchHistoryDrawer({
                         onClick={() => setSelectedIdentity(o.identity)}
                         aria-pressed={active}
                         style={staggerDelay(Math.min(i, 12), 0.02)}
-                        className={`anim-pop inline-flex items-center gap-1.5 rounded-full border-2 py-1 pl-1 pr-1.5 font-display text-caption transition-[background-color,border-color,box-shadow,translate] duration-150 active:scale-95 ${
+                        className={`anim-pop inline-flex items-center gap-1.5 rounded-full border py-1 pl-1 pr-1.5 font-display text-caption transition-[background-color,border-color,box-shadow,translate] duration-150 active:scale-95 ${
                           active
-                            ? "-translate-y-px border-ink bg-sun-wash text-ink shadow-[0_2px_0_var(--ink)]"
-                            : "border-line bg-paper text-ink-2 hover:border-line-2"
-                        } ${!o.inSession ? "italic opacity-80" : ""}`}
+                            ? "-translate-y-px border-ink bg-lime text-ink shadow-soft"
+                            : "border-line-2 bg-paper text-ink-2 hover:border-line-2"
+                        } ${!o.inSession ? "italic opacity-70" : ""}`}
                       >
                         <Avatar name={o.name} seed={seedOfIdentity(o.identity)} size="xs" />
                         <span className="max-w-[9rem] truncate">{o.name}</span>
-                        <span className={`num rounded-full px-1.5 text-[0.6875rem] ${active ? "bg-ink text-sun" : "bg-sand text-ink-3"}`}>
+                        <span className={`num rounded-full px-1.5 text-[0.6875rem] ${active ? "bg-lime text-ink" : "bg-mist text-ink-3"}`}>
                           {o.gamesPlayed}
                         </span>
                       </button>
@@ -226,7 +226,7 @@ export function MatchHistoryDrawer({
               <EmptyHint title="เลือกผู้เล่นเพื่อดูสถิติ" sub="แตะชื่อด้านบน" />
             ) : summary.gamesPlayed === 0 ? (
               <div key={selectedIdentity} className="anim-rise space-y-3">
-                <div className="card flex items-center gap-3 rounded-[22px] px-4 py-3.5">
+                <div className="surface flex items-center gap-3 rounded-[22px] px-4 py-3.5">
                   <Avatar name={summary.name} seed={seedOfIdentity(summary.identity)} size="lg" />
                   <div className="min-w-0">
                     <span className="block truncate font-display text-lede font-semibold text-ink">{summary.name}</span>
@@ -238,7 +238,7 @@ export function MatchHistoryDrawer({
             ) : (
               <div key={selectedIdentity} className="anim-rise space-y-4">
                 {/* Games played */}
-                <div className="card flex items-center gap-3 rounded-[22px] px-4 py-3.5">
+                <div className="surface flex items-center gap-3 rounded-[22px] px-4 py-3.5">
                   <Avatar name={summary.name} seed={seedOfIdentity(summary.identity)} size="lg" />
                   <div className="min-w-0 flex-1">
                     <span className="block truncate font-display text-lede font-semibold text-ink">{summary.name}</span>
@@ -252,7 +252,7 @@ export function MatchHistoryDrawer({
 
                 {/* Partners */}
                 <section>
-                  <h3 className="mb-2 px-1 font-display text-caption font-semibold text-teal-deep">เคยคู่กับ ({summary.partners.length})</h3>
+                  <h3 className="mb-2 px-1 font-display text-caption font-semibold text-court-deep">เคยคู่กับ ({summary.partners.length})</h3>
                   {summary.partners.length === 0 ? (
                     <p className="px-1 text-caption text-ink-3">—</p>
                   ) : (
@@ -266,7 +266,7 @@ export function MatchHistoryDrawer({
 
                 {/* Opponents */}
                 <section>
-                  <h3 className="mb-2 px-1 font-display text-caption font-semibold text-pink-deep">เคยเจอกับ ({summary.opponents.length})</h3>
+                  <h3 className="mb-2 px-1 font-display text-caption font-semibold text-coral-deep">เคยเจอกับ ({summary.opponents.length})</h3>
                   {summary.opponents.length === 0 ? (
                     <p className="px-1 text-caption text-ink-3">—</p>
                   ) : (
@@ -286,25 +286,25 @@ export function MatchHistoryDrawer({
             {timeline.length === 0 ? (
               <EmptyHint title="ยังไม่มีประวัติการเล่น" sub="เกมที่จบแล้วจะแสดงที่นี่ตามลำดับ" />
             ) : (
-              <ol className="relative space-y-3 border-l-2 border-dashed border-line-2 pl-4">
+              <ol className="relative space-y-3 border-l border-dashed border-line-2 pl-4">
                 {timeline.map((g, i) => (
                   <li key={g.id} className="anim-rise relative" style={staggerDelay(Math.min(i, 8), 0.04)}>
                     {/* A dot on the rail for every finished game. */}
-                    <span aria-hidden className="absolute -left-[1.4rem] top-4 h-3 w-3 rounded-full bg-sun ring-4 ring-cream" />
-                    <div className="card rounded-[20px] p-3">
+                    <span aria-hidden className="absolute -left-[1.4rem] top-4 h-3 w-3 rounded-full bg-lime  ring-4 ring-canvas" />
+                    <div className="surface rounded-[20px] p-3">
                       <div className="mb-2.5 flex items-center justify-between">
                         <span className="font-display text-caption font-semibold text-ink">
                           เกมที่ <span className="num">{g.index}</span>
                         </span>
-                        <span className="chip bg-sand font-num text-[0.6875rem] font-semibold tabular-nums text-ink-3">
+                        <span className="chip bg-mist font-num text-[0.6875rem] font-semibold tabular-nums text-ink-3">
                           {new Date(g.finishedAt).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}
                         </span>
                       </div>
                       <TeamChips team={g.teamA} tone="a" />
                       <div className="my-2 flex items-center gap-2">
-                        <span className="h-0.5 flex-1 rounded-full bg-line" />
+                        <span className="h-px flex-1 bg-line-2" />
                         <span className="num text-[0.625rem] text-ink-4">VS</span>
-                        <span className="h-0.5 flex-1 rounded-full bg-line" />
+                        <span className="h-px flex-1 bg-line-2" />
                       </div>
                       <TeamChips team={g.teamB} tone="b" />
                     </div>
